@@ -24,8 +24,25 @@ def get_storage():
         # Sprawdź czy MySQL jest skonfigurowane w Streamlit secrets
         if hasattr(st, 'secrets'):
             try:
-                # Sprawdź czy secrets.connections.mysql istnieje
-                if hasattr(st.secrets, 'connections') and hasattr(st.secrets.connections, 'mysql'):
+                # W TOML sekcja [connections.mysql] jest dostępna jako st.secrets.connections.mysql
+                # Sprawdź czy istnieje - użyj getattr lub try/except
+                mysql_config = None
+                try:
+                    # Spróbuj odczytać przez atrybuty
+                    if hasattr(st.secrets, 'connections'):
+                        mysql_config = getattr(st.secrets.connections, 'mysql', None)
+                except AttributeError:
+                    pass
+                
+                # Jeśli nie przez atrybuty, spróbuj przez słownik
+                if mysql_config is None:
+                    try:
+                        mysql_config = st.secrets.get('connections', {}).get('mysql', None)
+                    except (AttributeError, TypeError):
+                        pass
+                
+                # Jeśli znaleziono konfigurację MySQL, użyj MySQL storage
+                if mysql_config is not None:
                     logger.info("Używam MySQL jako storage")
                     from tipper_storage_mysql import TipperStorageMySQL
                     return TipperStorageMySQL()

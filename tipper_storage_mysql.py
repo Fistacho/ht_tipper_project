@@ -17,26 +17,50 @@ class TipperStorageMySQL:
     def __init__(self):
         """Inicjalizuje połączenie z bazą MySQL"""
         try:
-            # Użyj Streamlit connection do MySQL
+            # Użyj Streamlit connection do MySQL - automatycznie czyta z st.secrets.connections.mysql
             self.conn = st.connection('mysql', type='sql')
             self._init_database()
-            logger.info("Połączono z bazą MySQL")
+            logger.info("Połączono z bazą MySQL (przez st.connection)")
         except Exception as e:
-            logger.error(f"Błąd połączenia z MySQL: {e}")
+            logger.error(f"Błąd połączenia z MySQL przez st.connection: {e}")
             # Jeśli nie można połączyć przez Streamlit connection, spróbuj bezpośrednio przez pymysql
             try:
                 import pymysql
                 import os
-                import tomllib
                 
-                # Wczytaj secrets.toml bezpośrednio
-                secrets_path = os.path.join('.streamlit', 'secrets.toml')
-                if os.path.exists(secrets_path):
-                    with open(secrets_path, 'rb') as f:
-                        secrets = tomllib.load(f)
-                    
-                    mysql_config = secrets['connections']['mysql']
-                    
+                # Najpierw spróbuj odczytać z st.secrets (Streamlit Cloud)
+                mysql_config = None
+                try:
+                    if hasattr(st, 'secrets'):
+                        # W TOML sekcja [connections.mysql] jest dostępna jako st.secrets.connections.mysql
+                        if hasattr(st.secrets, 'connections'):
+                            mysql_config_obj = getattr(st.secrets.connections, 'mysql', None)
+                            if mysql_config_obj:
+                                mysql_config = {
+                                    'host': getattr(mysql_config_obj, 'host', None),
+                                    'port': getattr(mysql_config_obj, 'port', 3306),
+                                    'database': getattr(mysql_config_obj, 'database', None),
+                                    'username': getattr(mysql_config_obj, 'username', None),
+                                    'password': getattr(mysql_config_obj, 'password', None)
+                                }
+                except (AttributeError, KeyError) as e_secrets:
+                    logger.info(f"Nie można odczytać z st.secrets: {e_secrets}")
+                
+                # Jeśli nie ma w st.secrets, spróbuj odczytać z pliku secrets.toml (lokalnie)
+                if mysql_config is None or not all(mysql_config.values()):
+                    try:
+                        import tomllib
+                        secrets_path = os.path.join('.streamlit', 'secrets.toml')
+                        if os.path.exists(secrets_path):
+                            with open(secrets_path, 'rb') as f:
+                                secrets = tomllib.load(f)
+                            
+                            mysql_config = secrets['connections']['mysql']
+                            logger.info("Odczytano konfigurację MySQL z pliku secrets.toml")
+                    except Exception as e_file:
+                        logger.error(f"Nie można odczytać z pliku secrets.toml: {e_file}")
+                
+                if mysql_config and all(mysql_config.values()):
                     # Połącz bezpośrednio przez pymysql
                     connection = pymysql.connect(
                         host=mysql_config['host'],
@@ -66,7 +90,7 @@ class TipperStorageMySQL:
                     self._init_database()
                     logger.info("Połączono z bazą MySQL (bezpośrednio przez pymysql)")
                 else:
-                    raise
+                    raise ValueError("Brak konfiguracji MySQL w secrets")
             except Exception as e2:
                 logger.error(f"Błąd połączenia z MySQL (również bezpośrednio): {e2}")
                 raise e
