@@ -1523,15 +1523,12 @@ def main():
                                 
                                 total_saved = saved_count + updated_count
                                 if total_saved > 0:
-                                    # Zapisz zmiany
+                                    # Zapisz zmiany (dla JSON storage)
                                     if hasattr(storage, '_save_data'):
                                         storage._save_data()
-                                    # Wyczyść cache jeśli istnieje (ale nie ładuj od razu - cache się odświeży przy następnym dostępie)
-                                    if hasattr(storage, 'reload_data'):
-                                        storage.reload_data()
-                                    # Wymuś przeładowanie danych przed rerun (aby sezony były dostępne)
-                                    if hasattr(storage, 'data'):
-                                        _ = storage.data  # Wymuś przeładowanie cache
+                                    
+                                    # NIE wywołuj reload_data() - add_prediction już czyści cache
+                                    # Cache się odświeży automatycznie przy następnym dostępie po st.rerun()
                                     
                                     if updated_count > 0 and saved_count > 0:
                                         st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
@@ -1691,15 +1688,12 @@ def main():
                                     
                                     total_saved = saved_count + updated_count
                                     if total_saved > 0:
-                                        # Zapisz zmiany
+                                        # Zapisz zmiany (dla JSON storage)
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
-                                        # Wyczyść cache jeśli istnieje (ale nie ładuj od razu - cache się odświeży przy następnym dostępie)
-                                        if hasattr(storage, 'reload_data'):
-                                            storage.reload_data()
-                                        # Wymuś przeładowanie danych przed rerun (aby sezony były dostępne)
-                                        if hasattr(storage, 'data'):
-                                            _ = storage.data  # Wymuś przeładowanie cache
+                                        
+                                        # NIE wywołuj reload_data() - add_prediction już czyści cache
+                                        # Cache się odświeży automatycznie przy następnym dostępie po st.rerun()
                                         
                                         if updated_count > 0 and saved_count > 0:
                                             st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
