@@ -11,7 +11,7 @@ from typing import List, Dict
 from collections import defaultdict
 
 from tipper import Tipper
-from tipper_storage import TipperStorage
+from tipper_storage import TipperStorage, get_storage
 from hattrick_oauth_simple import HattrickOAuthSimple
 from dotenv import load_dotenv
 from auth import check_authentication, login_page, logout
@@ -91,7 +91,8 @@ def main():
         st.subheader("💾 Import/Eksport danych")
         
         # Inicjalizacja storage (wcześniej dla eksportu/importu)
-        storage = TipperStorage()
+        # Automatycznie wybiera MySQL jeśli dostępne, w przeciwnym razie JSON
+        storage = get_storage()
         
         # Eksport danych
         if st.button("📥 Pobierz backup danych", use_container_width=True, help="Pobierz aktualny plik tipper_data.json"):

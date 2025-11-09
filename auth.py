@@ -131,8 +131,8 @@ def login_page() -> bool:
     """
     # Wyświetl ranking (read-only) przed formularzem logowania
     try:
-        from tipper_storage import TipperStorage
-        storage = TipperStorage()
+        from tipper_storage import get_storage
+        storage = get_storage()
         
         # Ranking - sekcja read-only
         st.subheader("🏆 Ranking (tylko do odczytu)")

@@ -1,5 +1,6 @@
 """
 Moduł przechowywania danych typera
+Obsługuje zarówno JSON (lokalnie) jak i MySQL (na Streamlit Cloud)
 """
 import json
 import os
@@ -11,6 +12,26 @@ logger = logging.getLogger(__name__)
 
 # Ścieżka do pliku z danymi typera
 TIPPER_DATA_FILE = "tipper_data.json"
+
+
+def get_storage():
+    """
+    Factory function - zwraca odpowiedni storage w zależności od konfiguracji
+    Sprawdza czy MySQL jest dostępne (przez Streamlit secrets), jeśli nie - używa JSON
+    """
+    try:
+        import streamlit as st
+        # Sprawdź czy MySQL jest skonfigurowane w Streamlit secrets
+        if hasattr(st, 'secrets') and 'connections' in st.secrets and 'mysql' in st.secrets.connections:
+            logger.info("Używam MySQL jako storage")
+            from tipper_storage_mysql import TipperStorageMySQL
+            return TipperStorageMySQL()
+    except Exception as e:
+        logger.info(f"MySQL nie jest dostępne, używam JSON: {e}")
+    
+    # Domyślnie użyj JSON
+    logger.info("Używam JSON jako storage")
+    return TipperStorage()
 
 
 class TipperStorage:
