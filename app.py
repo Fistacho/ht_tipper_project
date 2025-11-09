@@ -25,15 +25,35 @@ st.set_page_config(
 )
 
 # Konfiguracja logowania
+import logging
+import sys
+
+# Usuń istniejące handlery, jeśli są
+root_logger = logging.getLogger()
+for handler in root_logger.handlers[:]:
+    root_logger.removeHandler(handler)
+
+# Konfiguruj logowanie z force=True (Python 3.8+)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('tipper.log'),
-        logging.StreamHandler()
-    ]
+        logging.FileHandler('tipper.log', mode='a', encoding='utf-8'),
+        logging.StreamHandler(sys.stdout)
+    ],
+    force=True
 )
 logger = logging.getLogger(__name__)
+
+# Funkcja pomocnicza do logowania bezpośrednio do pliku
+def log_to_file(message):
+    """Loguje wiadomość bezpośrednio do pliku"""
+    try:
+        with open('tipper.log', 'a', encoding='utf-8') as f:
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
+            f.flush()
+    except Exception as e:
+        print(f"Błąd zapisu do pliku logów: {e}")
 
 
 def safe_int(value, default=0):
@@ -1422,7 +1442,13 @@ def main():
                 # Wyświetl sekcję dla każdego gracza
                 for player_name in all_players_list:
                     # Pobierz istniejące typy gracza dla tej rundy (zawsze bezpośrednio z bazy, ttl=0)
+                    log_msg = f"DEBUG BULK: Pobieram existing_predictions dla {player_name} w rundzie {round_id}"
+                    logger.info(log_msg)
+                    log_to_file(log_msg)
                     existing_predictions = storage.get_player_predictions(player_name, round_id)
+                    log_msg = f"DEBUG BULK: Pobrano {len(existing_predictions)} typów dla {player_name}: {list(existing_predictions.keys())}"
+                    logger.info(log_msg)
+                    log_to_file(log_msg)
                     
                     st.markdown(f"### Typy dla: **{player_name}**")
                     
@@ -1456,15 +1482,35 @@ def main():
                             
                             # Pobierz istniejący typ
                             has_existing = match_id in existing_predictions
-                            if has_existing:
-                                existing_pred = existing_predictions[match_id]
-                                default_value = f"{safe_int(existing_pred.get('home', 0))}-{safe_int(existing_pred.get('away', 0))}"
+                            input_key = f"tipper_pred_{player_name}_{match_id}"
+                            
+                            # Ustaw wartość w session_state tylko jeśli klucz nie istnieje
+                            # To zapewnia, że po usunięciu klucza przed rerun(), wartość zostanie zaktualizowana
+                            if input_key not in st.session_state:
+                                if has_existing:
+                                    existing_pred = existing_predictions[match_id]
+                                    default_value = f"{safe_int(existing_pred.get('home', 0))}-{safe_int(existing_pred.get('away', 0))}"
+                                    st.session_state[input_key] = default_value
+                                else:
+                                    st.session_state[input_key] = ""
                             else:
-                                default_value = ""
+                                # Jeśli klucz istnieje, zaktualizuj go z existing_predictions (na wypadek zmiany w bazie)
+                                if has_existing:
+                                    existing_pred = existing_predictions[match_id]
+                                    expected_value = f"{safe_int(existing_pred.get('home', 0))}-{safe_int(existing_pred.get('away', 0))}"
+                                    # Zaktualizuj tylko jeśli wartość się zmieniła
+                                    if st.session_state[input_key] != expected_value:
+                                        log_msg = f"DEBUG BULK: Aktualizuję wartość w session_state dla {input_key}: {st.session_state[input_key]} -> {expected_value}"
+                                        logger.info(log_msg)
+                                        log_to_file(log_msg)
+                                        st.session_state[input_key] = expected_value
+                            
+                            # Pobierz existing_pred dla obliczenia punktów
+                            existing_pred = existing_predictions.get(match_id) if has_existing else None
                             
                             # Oblicz punkty jeśli mecz rozegrany
                             points_display = ""
-                            if home_goals is not None and away_goals is not None and has_existing:
+                            if home_goals is not None and away_goals is not None and has_existing and existing_pred:
                                 pred_home = existing_pred.get('home', 0)
                                 pred_away = existing_pred.get('away', 0)
                                 points = tipper.calculate_points((pred_home, pred_away), (safe_int(home_goals), safe_int(away_goals)))
@@ -1486,11 +1532,10 @@ def main():
                                 st.write(f"{status_icon} **{home_team}** vs **{away_team}**{league_info}{result_text} {points_display}")
                             with col2:
                                 if can_edit:
-                                    # Pole tekstowe bez automatycznego zapisu
+                                    # Pole tekstowe - wartość jest już w session_state
                                     st.text_input(
                                         f"Typ:",
-                                        value=default_value,
-                                        key=f"tipper_pred_{player_name}_{match_id}",
+                                        key=input_key,
                                         label_visibility="collapsed",
                                         placeholder="0-0"
                                     )
@@ -1687,16 +1732,29 @@ def main():
                         bulk_save_clicked = st.button("💾 Zapisz typy (bulk)", type="primary", key=f"tipper_bulk_save_{player_name}", use_container_width=True)
                         
                         if bulk_save_clicked:
+                            log_msg = f"DEBUG BULK: Kliknięto 'Zapisz typy (bulk)' dla {player_name} w rundzie {round_id}"
+                            logger.info(log_msg)
+                            log_to_file(log_msg)
                             if not predictions_text:
                                 st.warning("⚠️ Wprowadź typy")
                             else:
+                                log_msg = f"DEBUG BULK: Tekst do parsowania: {predictions_text[:200]}..."
+                                logger.info(log_msg)
+                                log_to_file(log_msg)
                                 # Parsuj typy z dopasowaniem do meczów
                                 parsed = tipper.parse_match_predictions(predictions_text, selected_matches)
+                                log_msg = f"DEBUG BULK: Sparsowano {len(parsed)} typów: {list(parsed.keys())}"
+                                logger.info(log_msg)
+                                log_to_file(log_msg)
                                 
                                 if parsed:
                                     saved_count = 0
                                     updated_count = 0
                                     errors = []
+                                    
+                                    log_msg = f"DEBUG BULK: Przed zapisem - existing_predictions: {list(existing_predictions.keys())}"
+                                    logger.info(log_msg)
+                                    log_to_file(log_msg)
                                     
                                     for match_id, prediction in parsed.items():
                                         # Znajdź mecz
@@ -1720,6 +1778,9 @@ def main():
                                             if can_add:
                                                 # Sprawdź czy typ już istnieje
                                                 is_update = match_id in existing_predictions
+                                                log_msg = f"DEBUG BULK: Zapisuję typ dla meczu {match_id}: {prediction}, is_update={is_update}"
+                                                logger.info(log_msg)
+                                                log_to_file(log_msg)
                                                 
                                                 storage.add_prediction(round_id, player_name, match_id, prediction)
                                                 
@@ -1731,10 +1792,23 @@ def main():
                                             errors.append(f"Nie znaleziono meczu dla ID: {match_id}")
                                     
                                     total_saved = saved_count + updated_count
+                                    log_msg = f"DEBUG BULK: Zapisano {total_saved} typów (nowych: {saved_count}, zaktualizowanych: {updated_count})"
+                                    logger.info(log_msg)
+                                    log_to_file(log_msg)
+                                    
                                     if total_saved > 0:
                                         # Zapisz zmiany (dla JSON storage)
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
+                                        
+                                        # Sprawdź typy w bazie PO zapisie
+                                        log_msg = f"DEBUG BULK: Sprawdzam typy w bazie PO zapisie dla {player_name} w rundzie {round_id}"
+                                        logger.info(log_msg)
+                                        log_to_file(log_msg)
+                                        test_predictions = storage.get_player_predictions(player_name, round_id)
+                                        log_msg = f"DEBUG BULK: Typy w bazie PO zapisie: {list(test_predictions.keys())}"
+                                        logger.info(log_msg)
+                                        log_to_file(log_msg)
                                         
                                         # Usuń klucze z session_state, aby pola tekstowe zostały ponownie zainicjalizowane z wartościami z bazy
                                         # Streamlit text_input zachowuje wartość w session_state po rerun, więc musimy je usunąć
@@ -1746,9 +1820,17 @@ def main():
                                             if input_key in st.session_state:
                                                 keys_to_remove.append(input_key)
                                         
+                                        log_msg = f"DEBUG BULK: Usuwam {len(keys_to_remove)} kluczy z session_state: {keys_to_remove}"
+                                        logger.info(log_msg)
+                                        log_to_file(log_msg)
+                                        
                                         # Usuń klucze po zakończeniu iteracji (aby uniknąć modyfikacji podczas iteracji)
                                         for key in keys_to_remove:
                                             del st.session_state[key]
+                                        
+                                        log_msg = f"DEBUG BULK: Przed st.rerun() - klucze usunięte, wywołuję rerun"
+                                        logger.info(log_msg)
+                                        log_to_file(log_msg)
                                         
                                         if updated_count > 0 and saved_count > 0:
                                             st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
@@ -1759,6 +1841,14 @@ def main():
                                         
                                         if errors:
                                             st.warning(f"⚠️ {len(errors)} typów nie zostało zapisanych:\n" + "\n".join(errors[:5]))
+                                        
+                                        # Wyczyść cache storage przed rerun
+                                        if hasattr(storage, 'reload_data'):
+                                            storage.reload_data()
+                                        
+                                        log_msg = f"DEBUG BULK: Wywołuję st.rerun()"
+                                        logger.info(log_msg)
+                                        log_to_file(log_msg)
                                         st.rerun()
                                     else:
                                         if errors:
