@@ -14,6 +14,7 @@ from tipper import Tipper
 from tipper_storage import TipperStorage
 from hattrick_oauth_simple import HattrickOAuthSimple
 from dotenv import load_dotenv
+from auth import check_authentication, login_page, logout
 
 # Konfiguracja strony
 st.set_page_config(
@@ -37,11 +38,27 @@ logger = logging.getLogger(__name__)
 
 def main():
     """Główna funkcja aplikacji typera"""
+    # Sprawdź autentykację
+    if not check_authentication():
+        login_page()
+        return
+    
+    # Pobierz nazwę użytkownika z sesji
+    username = st.session_state.get('username', 'Użytkownik')
+    
     st.title("🎯 Hattrick Typer")
     st.markdown("---")
     
     # Sidebar z konfiguracją
     with st.sidebar:
+        # Sekcja użytkownika
+        st.header("👤 Użytkownik")
+        st.info(f"Zalogowany jako: **{username}**")
+        if st.button("🚪 Wyloguj się", use_container_width=True):
+            logout()
+            return
+        
+        st.markdown("---")
         st.header("⚙️ Konfiguracja")
         
         # ID lig dla typera

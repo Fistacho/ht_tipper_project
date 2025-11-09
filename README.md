@@ -4,6 +4,7 @@ Aplikacja do prowadzenia typera dla lig Hattrick. Pozwala na wprowadzanie typów
 
 ## 📋 Funkcje
 
+- 🔐 **Autentykacja** - zabezpieczenie aplikacji loginem i hasłem
 - ✅ Wprowadzanie typów dla meczów (pojedyncze lub bulk)
 - ✅ Automatyczny zapis po wyjściu z pola tekstowego
 - ✅ Ranking per kolejka i ranking całości
@@ -29,6 +30,15 @@ pip install -r requirements.txt
      HATTRICK_ACCESS_TOKEN=twoj_access_token
      HATTRICK_ACCESS_TOKEN_SECRET=twoj_access_token_secret
      ```
+   - Skonfiguruj autentykację (login i hasło):
+     - Wygeneruj hash hasła: `python generate_password.py`
+     - Dodaj do `.env`:
+       ```
+       APP_USERNAME=admin
+       APP_PASSWORD_HASH=wygenerowany_hash
+       APP_PASSWORD_SALT=wygenerowana_sol
+       ```
+     - Domyślnie: login `admin`, hasło `admin` (zmień przed użyciem!)
 
 4. Uruchom aplikację:
 ```bash
@@ -36,6 +46,39 @@ streamlit run app.py
 ```
 
 ## ⚙️ Konfiguracja
+
+### Autentykacja (Login i Hasło)
+
+Aplikacja wymaga logowania przed dostępem do funkcji.
+
+**Konfiguracja użytkownika:**
+
+1. Wygeneruj hash hasła:
+   ```bash
+   python generate_password.py
+   ```
+
+2. Dodaj do pliku `.env`:
+   ```
+   APP_USERNAME=twoja_nazwa_uzytkownika
+   APP_PASSWORD_HASH=wygenerowany_hash
+   APP_PASSWORD_SALT=wygenerowana_sol
+   ```
+
+3. Dla wielu użytkowników (opcjonalnie):
+   ```
+   APP_USER_1_USERNAME=user1
+   APP_USER_1_PASSWORD_HASH=hash1
+   APP_USER_1_PASSWORD_SALT=salt1
+   APP_USER_2_USERNAME=user2
+   APP_USER_2_PASSWORD_HASH=hash2
+   APP_USER_2_PASSWORD_SALT=salt2
+   ```
+
+**Domyślne dane logowania:**
+- Login: `admin`
+- Hasło: `admin`
+- ⚠️ **Zmień przed użyciem w produkcji!**
 
 ### Klucze OAuth Hattrick
 
@@ -66,9 +109,11 @@ Zgodnie z regulaminem typera:
 ```
 tipper_project/
 ├── app.py                    # Główna aplikacja Streamlit
+├── auth.py                   # Moduł autentykacji (login/hasło)
 ├── tipper.py                 # Logika punktacji i parsowania
 ├── tipper_storage.py         # Przechowywanie danych (JSON)
 ├── hattrick_oauth_simple.py  # Klient OAuth dla Hattrick API
+├── generate_password.py      # Skrypt do generowania hash hasła
 ├── requirements.txt          # Zależności Python
 ├── README.md                # Ten plik
 ├── .env                      # Zmienne środowiskowe (nie commituj!)

@@ -1,0 +1,24 @@
+# Hattrick OAuth Keys
+# Uzyskaj klucze na: https://www.hattrick.org/Community/CHPP/Default.aspx
+# Skopiuj ten plik do .env i wypełnij wartości
+
+HATTRICK_CONSUMER_KEY=twoj_consumer_key
+HATTRICK_CONSUMER_SECRET=twoj_consumer_secret
+HATTRICK_ACCESS_TOKEN=twoj_access_token
+HATTRICK_ACCESS_TOKEN_SECRET=twoj_access_token_secret
+
+# Autentykacja aplikacji
+# Aby wygenerować hash hasła, uruchom: python -c "from auth import generate_password_hash; print(generate_password_hash('twoje_haslo'))"
+# Format dla pojedynczego użytkownika:
+APP_USERNAME=admin
+APP_PASSWORD_HASH=wygenerowany_hash
+APP_PASSWORD_SALT=wygenerowana_sol
+
+# Format dla wielu użytkowników (opcjonalnie):
+# APP_USER_1_USERNAME=user1
+# APP_USER_1_PASSWORD_HASH=hash1
+# APP_USER_1_PASSWORD_SALT=salt1
+# APP_USER_2_USERNAME=user2
+# APP_USER_2_PASSWORD_HASH=hash2
+# APP_USER_2_PASSWORD_SALT=salt2
+
