@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
 class TipperStorageMySQL:
     """Klasa do przechowywania i zarządzania danymi typera w MySQL"""
     
+    # Cache w pamięci (współdzielony między instancjami)
+    _memory_cache = None
+    _cache_timestamp = None
+    _cache_ttl = 30  # Cache ważny przez 30 sekund
+    
     def __init__(self):
         """Inicjalizuje połączenie z bazą MySQL"""
         # Najpierw spróbuj odczytać z płaskich zmiennych (MYSQL_HOST, MYSQL_PORT, itd.)
@@ -323,7 +328,7 @@ class TipperStorageMySQL:
     @property
     def data(self) -> Dict:
         """Zwraca dane w formacie JSON (dla kompatybilności z TipperStorage)"""
-        return self._load_data()
+        return self._load_data_cached()
     
     @data.setter
     def data(self, value: Dict):
@@ -333,8 +338,30 @@ class TipperStorageMySQL:
         # Automatycznie zaimportuj
         self._save_data()
     
+    def _load_data_cached(self) -> Dict:
+        """Ładuje dane z cache lub z bazy MySQL"""
+        import time
+        
+        # Sprawdź cache w pamięci
+        current_time = time.time()
+        if (TipperStorageMySQL._memory_cache is not None and 
+            TipperStorageMySQL._cache_timestamp is not None and
+            (current_time - TipperStorageMySQL._cache_timestamp) < TipperStorageMySQL._cache_ttl):
+            logger.info("DEBUG: Używam cache w pamięci (szybko)")
+            return TipperStorageMySQL._memory_cache
+        
+        # Cache wygasł lub nie istnieje - załaduj z bazy
+        logger.info("DEBUG: Ładuję dane z bazy MySQL (cache wygasł lub nie istnieje)")
+        data = self._load_data()
+        
+        # Zaktualizuj cache
+        TipperStorageMySQL._memory_cache = data
+        TipperStorageMySQL._cache_timestamp = current_time
+        
+        return data
+    
     def _load_data(self) -> Dict:
-        """Ładuje wszystkie dane z bazy MySQL do formatu JSON"""
+        """Ładuje wszystkie dane z bazy MySQL do formatu JSON (bez cache)"""
         try:
             data = {
                 'players': {},
@@ -466,8 +493,11 @@ class TipperStorageMySQL:
         }
     
     def reload_data(self):
-        """Przeładowuje dane z bazy (dla kompatybilności)"""
-        logger.info("Przeładowano dane z MySQL")
+        """Przeładowuje dane z bazy i czyści cache (dla kompatybilności)"""
+        # Wyczyść cache, aby wymusić przeładowanie z bazy
+        TipperStorageMySQL._memory_cache = None
+        TipperStorageMySQL._cache_timestamp = None
+        logger.info("Przeładowano dane z MySQL (cache wyczyszczony)")
     
     def _save_data(self):
         """Zapisuje dane do bazy (dla kompatybilności - dane są zapisywane na bieżąco)"""
@@ -476,6 +506,9 @@ class TipperStorageMySQL:
         if hasattr(self, '_pending_import_data'):
             self._import_data_to_mysql(self._pending_import_data)
             delattr(self, '_pending_import_data')
+            # Wyczyść cache po zapisie, aby wymusić przeładowanie
+            TipperStorageMySQL._memory_cache = None
+            TipperStorageMySQL._cache_timestamp = None
     
     def _import_data_to_mysql(self, data: Dict):
         """Importuje dane JSON do MySQL"""
@@ -666,6 +699,10 @@ class TipperStorageMySQL:
                 # Przelicz całkowite punkty gracza
                 self._recalculate_player_totals()
             
+            # Wyczyść cache po zapisie
+            TipperStorageMySQL._memory_cache = None
+            TipperStorageMySQL._cache_timestamp = None
+            
             logger.info(f"Dodano typ: {player_name} dla meczu {match_id} w rundzie {round_id}")
             return True
         except Exception as e:
@@ -704,6 +741,11 @@ class TipperStorageMySQL:
             
             # Przelicz całkowite punkty graczy
             self._recalculate_player_totals()
+            
+            # Wyczyść cache po zapisie
+            TipperStorageMySQL._memory_cache = None
+            TipperStorageMySQL._cache_timestamp = None
+            
             logger.info(f"Zaktualizowano wynik meczu {match_id} w rundzie {round_id}")
         except Exception as e:
             logger.error(f"Błąd aktualizacji wyniku meczu: {e}")
@@ -914,6 +956,10 @@ class TipperStorageMySQL:
                 f"ON DUPLICATE KEY UPDATE setting_value = '{value}'",
                 ttl=0
             )
+            # Wyczyść cache po zapisie
+            TipperStorageMySQL._memory_cache = None
+            TipperStorageMySQL._cache_timestamp = None
+            
             logger.info(f"Zapisano wybrane drużyny: {len(teams)}")
         except Exception as e:
             logger.error(f"Błąd zapisywania wybranych drużyn: {e}")
