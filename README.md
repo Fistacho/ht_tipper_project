@@ -130,6 +130,46 @@ tipper_project/
    - Typy zapisują się automatycznie po wyjściu z pola
 4. **Ranking**: Sprawdź ranking per kolejka lub ranking całości
 
+## ☁️ Wgrywanie danych do Streamlit Community Cloud
+
+Jeśli opublikowałeś aplikację w Streamlit Community Cloud i chcesz wgrać już zapisane dane (`tipper_data.json`), masz kilka opcji:
+
+### Metoda 1: Przez interfejs aplikacji (Zalecane) ⭐
+
+1. **Zaloguj się** do aplikacji w Streamlit Cloud
+2. W **sidebarze** znajdź sekcję **"💾 Import/Eksport danych"**
+3. Kliknij **"📤 Import danych z pliku"** (expander)
+4. **Wgraj plik** `tipper_data.json` z komputera
+5. Sprawdź podsumowanie danych (liczba graczy, rund)
+6. Kliknij **"💾 Zaimportuj dane"**
+7. ✅ Dane zostały zaimportowane!
+
+### Metoda 2: Przez GitHub (jeśli repo jest połączone)
+
+1. **Dodaj plik** `tipper_data.json` do repozytorium GitHub
+2. **Commit i push** zmian
+3. Streamlit Cloud **automatycznie zaktualizuje** aplikację
+4. Plik zostanie wczytany przy następnym uruchomieniu
+
+⚠️ **Uwaga**: Jeśli używasz `.gitignore`, upewnij się że `tipper_data.json` **nie jest** ignorowany (lub usuń go z `.gitignore` tymczasowo).
+
+### Metoda 3: Przez Streamlit Cloud File Manager
+
+1. Wejdź do **Streamlit Cloud Dashboard**
+2. Wybierz swoją aplikację
+3. Przejdź do **"Files"** lub **"Manage app"**
+4. **Wgraj plik** `tipper_data.json` przez interfejs
+5. Plik zostanie zapisany w katalogu głównym aplikacji
+
+### Eksport danych (Backup)
+
+Aby pobrać backup danych z aplikacji:
+1. W sidebarze kliknij **"📥 Pobierz backup danych"**
+2. Kliknij **"⬇️ Pobierz plik JSON"**
+3. Plik zostanie pobrany na Twój komputer
+
+💡 **Wskazówka**: Regularnie rób backup danych używając funkcji eksportu!
+
 ## 📝 Format wprowadzania typów (bulk)
 
 ```

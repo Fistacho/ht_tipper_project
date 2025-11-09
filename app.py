@@ -86,9 +86,71 @@ def main():
         # Informacje
         st.info(f"**Liga 1:** {league_1}")
         st.info(f"**Liga 2:** {league_2}")
+        
+        st.markdown("---")
+        st.subheader("💾 Import/Eksport danych")
+        
+        # Inicjalizacja storage (wcześniej dla eksportu/importu)
+        storage = TipperStorage()
+        
+        # Eksport danych
+        if st.button("📥 Pobierz backup danych", use_container_width=True, help="Pobierz aktualny plik tipper_data.json"):
+            import json
+            data_str = json.dumps(storage.data, ensure_ascii=False, indent=2)
+            st.download_button(
+                label="⬇️ Pobierz plik JSON",
+                data=data_str,
+                file_name="tipper_data.json",
+                mime="application/json",
+                use_container_width=True
+            )
+        
+        # Import danych
+        with st.expander("📤 Import danych z pliku", expanded=False):
+            st.markdown("**Wgraj plik tipper_data.json aby zaimportować dane:**")
+            uploaded_file = st.file_uploader(
+                "Wybierz plik JSON",
+                type=['json'],
+                help="Wgraj plik tipper_data.json z zapisanymi danymi"
+            )
+            
+            if uploaded_file is not None:
+                try:
+                    # Wczytaj dane z pliku
+                    import json
+                    uploaded_data = json.load(uploaded_file)
+                    
+                    # Walidacja struktury danych
+                    required_keys = ['players', 'rounds', 'seasons', 'leagues', 'settings']
+                    if all(key in uploaded_data for key in required_keys):
+                        st.success("✅ Plik został poprawnie wczytany!")
+                        
+                        # Pokaż podsumowanie danych
+                        players_count = len(uploaded_data.get('players', {}))
+                        rounds_count = len(uploaded_data.get('rounds', {}))
+                        
+                        st.info(f"📊 Dane w pliku:\n- Gracze: {players_count}\n- Rundy: {rounds_count}")
+                        
+                        # Przycisk importu
+                        if st.button("💾 Zaimportuj dane", type="primary", use_container_width=True):
+                            # Zrób backup przed importem
+                            backup_data = storage.data.copy()
+                            
+                            # Zaimportuj dane
+                            storage.data = uploaded_data
+                            storage._save_data()
+                            
+                            st.success("✅ Dane zostały zaimportowane pomyślnie!")
+                            st.info("🔄 Odśwież stronę aby zobaczyć zmiany")
+                            st.rerun()
+                    else:
+                        st.error("❌ Nieprawidłowy format pliku. Brakuje wymaganych kluczy.")
+                except json.JSONDecodeError:
+                    st.error("❌ Błąd parsowania JSON. Sprawdź czy plik jest poprawny.")
+                except Exception as e:
+                    st.error(f"❌ Błąd importu danych: {str(e)}")
     
-    # Inicjalizacja storage
-    storage = TipperStorage()
+    # Inicjalizacja tipper
     tipper = Tipper()
     
     # Pobierz dane z API
