@@ -21,7 +21,35 @@ class TipperStorageMySQL:
     _cache_ttl = 30  # Cache ważny przez 30 sekund
     
     def __init__(self):
-        """Inicjalizuje połączenie z bazą MySQL"""
+        """Inicjalizuje połączenie z bazą MySQL (używa współdzielonego połączenia z session_state)"""
+        # Użyj współdzielonego połączenia z session_state, aby uniknąć przekroczenia limitu połączeń
+        connection_key = 'mysql_connection_wrapper'
+        
+        # Sprawdź czy mamy już połączenie w session_state
+        if connection_key in st.session_state:
+            try:
+                # Sprawdź czy połączenie jest jeszcze aktywne
+                test_conn = st.session_state[connection_key]
+                if hasattr(test_conn, 'conn'):
+                    # Spróbuj wykonać proste zapytanie, aby sprawdzić czy połączenie działa
+                    try:
+                        import pandas as pd
+                        with test_conn.conn.cursor() as cursor:
+                            cursor.execute("SELECT 1")
+                            cursor.fetchone()
+                        logger.info("DEBUG: Używam istniejącego połączenia MySQL z session_state")
+                        self.conn = test_conn
+                        self._init_database()
+                        return
+                    except Exception:
+                        # Połączenie nie działa, usuń je i utwórz nowe
+                        logger.info("DEBUG: Istniejące połączenie MySQL nie działa, tworzę nowe")
+                        del st.session_state[connection_key]
+            except Exception as e:
+                logger.info(f"DEBUG: Błąd sprawdzania istniejącego połączenia: {e}")
+                if connection_key in st.session_state:
+                    del st.session_state[connection_key]
+        
         # Najpierw spróbuj odczytać z płaskich zmiennych (MYSQL_HOST, MYSQL_PORT, itd.)
         mysql_config = None
         
@@ -103,7 +131,8 @@ class TipperStorageMySQL:
                     password=mysql_config['password'],
                     database=mysql_config['database'],
                     charset='utf8mb4',
-                    cursorclass=pymysql.cursors.DictCursor
+                    cursorclass=pymysql.cursors.DictCursor,
+                    autocommit=True  # Włącz autocommit, aby uniknąć problemów z transakcjami
                 )
                 
                 # Użyj wrapper dla kompatybilności z st.connection
@@ -128,16 +157,19 @@ class TipperStorageMySQL:
                             # Zwróć pusty DataFrame zamiast rzucać wyjątek
                             return pd.DataFrame()
                 
-                self.conn = MySQLConnectionWrapper(connection)
+                # Zapisz połączenie w session_state, aby było współdzielone
+                wrapper = MySQLConnectionWrapper(connection)
+                st.session_state[connection_key] = wrapper
+                self.conn = wrapper
                 self._init_database()
-                logger.info("Połączono z bazą MySQL (bezpośrednio przez pymysql)")
+                logger.info("Połączono z bazą MySQL (bezpośrednio przez pymysql, współdzielone połączenie)")
             except Exception as e:
                 logger.error(f"Błąd połączenia z MySQL: {e}")
                 import traceback
                 logger.error(f"Traceback: {traceback.format_exc()}")
                 raise
         else:
-            # Fallback: spróbuj st.connection (może działać w niektórych przypadkach)
+            # Fallback: spróbuj st.connection (ma wbudowany pooling)
             try:
                 logger.info("DEBUG: Próba utworzenia połączenia MySQL przez st.connection('mysql')")
                 self.conn = st.connection('mysql', type='sql')
@@ -149,85 +181,6 @@ class TipperStorageMySQL:
                 import traceback
                 logger.error(f"Traceback: {traceback.format_exc()}")
                 raise
-            # Jeśli nie można połączyć przez Streamlit connection, spróbuj bezpośrednio przez pymysql
-            try:
-                import pymysql
-                import os
-                
-                # Najpierw spróbuj odczytać z st.secrets (Streamlit Cloud)
-                mysql_config = None
-                try:
-                    if hasattr(st, 'secrets'):
-                        # W TOML sekcja [connections.mysql] jest dostępna jako st.secrets.connections.mysql
-                        if hasattr(st.secrets, 'connections'):
-                            mysql_config_obj = getattr(st.secrets.connections, 'mysql', None)
-                            if mysql_config_obj:
-                                mysql_config = {
-                                    'host': getattr(mysql_config_obj, 'host', None),
-                                    'port': getattr(mysql_config_obj, 'port', 3306),
-                                    'database': getattr(mysql_config_obj, 'database', None),
-                                    'username': getattr(mysql_config_obj, 'username', None),
-                                    'password': getattr(mysql_config_obj, 'password', None)
-                                }
-                except (AttributeError, KeyError) as e_secrets:
-                    logger.info(f"Nie można odczytać z st.secrets: {e_secrets}")
-                
-                # Jeśli nie ma w st.secrets, spróbuj odczytać z pliku secrets.toml (lokalnie)
-                if mysql_config is None or not all(mysql_config.values()):
-                    try:
-                        import tomllib
-                        secrets_path = os.path.join('.streamlit', 'secrets.toml')
-                        if os.path.exists(secrets_path):
-                            with open(secrets_path, 'rb') as f:
-                                secrets = tomllib.load(f)
-                            
-                            mysql_config = secrets['connections']['mysql']
-                            logger.info("Odczytano konfigurację MySQL z pliku secrets.toml")
-                    except Exception as e_file:
-                        logger.error(f"Nie można odczytać z pliku secrets.toml: {e_file}")
-                
-                if mysql_config and all(mysql_config.values()):
-                    # Połącz bezpośrednio przez pymysql
-                    connection = pymysql.connect(
-                        host=mysql_config['host'],
-                        port=int(mysql_config['port']),
-                        user=mysql_config['username'],
-                        password=mysql_config['password'],
-                        database=mysql_config['database'],
-                        charset='utf8mb4',
-                        cursorclass=pymysql.cursors.DictCursor
-                    )
-                    
-                    # Użyj wrapper dla kompatybilności z st.connection
-                    class MySQLConnectionWrapper:
-                        def __init__(self, conn):
-                            self.conn = conn
-                        
-                        def query(self, sql, ttl=600):
-                            import pandas as pd
-                            try:
-                                with self.conn.cursor() as cursor:
-                                    cursor.execute(sql)
-                                    results = cursor.fetchall()
-                                    if results:
-                                        return pd.DataFrame(results)
-                                    return pd.DataFrame()
-                            except Exception as e:
-                                logger.error(f"Błąd zapytania SQL: {e}")
-                                logger.error(f"SQL: {sql[:200]}...")  # Loguj pierwsze 200 znaków SQL
-                                import traceback
-                                logger.error(f"Traceback: {traceback.format_exc()}")
-                                # Zwróć pusty DataFrame zamiast rzucać wyjątek
-                                return pd.DataFrame()
-                    
-                    self.conn = MySQLConnectionWrapper(connection)
-                    self._init_database()
-                    logger.info("Połączono z bazą MySQL (bezpośrednio przez pymysql)")
-                else:
-                    raise ValueError("Brak konfiguracji MySQL w secrets")
-            except Exception as e2:
-                logger.error(f"Błąd połączenia z MySQL (również bezpośrednio): {e2}")
-                raise e
     
     def _init_database(self):
         """Inicjalizuje strukturę bazy danych (tworzy tabele jeśli nie istnieją)"""
