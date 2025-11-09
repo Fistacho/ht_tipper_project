@@ -477,23 +477,12 @@ def main():
             # Znajdź ostatnią rozegraną kolejkę (domyślnie)
             # filtered_rounds jest posortowane DESC (najnowsza pierwsza), więc szukamy pierwszej rozegranej
             default_round_idx = 0
-            last_played_idx = 0
             for idx, (date, matches) in enumerate(filtered_rounds):
                 # Sprawdź czy kolejka ma rozegrane mecze
                 has_played = any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches)
                 if has_played:
-                    last_played_idx = idx
-                    # Nie break - znajdź ostatnią (najnowszą) rozegraną kolejkę w liście
-            
-            # Użyj ostatniej rozegranej kolejki jako domyślnej (jeśli znaleziono)
-            if last_played_idx > 0 or any(any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches) for _, matches in filtered_rounds[:1]):
-                # Sprawdź czy pierwsza kolejka jest rozegrana (najnowsza)
-                if filtered_rounds and any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in filtered_rounds[0][1]):
-                    default_round_idx = 0  # Pierwsza kolejka (najnowsza) jest rozegrana
-                else:
-                    default_round_idx = last_played_idx  # Użyj ostatniej znalezionej rozegranej
-            else:
-                default_round_idx = 0  # Jeśli nie ma rozegranych, użyj pierwszej (najnowszej)
+                    default_round_idx = idx
+                    break  # Znajdź pierwszą (najnowszą) rozegraną kolejkę w liście
             
             # Sprawdź czy jest zapisany wybór rundy w session_state (tylko jeśli użytkownik wybrał ręcznie)
             # Używamy osobnego klucza dla rankingu, aby nie nadpisywać domyślnej kolejki
@@ -663,23 +652,12 @@ def main():
         # Znajdź ostatnią rozegraną kolejkę (domyślnie)
         # filtered_rounds jest posortowane DESC (najnowsza pierwsza), więc szukamy pierwszej rozegranej
         default_round_idx = 0
-        last_played_idx = 0
         for idx, (date, matches) in enumerate(filtered_rounds):
             # Sprawdź czy kolejka ma rozegrane mecze
             has_played = any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches)
             if has_played:
-                last_played_idx = idx
-                # Nie break - znajdź ostatnią (najnowszą) rozegraną kolejkę w liście
-        
-        # Użyj ostatniej rozegranej kolejki jako domyślnej (jeśli znaleziono)
-        if last_played_idx > 0 or any(any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches) for _, matches in filtered_rounds[:1]):
-            # Sprawdź czy pierwsza kolejka jest rozegrana (najnowsza)
-            if filtered_rounds and any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in filtered_rounds[0][1]):
-                default_round_idx = 0  # Pierwsza kolejka (najnowsza) jest rozegrana
-            else:
-                default_round_idx = last_played_idx  # Użyj ostatniej znalezionej rozegranej
-        else:
-            default_round_idx = 0  # Jeśli nie ma rozegranych, użyj pierwszej (najnowszej)
+                default_round_idx = idx
+                break  # Znajdź pierwszą (najnowszą) rozegraną kolejkę w liście
         
         # Sprawdź czy jest zapisany wybór rundy w session_state (synchronizacja z rankingiem)
         # Jeśli użytkownik wybrał kolejkę w rankingu, użyj tego wyboru
