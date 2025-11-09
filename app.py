@@ -1600,12 +1600,19 @@ def main():
                                         storage.reload_data()
                                     
                                     st.success(f"✅ Usunięto {deleted_count} typów")
-                                    # Wyczyść pola tekstowe
+                                    # Usuń klucze z session_state (zamiast modyfikować, co powoduje błąd)
+                                    # Po rerun widgety będą miały puste wartości domyślne
+                                    keys_to_remove = []
                                     for match in selected_matches:
                                         match_id = str(match.get('match_id', ''))
                                         input_key = f"tipper_pred_{player_name}_{match_id}"
                                         if input_key in st.session_state:
-                                            st.session_state[input_key] = ""
+                                            keys_to_remove.append(input_key)
+                                    
+                                    # Usuń klucze po zakończeniu iteracji (aby uniknąć modyfikacji podczas iteracji)
+                                    for key in keys_to_remove:
+                                        del st.session_state[key]
+                                    
                                     st.rerun()
                                 else:
                                     st.warning("⚠️ Nie można usunąć typów - mecze już rozpoczęte")
