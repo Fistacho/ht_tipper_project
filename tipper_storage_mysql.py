@@ -392,17 +392,46 @@ class TipperStorageMySQL:
             TipperStorageMySQL._cache_timestamp is not None and
             (current_time - TipperStorageMySQL._cache_timestamp) < TipperStorageMySQL._cache_ttl):
             logger.info("DEBUG: Używam cache w pamięci (szybko)")
-            return TipperStorageMySQL._memory_cache
+            # Sprawdź czy cache nie jest pusty (może być pusty po błędzie)
+            if TipperStorageMySQL._memory_cache and len(TipperStorageMySQL._memory_cache.get('players', {})) > 0:
+                return TipperStorageMySQL._memory_cache
+            else:
+                logger.warning("DEBUG: Cache jest pusty lub nieprawidłowy, przeładowuję z bazy")
         
         # Cache wygasł lub nie istnieje - załaduj z bazy
         logger.info("DEBUG: Ładuję dane z bazy MySQL (cache wygasł lub nie istnieje)")
-        data = self._load_data()
-        
-        # Zaktualizuj cache
-        TipperStorageMySQL._memory_cache = data
-        TipperStorageMySQL._cache_timestamp = current_time
-        
-        return data
+        try:
+            data = self._load_data()
+            
+            # Sprawdź czy dane nie są puste (może być błąd w _load_data)
+            if not data or len(data.get('players', {})) == 0:
+                logger.warning("DEBUG: _load_data() zwróciło puste dane, sprawdzam czy to błąd")
+                # Spróbuj ponownie załadować dane (może być problem z połączeniem)
+                import time
+                time.sleep(0.1)  # Krótkie opóźnienie przed ponowną próbą
+                data = self._load_data()
+            
+            # Zaktualizuj cache tylko jeśli dane nie są puste
+            if data and len(data.get('players', {})) > 0:
+                TipperStorageMySQL._memory_cache = data
+                TipperStorageMySQL._cache_timestamp = current_time
+                logger.info(f"DEBUG: Zaktualizowano cache - {len(data.get('players', {}))} graczy")
+            else:
+                logger.error("DEBUG: Nie można załadować danych z bazy - zwracam pusty słownik")
+                # Jeśli cache był wcześniej wypełniony, zachowaj go (może być problem z połączeniem)
+                if TipperStorageMySQL._memory_cache is not None:
+                    logger.warning("DEBUG: Zachowuję stary cache, ponieważ nowe dane są puste")
+                    return TipperStorageMySQL._memory_cache
+            
+            return data
+        except Exception as e:
+            logger.error(f"DEBUG: Błąd w _load_data_cached: {e}")
+            # Jeśli cache był wcześniej wypełniony, zachowaj go (może być problem z połączeniem)
+            if TipperStorageMySQL._memory_cache is not None:
+                logger.warning("DEBUG: Błąd ładowania danych, zachowuję stary cache")
+                return TipperStorageMySQL._memory_cache
+            # Jeśli nie ma cache, zwróć pusty słownik
+            return self._get_default_data()
     
     def _load_data(self) -> Dict:
         """Ładuje wszystkie dane z bazy MySQL do formatu JSON (bez cache) - zoptymalizowane z równoległymi zapytaniami"""

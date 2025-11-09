@@ -1725,18 +1725,10 @@ def main():
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
                                         
-                                        # Wyczyść cache i wymuś przeładowanie danych przed rerun (aby sezony były dostępne)
-                                        # add_prediction czyści cache po każdym typie, więc cache jest już pusty
-                                        # Wymuś przeładowanie cache przed rerun, aby sezony były dostępne
-                                        if hasattr(storage, 'reload_data'):
-                                            storage.reload_data()
-                                        # Wymuś przeładowanie danych z bazy (cache jest pusty, więc załaduje świeże dane)
-                                        if hasattr(storage, 'data'):
-                                            try:
-                                                _ = storage.data  # Wymuś przeładowanie cache z bazy
-                                                logger.info(f"DEBUG: Przeładowano dane z bazy - sezony: {len(storage.data.get('seasons', {}))}")
-                                            except Exception as e:
-                                                logger.error(f"DEBUG: Błąd przeładowania danych: {e}")
+                                        # NIE wywołuj reload_data() ani nie wymuszaj przeładowania danych przed rerun
+                                        # add_prediction już czyści cache po każdym typie, więc cache jest pusty
+                                        # Po st.rerun() cache zostanie automatycznie przeładowany z bazy przy pierwszym dostępie do storage.data
+                                        # Wymuszenie przeładowania przed rerun może powodować błędy, jeśli baza nie jest gotowa
                                         
                                         if updated_count > 0 and saved_count > 0:
                                             st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
