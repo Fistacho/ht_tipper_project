@@ -160,11 +160,6 @@ def login_page() -> bool:
                 st.error("❌ Nieprawidłowa nazwa użytkownika")
                 return False
     
-    # Informacja o domyślnym użytkowniku (tylko jeśli istnieje)
-    if "admin" in users:
-        with st.expander("ℹ️ Informacja"):
-            st.info("💡 Domyślny użytkownik: **admin** / **admin** (zmień w pliku .env)")
-    
     return False
 
 
