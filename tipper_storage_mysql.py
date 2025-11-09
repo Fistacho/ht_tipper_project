@@ -184,17 +184,104 @@ class TipperStorageMySQL:
                 
                 # Użyj wrapper dla kompatybilności z st.connection
                 class MySQLConnectionWrapper:
-                    def __init__(self, conn):
+                    def __init__(self, conn, mysql_config):
                         self.conn = conn
+                        self.mysql_config = mysql_config
+                    
+                    def _reconnect(self):
+                        """Ponownie łączy się z bazą MySQL"""
+                        import pymysql
+                        try:
+                            logger.info("DEBUG: Próba ponownego połączenia z MySQL")
+                            # Zamknij stare połączenie
+                            try:
+                                if self.conn and hasattr(self.conn, 'close'):
+                                    self.conn.close()
+                            except:
+                                pass
+                            
+                            # Utwórz nowe połączenie
+                            new_conn = pymysql.connect(
+                                host=self.mysql_config['host'],
+                                port=int(self.mysql_config['port']),
+                                user=self.mysql_config['username'],
+                                password=self.mysql_config['password'],
+                                database=self.mysql_config['database'],
+                                charset='utf8mb4',
+                                cursorclass=pymysql.cursors.DictCursor,
+                                autocommit=True,
+                                connect_timeout=10,
+                                read_timeout=30,
+                                write_timeout=30
+                            )
+                            
+                            self.conn = new_conn
+                            # Zaktualizuj połączenie w session_state
+                            connection_key = 'mysql_connection_wrapper'
+                            connection_raw_key = 'mysql_connection_raw'
+                            st.session_state[connection_key] = self
+                            st.session_state[connection_raw_key] = new_conn
+                            logger.info("DEBUG: Ponownie połączono z MySQL")
+                            return True
+                        except Exception as e:
+                            logger.error(f"DEBUG: Błąd ponownego połączenia z MySQL: {e}")
+                            return False
+                    
+                    def _check_connection(self):
+                        """Sprawdza czy połączenie jest aktywne i ponownie łączy się jeśli potrzeba"""
+                        try:
+                            # Sprawdź czy połączenie jest otwarte
+                            if not self.conn or not hasattr(self.conn, 'open') or not self.conn.open:
+                                logger.warning("DEBUG: Połączenie MySQL jest zamknięte, próba ponownego połączenia")
+                                return self._reconnect()
+                            
+                            # Sprawdź czy połączenie działa (ping)
+                            try:
+                                self.conn.ping(reconnect=False)
+                                return True
+                            except:
+                                # Połączenie zerwane - spróbuj ponownie połączyć
+                                logger.warning("DEBUG: Połączenie MySQL nie odpowiada na ping, próba ponownego połączenia")
+                                return self._reconnect()
+                        except Exception as e:
+                            logger.error(f"DEBUG: Błąd sprawdzania połączenia MySQL: {e}")
+                            return self._reconnect()
                     
                     def query(self, sql, ttl=600):
                         import pandas as pd
+                        import pymysql
+                        
+                        # Sprawdź połączenie przed zapytaniem
+                        if not self._check_connection():
+                            logger.error("DEBUG: Nie można połączyć się z MySQL, zwracam pusty DataFrame")
+                            return pd.DataFrame()
+                        
                         try:
                             with self.conn.cursor() as cursor:
                                 cursor.execute(sql)
                                 results = cursor.fetchall()
                                 if results:
                                     return pd.DataFrame(results)
+                                return pd.DataFrame()
+                        except (pymysql.err.InterfaceError, pymysql.err.OperationalError) as e:
+                            # Połączenie zerwane - spróbuj ponownie połączyć i wykonać zapytanie
+                            logger.warning(f"DEBUG: Błąd połączenia MySQL ({type(e).__name__}): {e}, próba ponownego połączenia")
+                            if self._reconnect():
+                                try:
+                                    # Spróbuj ponownie wykonać zapytanie
+                                    with self.conn.cursor() as cursor:
+                                        cursor.execute(sql)
+                                        results = cursor.fetchall()
+                                        if results:
+                                            return pd.DataFrame(results)
+                                        return pd.DataFrame()
+                                except Exception as e2:
+                                    logger.error(f"Błąd zapytania SQL po ponownym połączeniu: {e2}")
+                                    logger.error(f"SQL: {sql[:200]}...")
+                                    return pd.DataFrame()
+                            else:
+                                logger.error(f"Błąd zapytania SQL (nie można ponownie połączyć): {e}")
+                                logger.error(f"SQL: {sql[:200]}...")
                                 return pd.DataFrame()
                         except Exception as e:
                             logger.error(f"Błąd zapytania SQL: {e}")
@@ -205,7 +292,7 @@ class TipperStorageMySQL:
                             return pd.DataFrame()
                 
                 # Zapisz połączenie w session_state, aby było współdzielone
-                wrapper = MySQLConnectionWrapper(connection)
+                wrapper = MySQLConnectionWrapper(connection, mysql_config)
                 st.session_state[connection_key] = wrapper
                 st.session_state[connection_raw_key] = connection  # Zapisz również surowe połączenie do sprawdzania
                 self.conn = wrapper
