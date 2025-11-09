@@ -1500,28 +1500,28 @@ def main():
                                     logger.info(log_msg)
                                     log_to_file(log_msg)
                             else:
-                                # Jeśli klucz istnieje, zaktualizuj go z existing_predictions (na wypadek zmiany w bazie)
+                                # Jeśli klucz istnieje, NIE aktualizuj go z existing_predictions
+                                # Pozwól użytkownikowi edytować wartość bez nadpisywania jej wartością z bazy
+                                # Aktualizacja nastąpi dopiero po st.rerun(), gdy klucz zostanie usunięty i ponownie utworzony
+                                current_value = st.session_state[input_key]
                                 if has_existing:
                                     existing_pred = existing_predictions[match_id]
                                     expected_value = f"{safe_int(existing_pred.get('home', 0))}-{safe_int(existing_pred.get('away', 0))}"
-                                    current_value = st.session_state[input_key]
-                                    # Zaktualizuj tylko jeśli wartość się zmieniła
+                                    # Loguj tylko dla debugowania, ale NIE aktualizuj wartości
                                     if current_value != expected_value:
-                                        log_msg = f"DEBUG INPUT: Aktualizuję wartość w session_state dla {input_key}: {current_value} -> {expected_value}"
+                                        log_msg = f"DEBUG INPUT: Wartość w session_state dla {input_key} różni się od bazy: {current_value} (baza: {expected_value}) - zachowuję wartość użytkownika"
                                         logger.info(log_msg)
                                         log_to_file(log_msg)
-                                        st.session_state[input_key] = expected_value
                                     else:
-                                        log_msg = f"DEBUG INPUT: Wartość w session_state dla {input_key} jest już poprawna: {current_value}"
+                                        log_msg = f"DEBUG INPUT: Wartość w session_state dla {input_key} jest zgodna z bazą: {current_value}"
                                         logger.info(log_msg)
                                         log_to_file(log_msg)
                                 else:
-                                    # Jeśli nie ma typu w bazie, ale klucz istnieje, ustaw na pusty
-                                    if st.session_state[input_key] != "":
-                                        log_msg = f"DEBUG INPUT: Aktualizuję wartość w session_state dla {input_key}: {st.session_state[input_key]} -> '' (brak typu w bazie)"
+                                    # Jeśli nie ma typu w bazie, ale klucz istnieje i ma wartość, zachowaj ją (użytkownik może wprowadzać nowy typ)
+                                    if current_value:
+                                        log_msg = f"DEBUG INPUT: Wartość w session_state dla {input_key}: {current_value} (brak typu w bazie) - zachowuję wartość użytkownika"
                                         logger.info(log_msg)
                                         log_to_file(log_msg)
-                                        st.session_state[input_key] = ""
                             
                             # Pobierz existing_pred dla obliczenia punktów
                             existing_pred = existing_predictions.get(match_id) if has_existing else None
@@ -1643,6 +1643,14 @@ def main():
                                     if hasattr(storage, '_save_data'):
                                         storage._save_data()
                                     
+                                    # Wyczyść cache storage PRZED sprawdzaniem typów w bazie
+                                    # To zapewnia, że get_player_predictions pobierze najnowsze dane
+                                    if hasattr(storage, 'reload_data'):
+                                        log_msg = f"DEBUG SINGLE: Wywołuję reload_data() przed sprawdzaniem typów w bazie"
+                                        logger.info(log_msg)
+                                        log_to_file(log_msg)
+                                        storage.reload_data()
+                                    
                                     # Sprawdź typy w bazie PO zapisie
                                     log_msg = f"DEBUG SINGLE: Sprawdzam typy w bazie PO zapisie dla {player_name} w rundzie {round_id}"
                                     logger.info(log_msg)
@@ -1673,10 +1681,6 @@ def main():
                                     log_msg = f"DEBUG SINGLE: Przed st.rerun() - klucze usunięte, wywołuję rerun"
                                     logger.info(log_msg)
                                     log_to_file(log_msg)
-                                    
-                                    # Wyczyść cache storage przed rerun
-                                    if hasattr(storage, 'reload_data'):
-                                        storage.reload_data()
                                     
                                     if updated_count > 0 and saved_count > 0:
                                         st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
