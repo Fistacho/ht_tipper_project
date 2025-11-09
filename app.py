@@ -837,11 +837,11 @@ def main():
                     
                     st.markdown(f"### Typy dla: **{player_name}**")
                     
-                    # Tryb wprowadzania: pojedyncze lub bulk
-                    input_mode = st.radio("Tryb wprowadzania:", ["Pojedyncze mecze", "Wklej wszystkie (bulk)"], 
-                                         key=f"tipper_input_mode_{player_name}", horizontal=True)
-                
-                    if input_mode == "Pojedyncze mecze":
+                    # Dwie kolumny obok siebie: Pojedyncze mecze i Bulk
+                    col_single, col_bulk = st.columns(2)
+                    
+                    with col_single:
+                        st.markdown("#### 📝 Pojedyncze mecze")
                         # Wyświetl formularz dla każdego meczu
                         st.markdown("**Wprowadź typy dla każdego meczu (zapis automatyczny po wyjściu z pola):**")
                         
@@ -922,11 +922,9 @@ def main():
                                     else:
                                         st.warning("⏰ Rozpoczęty")
                                     pred_input = default_value
-                        
-                        # Dodaj separator między graczami
-                        st.markdown("---")
                     
-                    else:  # Bulk mode
+                    with col_bulk:
+                        st.markdown("#### 📋 Wklej wszystkie (bulk)")
                         st.markdown("**Wklej typy w formacie:**")
                         st.markdown("*Format: Nazwa drużyny1 - Nazwa drużyny2 Wynik*")
                         st.markdown("*Przykład: Borciuchy International - WKS BRONEK 50 7:0*")
@@ -1001,9 +999,9 @@ def main():
                                             st.warning("⚠️ Wszystkie mecze już rozpoczęte")
                                 else:
                                     st.error("❌ Nie można sparsować typów. Sprawdź format:\n- Nazwa drużyny1 - Nazwa drużyny2 Wynik\n- Przykład: Borciuchy International - WKS BRONEK 50 7:0")
-                        
-                        # Dodaj separator między graczami
-                        st.markdown("---")
+                    
+                    # Dodaj separator między graczami
+                    st.markdown("---")
             
     
     except Exception as e:
