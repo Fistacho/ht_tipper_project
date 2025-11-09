@@ -1,0 +1,721 @@
+"""
+Oddzielna aplikacja dla typera - uproszczona wersja bez prognoz
+"""
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+from datetime import datetime
+import logging
+import os
+from typing import List, Dict
+from collections import defaultdict
+
+from tipper import Tipper
+from tipper_storage import TipperStorage
+from hattrick_oauth_simple import HattrickOAuthSimple
+from dotenv import load_dotenv
+
+# Konfiguracja strony
+st.set_page_config(
+    page_title="Hattrick Typer",
+    page_icon="🎯",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Konfiguracja logowania
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('tipper.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+
+def main():
+    """Główna funkcja aplikacji typera"""
+    st.title("🎯 Hattrick Typer")
+    st.markdown("---")
+    
+    # Sidebar z konfiguracją
+    with st.sidebar:
+        st.header("⚙️ Konfiguracja")
+        
+        # ID lig dla typera
+        st.subheader("🏆 Ligi typera")
+        league_1 = st.number_input(
+            "Liga 1 (LeagueLevelUnitID):",
+            value=32612,
+            min_value=1,
+            help="Wprowadź ID pierwszej ligi"
+        )
+        league_2 = st.number_input(
+            "Liga 2 (LeagueLevelUnitID):",
+            value=9399,
+            min_value=1,
+            help="Wprowadź ID drugiej ligi"
+        )
+        
+        TIPPER_LEAGUES = [league_1, league_2]
+        
+        # Przycisk odświeżania danych
+        if st.button("🔄 Odśwież dane", type="primary"):
+            st.cache_data.clear()
+            st.rerun()
+        
+        # Informacje
+        st.info(f"**Liga 1:** {league_1}")
+        st.info(f"**Liga 2:** {league_2}")
+    
+    # Inicjalizacja storage
+    storage = TipperStorage()
+    tipper = Tipper()
+    
+    # Pobierz dane z API
+    try:
+        load_dotenv()
+        
+        # Pobierz klucze OAuth z zmiennych środowiskowych
+        consumer_key = os.getenv('HATTRICK_CONSUMER_KEY')
+        consumer_secret = os.getenv('HATTRICK_CONSUMER_SECRET')
+        access_token = os.getenv('HATTRICK_ACCESS_TOKEN')
+        access_token_secret = os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
+        
+        if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
+            st.error("❌ Brak kluczy OAuth. Uruchom: python get_oauth_simple.py")
+            st.info("💡 Aby uzyskać klucze OAuth, uruchom skrypt `get_oauth_simple.py`")
+            return
+        
+        # Inicjalizuj klienta OAuth
+        client = HattrickOAuthSimple(consumer_key, consumer_secret)
+        client.set_access_tokens(access_token, access_token_secret)
+        
+        # Pobierz mecze z obu lig
+        all_fixtures = []
+        with st.spinner("Pobieranie meczów z lig..."):
+            for league_id in TIPPER_LEAGUES:
+                try:
+                    fixtures = client.get_league_fixtures(league_id)
+                    if fixtures:
+                        # Dodaj informację o lidze
+                        for fixture in fixtures:
+                            fixture['league_id'] = league_id
+                        all_fixtures.extend(fixtures)
+                        logger.info(f"Pobrano {len(fixtures)} meczów z ligi {league_id}")
+                except Exception as e:
+                    logger.error(f"Błąd pobierania meczów z ligi {league_id}: {e}")
+                    st.warning(f"⚠️ Nie udało się pobrać meczów z ligi {league_id}: {e}")
+        
+        if not all_fixtures:
+            st.error("❌ Nie udało się pobrać meczów z API")
+            return
+        
+        # Grupuj mecze według rund (na podstawie daty)
+        rounds = defaultdict(list)
+        
+        for fixture in all_fixtures:
+            match_date = fixture.get('match_date')
+            if match_date:
+                try:
+                    # Parsuj datę i utwórz klucz rundy (np. "2024-10-26")
+                    dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                    round_key = dt.strftime("%Y-%m-%d")
+                    rounds[round_key].append(fixture)
+                except ValueError:
+                    continue
+        
+        # Sortuj rundy po dacie (najstarsza pierwsza) dla numeracji
+        sorted_rounds_asc = sorted(rounds.items(), key=lambda x: x[0])
+        
+        if not sorted_rounds_asc:
+            st.warning("⚠️ Brak meczów do wyświetlenia")
+            return
+        
+        # Pobierz wszystkie unikalne nazwy drużyn z meczów
+        all_team_names = set()
+        for _, matches in sorted_rounds_asc:
+            for match in matches:
+                home_team = match.get('home_team_name', '').strip()
+                away_team = match.get('away_team_name', '').strip()
+                if home_team:
+                    all_team_names.add(home_team)
+                if away_team:
+                    all_team_names.add(away_team)
+        
+        all_team_names = sorted(list(all_team_names))
+        
+        # Pobierz zapisane ustawienia
+        selected_teams = storage.get_selected_teams()
+        
+        # Jeśli nie ma zapisanych ustawień, wybierz wszystkie drużyny domyślnie
+        if not selected_teams:
+            selected_teams = all_team_names.copy()
+        
+        # Wybór drużyn do typowania - w sidebarze
+        with st.sidebar:
+            st.markdown("---")
+            st.subheader("⚙️ Wybór drużyn do typowania")
+            st.markdown("*Zaznacz drużyny, które chcesz uwzględnić w typerze*")
+            
+            # Użyj checkboxów dla wyboru drużyn
+            new_selected_teams = []
+            
+            for team_name in all_team_names:
+                if st.checkbox(team_name, value=team_name in selected_teams, key=f"team_select_{team_name}"):
+                    new_selected_teams.append(team_name)
+            
+            # Przycisk zapisu ustawień
+            if st.button("💾 Zapisz wybór drużyn", type="primary", use_container_width=True):
+                storage.set_selected_teams(new_selected_teams)
+                st.success(f"✅ Zapisano wybór {len(new_selected_teams)} drużyn")
+                st.rerun()
+            
+            # Użyj aktualnie wybranych drużyn
+            selected_teams = new_selected_teams if new_selected_teams else selected_teams
+        
+        # Filtruj mecze - tylko te, w których uczestniczą wybrane drużyny
+        def filter_matches_by_teams(matches: List[Dict], team_names: List[str]) -> List[Dict]:
+            """Filtruje mecze, pozostawiając tylko te z wybranymi drużynami"""
+            if not team_names:
+                return matches  # Jeśli nie wybrano drużyn, zwróć wszystkie
+            
+            filtered = []
+            for match in matches:
+                home_team = match.get('home_team_name', '').strip()
+                away_team = match.get('away_team_name', '').strip()
+                
+                # Mecz jest uwzględniony, jeśli przynajmniej jedna drużyna jest wybrana
+                if home_team in team_names or away_team in team_names:
+                    filtered.append(match)
+            
+            return filtered
+        
+        # Filtruj rundy (według daty asc dla numeracji)
+        filtered_rounds_asc = []
+        for date, matches in sorted_rounds_asc:
+            filtered_matches = filter_matches_by_teams(matches, selected_teams)
+            if filtered_matches:  # Tylko jeśli są jakieś mecze po filtrowaniu
+                filtered_rounds_asc.append((date, filtered_matches))
+        
+        if not filtered_rounds_asc:
+            st.warning(f"⚠️ Brak meczów dla wybranych drużyn ({len(selected_teams)} drużyn)")
+            st.info(f"Wybrane drużyny: {', '.join(selected_teams[:5])}{'...' if len(selected_teams) > 5 else ''}")
+            return
+        
+        # Stwórz mapę data -> numer kolejki (według daty asc: najstarsza = 1)
+        date_to_round_number = {}
+        for idx, (date, _) in enumerate(filtered_rounds_asc, 1):
+            date_to_round_number[date] = idx  # Numer 1 = najstarsza
+        
+        # Sortuj rundy po dacie desc (najnowsza pierwsza) dla wyświetlania
+        filtered_rounds = sorted(filtered_rounds_asc, key=lambda x: x[0], reverse=True)
+        
+        # Ranking - na samą górę
+        st.markdown("---")
+        st.subheader("🏆 Ranking")
+        
+        # Tabs dla rankingu per kolejka i całości - domyślnie ranking całości (pierwszy tab)
+        ranking_tab1, ranking_tab2 = st.tabs(["🏆 Ranking całości", "📊 Ranking per kolejka"])
+        
+        # Dla rankingu całości nie potrzebujemy wyboru rundy
+        with ranking_tab1:
+            st.markdown("### 🏆 Ranking całości")
+            
+            exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza", value=True, key="exclude_worst_overall")
+            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst)
+            
+            if leaderboard:
+                # Przygotuj dane do wyświetlenia
+                leaderboard_data = []
+                for idx, player in enumerate(leaderboard, 1):
+                    # Formatuj punkty z każdej kolejki: 26 + 37 + 32 + ... = 393 - 23
+                    round_points = player.get('round_points', [])
+                    original_total = player.get('original_total', player['total_points'])
+                    
+                    if round_points:
+                        # Formatuj punkty: 26 + 37 + 32 + ...
+                        points_str = ' + '.join(str(p) for p in round_points)
+                        
+                        # Dodaj sumę i odjęcie najgorszego jeśli włączone
+                        if exclude_worst and player['excluded_worst']:
+                            worst = player['worst_score']
+                            points_summary = f"{points_str} = {original_total} - {worst}"
+                        else:
+                            points_summary = f"{points_str} = {original_total}"
+                    else:
+                        points_summary = str(player['total_points'])
+                    
+                    leaderboard_data.append({
+                        'Miejsce': idx,
+                        'Gracz': player['player_name'],
+                        'Punkty': points_summary,
+                        'Suma': player['total_points'],
+                        'Rundy': player['rounds_played'],
+                        'Najlepszy': player['best_score'],
+                        'Najgorszy': player['worst_score'] if not player['excluded_worst'] else f"{player['worst_score']} (odrzucony)"
+                    })
+                
+                df_leaderboard = pd.DataFrame(leaderboard_data)
+                st.dataframe(df_leaderboard, use_container_width=True, hide_index=True)
+                
+                # Wykres rankingu całości
+                if len(leaderboard) > 0:
+                    fig = px.bar(
+                        df_leaderboard.head(10),
+                        x='Gracz',
+                        y='Suma',
+                        title="Top 10 - Ranking całości",
+                        labels={'Suma': 'Punkty', 'Gracz': 'Gracz'},
+                        color='Suma',
+                        color_continuous_scale='plasma'
+                    )
+                    fig.update_layout(xaxis_tickangle=-45, height=400)
+                    st.plotly_chart(fig, use_container_width=True, key="ranking_overall_chart_main")
+                    
+                    # Statystyki
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Liczba graczy", len(leaderboard))
+                    with col2:
+                        if leaderboard:
+                            st.metric("Najwięcej punktów", leaderboard[0]['total_points'])
+                    with col3:
+                        if leaderboard:
+                            avg_points = sum(p['total_points'] for p in leaderboard) / len(leaderboard)
+                            st.metric("Średnia punktów", f"{avg_points:.1f}")
+                    with col4:
+                        if leaderboard:
+                            total_rounds = sum(p['rounds_played'] for p in leaderboard)
+                            st.metric("Łącznie rund", total_rounds)
+            else:
+                st.info("📊 Brak danych do wyświetlenia")
+        
+        # Dla rankingu per kolejka potrzebujemy wyboru rundy
+        with ranking_tab2:
+            st.markdown("### 📊 Ranking per kolejka")
+            
+            # Wybór rundy - pod Rankingiem
+            st.markdown("---")
+            st.subheader("📅 Wybór rundy")
+            
+            # Znajdź ostatnią rozegraną kolejkę (domyślnie)
+            default_round_idx = 0
+            for idx, (date, matches) in enumerate(filtered_rounds):
+                # Sprawdź czy kolejka ma rozegrane mecze
+                has_played = any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches)
+                if has_played:
+                    default_round_idx = idx
+                    break  # Weź pierwszą (najnowszą) rozegraną kolejkę
+            
+            # Sprawdź czy jest zapisany wybór rundy w session_state
+            if 'selected_round_idx' in st.session_state:
+                default_round_idx = st.session_state.selected_round_idx
+            
+            # Numeruj kolejki według daty asc (numer 1 = najstarsza), ale wyświetlaj sort desc (najnowsza pierwsza)
+            round_options = []
+            for date, matches in filtered_rounds:
+                round_number = date_to_round_number[date]  # Numer według daty asc
+                round_options.append(f"Kolejka {round_number} - {date} ({len(matches)} meczów)")
+            
+            selected_round_idx = st.selectbox("Wybierz rundę:", range(len(round_options)), index=default_round_idx, format_func=lambda x: round_options[x], key="ranking_round_select")
+            
+            # Zapisz wybór rundy w session_state
+            st.session_state.selected_round_idx = selected_round_idx
+            
+            if selected_round_idx is not None:
+                selected_round_date, selected_matches = filtered_rounds[selected_round_idx]
+                round_number = date_to_round_number[selected_round_date]  # Numer kolejki według daty asc (1 = najstarsza)
+                round_id = f"round_{selected_round_date}"
+                
+                # Dodaj rundę do storage jeśli nie istnieje
+                if round_id not in storage.data['rounds']:
+                    # Sezon zostanie automatycznie utworzony w add_round jeśli nie istnieje
+                    storage.add_round("current_season", round_id, selected_matches, selected_round_date)
+                
+                # Ranking dla wybranej rundy
+                round_leaderboard = storage.get_round_leaderboard(round_id)
+                
+                if round_leaderboard:
+                    # Przygotuj dane do wyświetlenia
+                    round_leaderboard_data = []
+                    for idx, player in enumerate(round_leaderboard, 1):
+                        # Formatuj punkty za każdy mecz: 3+7+1+4+8+9=32
+                        match_points = player.get('match_points', [])
+                        if match_points:
+                            points_str = '+'.join(str(p) for p in match_points)
+                            if player['total_points'] > 0:
+                                points_summary = f"{points_str}={player['total_points']}"
+                            else:
+                                # Jeśli suma to 0, pokaż tylko 0 (gracz nie typował)
+                                points_summary = "0"
+                        else:
+                            points_summary = "0"
+                        
+                        round_leaderboard_data.append({
+                            'Miejsce': idx,
+                            'Gracz': player['player_name'],
+                            'Punkty': points_summary,
+                            'Suma': player['total_points'],
+                            'Mecze': player['matches_count']
+                        })
+                    
+                    df_round_leaderboard = pd.DataFrame(round_leaderboard_data)
+                    st.dataframe(df_round_leaderboard, use_container_width=True, hide_index=True)
+                    
+                    # Wykres rankingu per kolejka
+                    if len(round_leaderboard) > 0:
+                        fig = px.bar(
+                            df_round_leaderboard.head(10),
+                            x='Gracz',
+                            y='Suma',
+                            title=f"Top 10 - Ranking kolejki {round_number}",
+                            labels={'Suma': 'Punkty', 'Gracz': 'Gracz'},
+                            color='Suma',
+                            color_continuous_scale='viridis'
+                        )
+                        fig.update_layout(xaxis_tickangle=-45, height=400)
+                        st.plotly_chart(fig, use_container_width=True, key=f"ranking_round_{round_number}_chart")
+                else:
+                    st.info("📊 Brak danych do wyświetlenia dla tej kolejki")
+        
+        # Wybór rundy - pod Rankingiem (dla sekcji wprowadzania typów)
+        st.markdown("---")
+        st.subheader("📅 Wybór rundy")
+        
+        # Znajdź ostatnią rozegraną kolejkę (domyślnie)
+        default_round_idx = 0
+        for idx, (date, matches) in enumerate(filtered_rounds):
+            # Sprawdź czy kolejka ma rozegrane mecze
+            has_played = any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches)
+            if has_played:
+                default_round_idx = idx
+                break  # Weź pierwszą (najnowszą) rozegraną kolejkę
+        
+        # Sprawdź czy jest zapisany wybór rundy w session_state (synchronizacja z rankingiem)
+        if 'selected_round_idx' in st.session_state:
+            default_round_idx = st.session_state.selected_round_idx
+        
+        # Numeruj kolejki według daty asc (numer 1 = najstarsza), ale wyświetlaj sort desc (najnowsza pierwsza)
+        round_options = []
+        for date, matches in filtered_rounds:
+            round_number = date_to_round_number[date]  # Numer według daty asc
+            round_options.append(f"Kolejka {round_number} - {date} ({len(matches)} meczów)")
+        
+        selected_round_idx = st.selectbox("Wybierz rundę:", range(len(round_options)), index=default_round_idx, format_func=lambda x: round_options[x], key="round_select_main")
+        
+        # Zapisz wybór rundy w session_state (synchronizacja z rankingiem)
+        st.session_state.selected_round_idx = selected_round_idx
+        
+        if selected_round_idx is not None:
+            selected_round_date, selected_matches = filtered_rounds[selected_round_idx]
+            round_number = date_to_round_number[selected_round_date]  # Numer kolejki według daty asc (1 = najstarsza)
+            round_id = f"round_{selected_round_date}"
+            
+            # Dodaj rundę do storage jeśli nie istnieje
+            if round_id not in storage.data['rounds']:
+                # Sezon zostanie automatycznie utworzony w add_round jeśli nie istnieje
+                storage.add_round("current_season", round_id, selected_matches, selected_round_date)
+            
+            # Wyświetl mecze w rundzie - tabela na górze dla czytelności
+            st.subheader(f"⚽ Kolejka {round_number} - {selected_round_date}")
+            
+            # Sprawdź czy mecze są już rozegrane
+            matches_played = []
+            matches_upcoming = []
+            
+            for match in selected_matches:
+                if match.get('home_goals') is not None and match.get('away_goals') is not None:
+                    matches_played.append(match)
+                else:
+                    matches_upcoming.append(match)
+            
+            # Przygotuj dane do tabeli
+            matches_table_data = []
+            for match in selected_matches:
+                home_team = match.get('home_team_name', 'Unknown')
+                away_team = match.get('away_team_name', 'Unknown')
+                match_date = match.get('match_date', '')
+                home_goals = match.get('home_goals')
+                away_goals = match.get('away_goals')
+                match_id = str(match.get('match_id', ''))
+                
+                # Status meczu
+                status = "⏳ Oczekuje"
+                if home_goals is not None and away_goals is not None:
+                    status = f"✅ {home_goals}-{away_goals}"
+                    # Aktualizuj wynik w storage
+                    try:
+                        storage.update_match_result(round_id, match_id, int(home_goals), int(away_goals))
+                    except:
+                        pass
+                else:
+                    try:
+                        match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                        if datetime.now() >= match_dt:
+                            status = "⏰ Rozpoczęty"
+                    except:
+                        pass
+                
+                matches_table_data.append({
+                    'Gospodarz': home_team,
+                    'Gość': away_team,
+                    'Data': match_date,
+                    'Status': status
+                })
+            
+            # Wyświetl tabelę z meczami
+            if matches_table_data:
+                df_matches = pd.DataFrame(matches_table_data)
+                st.dataframe(df_matches, use_container_width=True, hide_index=True)
+            
+            
+            # Sekcja wprowadzania i korygowania typów - wszystko w jednym miejscu
+            st.markdown("---")
+            st.subheader("✍️ Wprowadzanie i korygowanie typów")
+            
+            # Opcja wprowadzania typów historycznych
+            allow_historical = st.checkbox("Pozwól na wprowadzanie typów historycznych (dla rozegranych meczów)", 
+                                          value=False, 
+                                          help="Jeśli zaznaczone, możesz wprowadzać typy dla meczów, które już się odbyły")
+            
+            # Wybór gracza - wszystko przefiltrowane przez jednego gracza
+            col_player1, col_player2 = st.columns([3, 1])
+            
+            with col_player1:
+                # Lista graczy
+                all_players_list = list(storage.data['players'].keys())
+                if all_players_list:
+                    selected_player = st.selectbox("Wybierz gracza:", all_players_list, key="tipper_selected_player")
+                else:
+                    selected_player = None
+                    st.info("📊 Brak graczy. Dodaj nowego gracza.")
+            
+            with col_player2:
+                st.markdown("<br>", unsafe_allow_html=True)  # Spacing
+                add_new_player = st.button("➕ Dodaj gracza", key="tipper_add_new_player_btn")
+            
+            # Dodawanie nowego gracza
+            if add_new_player:
+                with st.expander("➕ Dodaj nowego gracza", expanded=True):
+                    new_player_name = st.text_input("Nazwa nowego gracza:", key="tipper_new_player_name")
+                    if st.button("💾 Zapisz", key="tipper_save_new_player"):
+                        if new_player_name:
+                            if new_player_name not in storage.data['players']:
+                                storage.data['players'][new_player_name] = {
+                                    'predictions': {},
+                                    'total_points': 0,
+                                    'rounds_played': 0,
+                                    'best_score': 0,
+                                    'worst_score': float('inf')
+                                }
+                                storage._save_data()
+                                st.success(f"✅ Dodano gracza: {new_player_name}")
+                                st.rerun()
+                            else:
+                                st.warning("⚠️ Gracz już istnieje")
+            
+            if selected_player:
+                # Pobierz istniejące typy gracza dla tej rundy
+                existing_predictions = storage.get_player_predictions(selected_player, round_id)
+                
+                st.markdown(f"### Typy dla: **{selected_player}**")
+                
+                # Tryb wprowadzania: pojedyncze lub bulk
+                input_mode = st.radio("Tryb wprowadzania:", ["Pojedyncze mecze", "Wklej wszystkie (bulk)"], key="tipper_input_mode", horizontal=True)
+                
+                if input_mode == "Pojedyncze mecze":
+                    # Wyświetl formularz dla każdego meczu
+                    st.markdown("**Wprowadź typy dla każdego meczu (zapis automatyczny po wyjściu z pola):**")
+                    
+                    # Funkcja callback do automatycznego zapisu
+                    def save_prediction_callback(player_name: str, round_id: str, match_id: str, has_existing: bool):
+                        """Callback do automatycznego zapisu typu po zmianie wartości"""
+                        input_key = f"tipper_pred_{player_name}_{match_id}"
+                        if input_key in st.session_state:
+                            pred_input = st.session_state[input_key]
+                            parsed = tipper.parse_prediction(pred_input)
+                            if parsed:
+                                storage.add_prediction(round_id, player_name, match_id, parsed)
+                                st.session_state[f"pred_saved_{player_name}_{match_id}"] = True
+                    
+                    for idx, match in enumerate(selected_matches):
+                        match_id = str(match.get('match_id', ''))
+                        home_team = match.get('home_team_name', 'Unknown')
+                        away_team = match.get('away_team_name', 'Unknown')
+                        match_date = match.get('match_date', '')
+                        home_goals = match.get('home_goals')
+                        away_goals = match.get('away_goals')
+                        
+                        # Sprawdź czy mecz już się rozpoczął
+                        can_edit = True
+                        is_historical = False
+                        if match_date:
+                            try:
+                                match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                                if datetime.now() >= match_dt:
+                                    is_historical = True
+                                    can_edit = allow_historical
+                            except:
+                                pass
+                        
+                        # Pobierz istniejący typ
+                        has_existing = match_id in existing_predictions
+                        if has_existing:
+                            existing_pred = existing_predictions[match_id]
+                            default_value = f"{existing_pred.get('home', 0)}-{existing_pred.get('away', 0)}"
+                        else:
+                            default_value = "0-0"
+                        
+                        # Sprawdź czy typ został zapisany w tej sesji
+                        saved_key = f"pred_saved_{selected_player}_{match_id}"
+                        if saved_key in st.session_state and st.session_state[saved_key]:
+                            st.success("✅ Zapisano")
+                            # Resetuj flagę po wyświetleniu komunikatu
+                            st.session_state[saved_key] = False
+                        
+                        # Oblicz punkty jeśli mecz rozegrany
+                        points_display = ""
+                        if home_goals is not None and away_goals is not None and has_existing:
+                            pred_home = existing_pred.get('home', 0)
+                            pred_away = existing_pred.get('away', 0)
+                            points = tipper.calculate_points((pred_home, pred_away), (int(home_goals), int(away_goals)))
+                            points_display = f" | **Punkty: {points}**"
+                        
+                        col1, col2, col3, col4 = st.columns([3, 1.5, 1, 1])
+                        with col1:
+                            status_icon = "✅" if has_existing else "❌"
+                            status_text = "Typ istnieje" if has_existing else "Brak typu"
+                            result_text = f" ({home_goals}-{away_goals})" if home_goals is not None and away_goals is not None else ""
+                            st.write(f"{status_icon} **{home_team}** vs **{away_team}**{result_text} {points_display}")
+                        with col2:
+                            if can_edit:
+                                # Użyj on_change callback do automatycznego zapisu
+                                pred_input = st.text_input(
+                                    f"Typ:",
+                                    value=default_value,
+                                    key=f"tipper_pred_{selected_player}_{match_id}",
+                                    label_visibility="collapsed",
+                                    on_change=save_prediction_callback,
+                                    args=(selected_player, round_id, match_id, has_existing)
+                                )
+                            else:
+                                if is_historical:
+                                    st.info("⏰ Rozegrany")
+                                else:
+                                    st.warning("⏰ Rozpoczęty")
+                                pred_input = default_value
+                        with col3:
+                            if can_edit:
+                                # Opcjonalny przycisk do ręcznego zapisu (dla kompatybilności)
+                                button_text = "💾 Zapisz"
+                                if st.button(button_text, key=f"tipper_save_{selected_player}_{match_id}"):
+                                    input_key = f"tipper_pred_{selected_player}_{match_id}"
+                                    if input_key in st.session_state:
+                                        pred_input = st.session_state[input_key]
+                                        parsed = tipper.parse_prediction(pred_input)
+                                        if parsed:
+                                            storage.add_prediction(round_id, selected_player, match_id, parsed)
+                                            st.success("✅ Zapisano")
+                                            st.rerun()
+                                        else:
+                                            st.error("❌ Nieprawidłowy format")
+                            else:
+                                st.empty()
+                        with col4:
+                            if has_existing and home_goals is not None and away_goals is not None:
+                                pred_data = existing_predictions[match_id]
+                                pred_home = pred_data.get('home', 0)
+                                pred_away = pred_data.get('away', 0)
+                                points = tipper.calculate_points((pred_home, pred_away), (int(home_goals), int(away_goals)))
+                                st.metric("Punkty", points)
+                            else:
+                                st.empty()
+                
+                else:  # Bulk mode
+                    st.markdown("**Wklej typy w formacie:**")
+                    st.markdown("*Format: Nazwa drużyny1 - Nazwa drużyny2 Wynik*")
+                    st.markdown("*Przykład: Borciuchy International - WKS BRONEK 50 7:0*")
+                    
+                    predictions_text = st.text_area(
+                        "Typy:",
+                        height=300,
+                        help="Wklej typy w formacie:\nBorciuchy International - WKS BRONEK 50 7:0\nMoli Team - Szmacianka Szynwałdzian 1:1\nLegiaWawa - ks Jastrowie 2:1",
+                        key="tipper_bulk_text"
+                    )
+                    
+                    if st.button("💾 Zapisz typy (bulk)", type="primary", key="tipper_bulk_save"):
+                        if not predictions_text:
+                            st.warning("⚠️ Wprowadź typy")
+                        else:
+                            # Parsuj typy z dopasowaniem do meczów
+                            parsed = tipper.parse_match_predictions(predictions_text, selected_matches)
+                            
+                            if parsed:
+                                saved_count = 0
+                                updated_count = 0
+                                errors = []
+                                
+                                for match_id, prediction in parsed.items():
+                                    # Znajdź mecz
+                                    match = next((m for m in selected_matches if str(m.get('match_id')) == match_id), None)
+                                    
+                                    if match:
+                                        # Sprawdź czy mecz już się rozpoczął
+                                        match_date = match.get('match_date')
+                                        can_add = True
+                                        
+                                        if match_date:
+                                            try:
+                                                match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                                                if datetime.now() >= match_dt:
+                                                    can_add = allow_historical
+                                                    if not can_add:
+                                                        errors.append(f"Mecz {match.get('home_team_name')} vs {match.get('away_team_name')} już rozegrany")
+                                            except:
+                                                pass
+                                        
+                                        if can_add:
+                                            # Sprawdź czy typ już istnieje
+                                            is_update = match_id in existing_predictions
+                                            
+                                            storage.add_prediction(round_id, selected_player, match_id, prediction)
+                                            
+                                            if is_update:
+                                                updated_count += 1
+                                            else:
+                                                saved_count += 1
+                                    else:
+                                        errors.append(f"Nie znaleziono meczu dla ID: {match_id}")
+                                
+                                total_saved = saved_count + updated_count
+                                if total_saved > 0:
+                                    if updated_count > 0 and saved_count > 0:
+                                        st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
+                                    elif updated_count > 0:
+                                        st.success(f"✅ Zaktualizowano {updated_count} typów")
+                                    else:
+                                        st.success(f"✅ Zapisano {saved_count} typów")
+                                    
+                                    if errors:
+                                        st.warning(f"⚠️ {len(errors)} typów nie zostało zapisanych:\n" + "\n".join(errors[:5]))
+                                    st.rerun()
+                                else:
+                                    if errors:
+                                        st.error("❌ Nie udało się zapisać typów:\n" + "\n".join(errors[:5]))
+                                    else:
+                                        st.warning("⚠️ Wszystkie mecze już rozpoczęte")
+                            else:
+                                st.error("❌ Nie można sparsować typów. Sprawdź format:\n- Nazwa drużyny1 - Nazwa drużyny2 Wynik\n- Przykład: Borciuchy International - WKS BRONEK 50 7:0")
+            
+    
+    except Exception as e:
+        st.error(f"❌ Błąd: {str(e)}")
+        logger.error(f"Błąd typera: {e}", exc_info=True)
+
+
+if __name__ == "__main__":
+    main()
+
