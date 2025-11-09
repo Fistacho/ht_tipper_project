@@ -902,65 +902,146 @@ def main():
                                     else:
                                         st.warning("⏰ Rozpoczęty")
                         
-                        # Przycisk do zapisania wszystkich typów
-                        if st.button("💾 Zapisz typy", type="primary", key=f"tipper_save_all_{player_name}"):
-                            # Zbierz wszystkie typy z pól tekstowych
-                            predictions_to_save = {}
-                            
-                            for match in selected_matches:
-                                match_id = str(match.get('match_id', ''))
-                                input_key = f"tipper_pred_{player_name}_{match_id}"
+                        # Przyciski do zapisania i usunięcia typów
+                        col_btn1, col_btn2 = st.columns(2)
+                        
+                        with col_btn1:
+                            if st.button("💾 Zapisz typy", type="primary", key=f"tipper_save_all_{player_name}"):
+                                # Zbierz wszystkie typy z pól tekstowych
+                                predictions_to_save = {}
                                 
-                                if input_key in st.session_state:
-                                    pred_input = st.session_state[input_key]
-                                    if pred_input and pred_input.strip():
-                                        parsed = tipper.parse_prediction(pred_input)
-                                        if parsed:
-                                            predictions_to_save[match_id] = parsed
-                            
-                            if predictions_to_save:
-                                saved_count = 0
-                                updated_count = 0
+                                for match in selected_matches:
+                                    match_id = str(match.get('match_id', ''))
+                                    input_key = f"tipper_pred_{player_name}_{match_id}"
+                                    
+                                    if input_key in st.session_state:
+                                        pred_input = st.session_state[input_key]
+                                        if pred_input and pred_input.strip():
+                                            parsed = tipper.parse_prediction(pred_input)
+                                            if parsed:
+                                                predictions_to_save[match_id] = parsed
                                 
-                                for match_id, prediction in predictions_to_save.items():
-                                    # Sprawdź czy typ już istnieje
-                                    is_update = match_id in existing_predictions
+                                if predictions_to_save:
+                                    saved_count = 0
+                                    updated_count = 0
                                     
-                                    # Sprawdź czy mecz można edytować
-                                    match = next((m for m in selected_matches if str(m.get('match_id')) == match_id), None)
-                                    can_add = True
-                                    
-                                    if match:
-                                        match_date = match.get('match_date')
-                                        if match_date:
-                                            try:
-                                                match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
-                                                if datetime.now() >= match_dt:
-                                                    can_add = allow_historical
-                                            except:
-                                                pass
-                                    
-                                    if can_add:
-                                        storage.add_prediction(round_id, player_name, match_id, prediction)
+                                    for match_id, prediction in predictions_to_save.items():
+                                        # Sprawdź czy typ już istnieje
+                                        is_update = match_id in existing_predictions
                                         
-                                        if is_update:
-                                            updated_count += 1
+                                        # Sprawdź czy mecz można edytować
+                                        match = next((m for m in selected_matches if str(m.get('match_id')) == match_id), None)
+                                        can_add = True
+                                        
+                                        if match:
+                                            match_date = match.get('match_date')
+                                            if match_date:
+                                                try:
+                                                    match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                                                    if datetime.now() >= match_dt:
+                                                        can_add = allow_historical
+                                                except:
+                                                    pass
+                                        
+                                        if can_add:
+                                            storage.add_prediction(round_id, player_name, match_id, prediction)
+                                            
+                                            if is_update:
+                                                updated_count += 1
+                                            else:
+                                                saved_count += 1
+                                    
+                                    total_saved = saved_count + updated_count
+                                    if total_saved > 0:
+                                        if updated_count > 0 and saved_count > 0:
+                                            st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
+                                        elif updated_count > 0:
+                                            st.success(f"✅ Zaktualizowano {updated_count} typów")
                                         else:
-                                            saved_count += 1
-                                
-                                total_saved = saved_count + updated_count
-                                if total_saved > 0:
-                                    if updated_count > 0 and saved_count > 0:
-                                        st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
-                                    elif updated_count > 0:
-                                        st.success(f"✅ Zaktualizowano {updated_count} typów")
+                                            st.success(f"✅ Zapisano {saved_count} typów")
+                                        st.rerun()
                                     else:
-                                        st.success(f"✅ Zapisano {saved_count} typów")
-                                    st.rerun()
+                                        st.warning("⚠️ Wszystkie mecze już rozpoczęte")
                                 else:
-                                    st.warning("⚠️ Wszystkie mecze już rozpoczęte")
-                            else:
-                                st.info("ℹ️ Wprowadź typy przed zapisaniem")
+                                    st.info("ℹ️ Wprowadź typy przed zapisaniem")
+                        
+                        with col_btn2:
+                            if st.button("🗑️ Usuń typy", key=f"tipper_delete_all_{player_name}"):
+                                # Sprawdź czy są typy do usunięcia
+                                if existing_predictions:
+                                    # Usuń wszystkie typy dla tego gracza w tej rundzie
+                                    deleted_count = 0
+                                    
+                                    for match_id in existing_predictions.keys():
+                                        # Sprawdź czy mecz można edytować
+                                        match = next((m for m in selected_matches if str(m.get('match_id')) == match_id), None)
+                                        can_delete = True
+                                        
+                                        if match:
+                                            match_date = match.get('match_date')
+                                            if match_date:
+                                                try:
+                                                    match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                                                    if datetime.now() >= match_dt:
+                                                        can_delete = allow_historical
+                                                except:
+                                                    pass
+                                        
+                                        if can_delete:
+                                            # Usuń typ z storage
+                                            try:
+                                                # Dla JSON storage - usuń z danych
+                                                if hasattr(storage, 'data') and isinstance(storage.data, dict):
+                                                    if round_id in storage.data.get('rounds', {}):
+                                                        if 'predictions' in storage.data['rounds'][round_id]:
+                                                            if player_name in storage.data['rounds'][round_id]['predictions']:
+                                                                if match_id in storage.data['rounds'][round_id]['predictions'][player_name]:
+                                                                    del storage.data['rounds'][round_id]['predictions'][player_name][match_id]
+                                                                    deleted_count += 1
+                                                                    # Usuń również z gracza
+                                                                    if round_id in storage.data['players'][player_name].get('predictions', {}):
+                                                                        if match_id in storage.data['players'][player_name]['predictions'][round_id]:
+                                                                            del storage.data['players'][player_name]['predictions'][round_id][match_id]
+                                                                    # Usuń również punkty
+                                                                    if 'match_points' in storage.data['rounds'][round_id]:
+                                                                        if player_name in storage.data['rounds'][round_id]['match_points']:
+                                                                            if match_id in storage.data['rounds'][round_id]['match_points'][player_name]:
+                                                                                del storage.data['rounds'][round_id]['match_points'][player_name][match_id]
+                                                
+                                                # Dla MySQL storage - usuń z bazy
+                                                if hasattr(storage, 'conn'):
+                                                    try:
+                                                        query = f"DELETE FROM predictions WHERE round_id = '{round_id}' AND player_name = '{player_name}' AND match_id = '{match_id}'"
+                                                        storage.conn.query(query, ttl=0)
+                                                        # Usuń również punkty
+                                                        query_points = f"DELETE FROM match_points WHERE round_id = '{round_id}' AND player_name = '{player_name}' AND match_id = '{match_id}'"
+                                                        storage.conn.query(query_points, ttl=0)
+                                                        deleted_count += 1
+                                                    except Exception as e:
+                                                        logger.error(f"Błąd usuwania typu z MySQL: {e}")
+                                            except Exception as e:
+                                                logger.error(f"Błąd usuwania typu: {e}")
+                                    
+                                    if deleted_count > 0:
+                                        # Zapisz zmiany
+                                        if hasattr(storage, '_save_data'):
+                                            storage._save_data()
+                                        # Wyczyść cache jeśli istnieje
+                                        if hasattr(storage, 'reload_data'):
+                                            storage.reload_data()
+                                        
+                                        st.success(f"✅ Usunięto {deleted_count} typów")
+                                        # Wyczyść pola tekstowe
+                                        for match in selected_matches:
+                                            match_id = str(match.get('match_id', ''))
+                                            input_key = f"tipper_pred_{player_name}_{match_id}"
+                                            if input_key in st.session_state:
+                                                st.session_state[input_key] = ""
+                                        st.rerun()
+                                    else:
+                                        st.warning("⚠️ Nie można usunąć typów - mecze już rozpoczęte")
+                                else:
+                                    st.info("ℹ️ Brak typów do usunięcia")
                     
                     with col_bulk:
                         st.markdown("#### 📋 Wklej wszystkie (bulk)")
