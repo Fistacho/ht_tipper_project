@@ -7,6 +7,7 @@ import logging
 from typing import Dict, List, Optional
 from datetime import datetime
 import streamlit as st
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
@@ -112,11 +113,19 @@ class TipperStorageMySQL:
                     
                     def query(self, sql, ttl=600):
                         import pandas as pd
-                        with self.conn.cursor() as cursor:
-                            cursor.execute(sql)
-                            results = cursor.fetchall()
-                            if results:
-                                return pd.DataFrame(results)
+                        try:
+                            with self.conn.cursor() as cursor:
+                                cursor.execute(sql)
+                                results = cursor.fetchall()
+                                if results:
+                                    return pd.DataFrame(results)
+                                return pd.DataFrame()
+                        except Exception as e:
+                            logger.error(f"Błąd zapytania SQL: {e}")
+                            logger.error(f"SQL: {sql[:200]}...")  # Loguj pierwsze 200 znaków SQL
+                            import traceback
+                            logger.error(f"Traceback: {traceback.format_exc()}")
+                            # Zwróć pusty DataFrame zamiast rzucać wyjątek
                             return pd.DataFrame()
                 
                 self.conn = MySQLConnectionWrapper(connection)
@@ -196,11 +205,19 @@ class TipperStorageMySQL:
                         
                         def query(self, sql, ttl=600):
                             import pandas as pd
-                            with self.conn.cursor() as cursor:
-                                cursor.execute(sql)
-                                results = cursor.fetchall()
-                                if results:
-                                    return pd.DataFrame(results)
+                            try:
+                                with self.conn.cursor() as cursor:
+                                    cursor.execute(sql)
+                                    results = cursor.fetchall()
+                                    if results:
+                                        return pd.DataFrame(results)
+                                    return pd.DataFrame()
+                            except Exception as e:
+                                logger.error(f"Błąd zapytania SQL: {e}")
+                                logger.error(f"SQL: {sql[:200]}...")  # Loguj pierwsze 200 znaków SQL
+                                import traceback
+                                logger.error(f"Traceback: {traceback.format_exc()}")
+                                # Zwróć pusty DataFrame zamiast rzucać wyjątek
                                 return pd.DataFrame()
                     
                     self.conn = MySQLConnectionWrapper(connection)
@@ -361,8 +378,9 @@ class TipperStorageMySQL:
         return data
     
     def _load_data(self) -> Dict:
-        """Ładuje wszystkie dane z bazy MySQL do formatu JSON (bez cache)"""
+        """Ładuje wszystkie dane z bazy MySQL do formatu JSON (bez cache) - zoptymalizowane z równoległymi zapytaniami"""
         try:
+            logger.info("DEBUG: _load_data() - rozpoczynam ładowanie danych z MySQL")
             data = {
                 'players': {},
                 'rounds': {},
@@ -371,113 +389,183 @@ class TipperStorageMySQL:
                 'settings': {}
             }
             
-            # Załaduj graczy
-            players_df = self.conn.query("SELECT * FROM players", ttl=0)
-            for _, row in players_df.iterrows():
-                data['players'][row['player_name']] = {
-                    'total_points': int(row['total_points']) if row['total_points'] else 0,
-                    'rounds_played': int(row['rounds_played']) if row['rounds_played'] else 0,
-                    'best_score': int(row['best_score']) if row['best_score'] else 0,
-                    'worst_score': int(row['worst_score']) if row['worst_score'] else 0,
-                    'predictions': {}
-                }
-            
-            # Załaduj ligi
-            leagues_df = self.conn.query("SELECT * FROM leagues", ttl=0)
-            for _, row in leagues_df.iterrows():
-                data['leagues'][row['league_id']] = {
-                    'name': row['league_name'],
-                    'seasons': []
-                }
-            
-            # Załaduj sezony
-            seasons_df = self.conn.query("SELECT * FROM seasons", ttl=0)
-            for _, row in seasons_df.iterrows():
-                data['seasons'][row['season_id']] = {
-                    'league_id': row['league_id'],
-                    'rounds': [],
-                    'start_date': row['start_date'],
-                    'end_date': row['end_date']
-                }
-            
-            # Załaduj rundy
-            rounds_df = self.conn.query("SELECT * FROM rounds", ttl=0)
-            for _, row in rounds_df.iterrows():
-                round_id = row['round_id']
-                data['rounds'][round_id] = {
-                    'season_id': row['season_id'],
-                    'start_date': row['start_date'],
-                    'end_date': row['end_date'],
-                    'matches': [],
-                    'predictions': {},
-                    'match_points': {}
-                }
-                
-                # Załaduj mecze dla rundy
-                matches_df = self.conn.query(
-                    f"SELECT * FROM matches WHERE round_id = '{round_id}'", ttl=0
-                )
-                for _, match_row in matches_df.iterrows():
-                    data['rounds'][round_id]['matches'].append({
-                        'match_id': match_row['match_id'],
-                        'home_team_name': match_row['home_team_name'],
-                        'away_team_name': match_row['away_team_name'],
-                        'match_date': match_row['match_date'],
-                        'home_goals': match_row['home_goals'],
-                        'away_goals': match_row['away_goals'],
-                        'league_id': match_row['league_id']
-                    })
-                
-                # Załaduj typy dla rundy
-                predictions_df = self.conn.query(
-                    f"SELECT * FROM predictions WHERE round_id = '{round_id}'", ttl=0
-                )
-                for _, pred_row in predictions_df.iterrows():
-                    player_name = pred_row['player_name']
-                    match_id = pred_row['match_id']
-                    if player_name not in data['rounds'][round_id]['predictions']:
-                        data['rounds'][round_id]['predictions'][player_name] = {}
-                    data['rounds'][round_id]['predictions'][player_name][match_id] = {
-                        'home': int(pred_row['home_goals']),
-                        'away': int(pred_row['away_goals']),
-                        'timestamp': pred_row['timestamp']
+            # Równoległe ładowanie głównych tabel (players, leagues, seasons, rounds, settings)
+            def load_players():
+                players_df = self.conn.query("SELECT * FROM players", ttl=0)
+                logger.info(f"DEBUG: load_players() - znaleziono {len(players_df)} graczy w bazie")
+                players_dict = {}
+                for _, row in players_df.iterrows():
+                    players_dict[row['player_name']] = {
+                        'total_points': int(row['total_points']) if row['total_points'] else 0,
+                        'rounds_played': int(row['rounds_played']) if row['rounds_played'] else 0,
+                        'best_score': int(row['best_score']) if row['best_score'] else 0,
+                        'worst_score': int(row['worst_score']) if row['worst_score'] else 0,
+                        'predictions': {}
                     }
-                    
-                    # Dodaj do gracza
-                    if player_name in data['players']:
-                        if round_id not in data['players'][player_name]['predictions']:
-                            data['players'][player_name]['predictions'][round_id] = {}
-                        data['players'][player_name]['predictions'][round_id][match_id] = {
+                logger.info(f"DEBUG: load_players() - zwracam {len(players_dict)} graczy")
+                return players_dict
+            
+            def load_leagues():
+                leagues_df = self.conn.query("SELECT * FROM leagues", ttl=0)
+                leagues_dict = {}
+                for _, row in leagues_df.iterrows():
+                    leagues_dict[row['league_id']] = {
+                        'name': row['league_name'],
+                        'seasons': []
+                    }
+                return leagues_dict
+            
+            def load_seasons():
+                seasons_df = self.conn.query("SELECT * FROM seasons", ttl=0)
+                seasons_dict = {}
+                for _, row in seasons_df.iterrows():
+                    seasons_dict[row['season_id']] = {
+                        'league_id': row['league_id'],
+                        'rounds': [],
+                        'start_date': row['start_date'],
+                        'end_date': row['end_date']
+                    }
+                return seasons_dict
+            
+            def load_rounds():
+                rounds_df = self.conn.query("SELECT * FROM rounds", ttl=0)
+                rounds_dict = {}
+                for _, row in rounds_df.iterrows():
+                    rounds_dict[row['round_id']] = {
+                        'season_id': row['season_id'],
+                        'start_date': row['start_date'],
+                        'end_date': row['end_date'],
+                        'matches': [],
+                        'predictions': {},
+                        'match_points': {}
+                    }
+                return rounds_dict
+            
+            def load_settings():
+                settings_df = self.conn.query("SELECT * FROM settings", ttl=0)
+                settings_dict = {}
+                for _, row in settings_df.iterrows():
+                    key = row['setting_key']
+                    value = row['setting_value']
+                    try:
+                        settings_dict[key] = json.loads(value)
+                    except:
+                        settings_dict[key] = value
+                return settings_dict
+            
+            # Wykonaj zapytania sekwencyjnie (MySQL połączenie nie jest thread-safe)
+            # TODO: Można użyć connection pool, ale na razie sekwencyjnie dla stabilności
+            data['players'] = load_players()
+            data['leagues'] = load_leagues()
+            data['seasons'] = load_seasons()
+            data['rounds'] = load_rounds()
+            data['settings'] = load_settings()
+            
+            logger.info(f"DEBUG: _load_data() - załadowano: {len(data['players'])} graczy, {len(data['rounds'])} rund, {len(data['leagues'])} lig, {len(data['seasons'])} sezonów")
+            
+            # Teraz załaduj dane dla rund (mecze, typy, punkty) - batch queries zamiast pętli + równoległe ładowanie
+            if data['rounds']:
+                round_ids = list(data['rounds'].keys())
+                round_ids_str = "', '".join(round_ids)
+                
+                def load_matches():
+                    all_matches_df = self.conn.query(
+                        f"SELECT * FROM matches WHERE round_id IN ('{round_ids_str}')", ttl=0
+                    )
+                    matches_dict = {}
+                    for _, match_row in all_matches_df.iterrows():
+                        round_id = match_row['round_id']
+                        if round_id not in matches_dict:
+                            matches_dict[round_id] = []
+                        matches_dict[round_id].append({
+                            'match_id': match_row['match_id'],
+                            'home_team_name': match_row['home_team_name'],
+                            'away_team_name': match_row['away_team_name'],
+                            'match_date': match_row['match_date'],
+                            'home_goals': match_row['home_goals'],
+                            'away_goals': match_row['away_goals'],
+                            'league_id': match_row['league_id']
+                        })
+                    return matches_dict
+                
+                def load_predictions():
+                    logger.info(f"DEBUG: load_predictions() - szukam typów dla rund: {round_ids[:5]}... (pokazuję pierwsze 5)")
+                    all_predictions_df = self.conn.query(
+                        f"SELECT * FROM predictions WHERE round_id IN ('{round_ids_str}')", ttl=0
+                    )
+                    logger.info(f"DEBUG: load_predictions() - znaleziono {len(all_predictions_df)} typów w bazie")
+                    predictions_dict = {}
+                    for _, pred_row in all_predictions_df.iterrows():
+                        round_id = pred_row['round_id']
+                        player_name = pred_row['player_name']
+                        match_id = pred_row['match_id']
+                        
+                        if round_id not in predictions_dict:
+                            predictions_dict[round_id] = {}
+                        if player_name not in predictions_dict[round_id]:
+                            predictions_dict[round_id][player_name] = {}
+                        predictions_dict[round_id][player_name][match_id] = {
                             'home': int(pred_row['home_goals']),
                             'away': int(pred_row['away_goals']),
                             'timestamp': pred_row['timestamp']
                         }
+                    logger.info(f"DEBUG: load_predictions() - zwracam typy dla {len(predictions_dict)} rund")
+                    return predictions_dict
                 
-                # Załaduj punkty za mecze
-                match_points_df = self.conn.query(
-                    f"SELECT * FROM match_points WHERE round_id = '{round_id}'", ttl=0
-                )
-                for _, points_row in match_points_df.iterrows():
-                    player_name = points_row['player_name']
-                    match_id = points_row['match_id']
-                    if player_name not in data['rounds'][round_id]['match_points']:
-                        data['rounds'][round_id]['match_points'][player_name] = {}
-                    data['rounds'][round_id]['match_points'][player_name][match_id] = int(points_row['points'])
+                def load_match_points():
+                    all_match_points_df = self.conn.query(
+                        f"SELECT * FROM match_points WHERE round_id IN ('{round_ids_str}')", ttl=0
+                    )
+                    points_dict = {}
+                    for _, points_row in all_match_points_df.iterrows():
+                        round_id = points_row['round_id']
+                        player_name = points_row['player_name']
+                        match_id = points_row['match_id']
+                        
+                        if round_id not in points_dict:
+                            points_dict[round_id] = {}
+                        if player_name not in points_dict[round_id]:
+                            points_dict[round_id][player_name] = {}
+                        points_dict[round_id][player_name][match_id] = int(points_row['points'])
+                    return points_dict
+                
+                # Wykonaj zapytania sekwencyjnie (MySQL połączenie nie jest thread-safe)
+                matches_dict = load_matches()
+                predictions_dict = load_predictions()
+                points_dict = load_match_points()
+                
+                # Połącz dane z rundami
+                logger.info(f"DEBUG: Łączę dane z rundami - {len(data['rounds'])} rund")
+                for round_id in data['rounds']:
+                    if round_id in matches_dict:
+                        data['rounds'][round_id]['matches'] = matches_dict[round_id]
+                        logger.info(f"DEBUG: Dodano {len(matches_dict[round_id])} meczów do rundy {round_id}")
+                    if round_id in predictions_dict:
+                        data['rounds'][round_id]['predictions'] = predictions_dict[round_id]
+                        logger.info(f"DEBUG: Dodano typy dla {len(predictions_dict[round_id])} graczy do rundy {round_id}")
+                        # Dodaj typy do graczy
+                        for player_name, player_predictions in predictions_dict[round_id].items():
+                            if player_name in data['players']:
+                                if round_id not in data['players'][player_name]['predictions']:
+                                    data['players'][player_name]['predictions'][round_id] = {}
+                                # player_predictions to dict {match_id: {home, away, timestamp}}
+                                for match_id, pred_data in player_predictions.items():
+                                    data['players'][player_name]['predictions'][round_id][match_id] = pred_data
+                                logger.info(f"DEBUG: Dodano {len(player_predictions)} typów dla gracza {player_name} w rundzie {round_id}")
+                            else:
+                                logger.warning(f"DEBUG: Gracz {player_name} nie istnieje w data['players']")
+                    else:
+                        logger.info(f"DEBUG: Brak typów dla rundy {round_id} w predictions_dict")
+                    if round_id in points_dict:
+                        data['rounds'][round_id]['match_points'] = points_dict[round_id]
+                        logger.info(f"DEBUG: Dodano punkty dla {len(points_dict[round_id])} graczy do rundy {round_id}")
             
-            # Załaduj ustawienia
-            settings_df = self.conn.query("SELECT * FROM settings", ttl=0)
-            for _, row in settings_df.iterrows():
-                key = row['setting_key']
-                value = row['setting_value']
-                try:
-                    data['settings'][key] = json.loads(value)
-                except:
-                    data['settings'][key] = value
-            
-            logger.info(f"Załadowano dane z MySQL: {len(data.get('players', {}))} graczy, {len(data.get('rounds', {}))} rund")
+            logger.info(f"Załadowano dane z MySQL (zoptymalizowane): {len(data.get('players', {}))} graczy, {len(data.get('rounds', {}))} rund")
             return data
         except Exception as e:
             logger.error(f"Błąd ładowania danych z MySQL: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return self._get_default_data()
     
     def _get_default_data(self) -> Dict:
@@ -853,23 +941,42 @@ class TipperStorageMySQL:
     def get_leaderboard(self, exclude_worst: bool = True) -> List[Dict]:
         """Zwraca ranking graczy (z opcją odrzucenia najgorszego wyniku)"""
         try:
+            # Pobierz wszystkie rundy posortowane po dacie (najstarsza pierwsza)
+            rounds_df = self.conn.query("SELECT round_id, start_date FROM rounds ORDER BY start_date ASC", ttl=0)
+            all_rounds = []
+            if not rounds_df.empty:
+                for _, round_row in rounds_df.iterrows():
+                    all_rounds.append((round_row['round_id'], round_row['start_date']))
+            
             players_df = self.conn.query("SELECT * FROM players ORDER BY total_points DESC", ttl=0)
             
             leaderboard = []
             for _, row in players_df.iterrows():
                 player_name = row['player_name']
                 
-                # Pobierz punkty per runda
+                # Pobierz punkty per runda (tylko rundy z punktami)
                 round_points_df = self.conn.query(
-                    f"SELECT round_id, SUM(points) as round_total FROM match_points WHERE player_name = '{player_name}' GROUP BY round_id ORDER BY round_total",
+                    f"SELECT round_id, SUM(points) as round_total FROM match_points WHERE player_name = '{player_name}' GROUP BY round_id",
                     ttl=0
                 )
                 
-                round_points = [int(p) for p in round_points_df['round_total']] if not round_points_df.empty else []
+                # Stwórz mapę round_id -> punkty
+                round_points_map = {}
+                if not round_points_df.empty:
+                    for _, round_row in round_points_df.iterrows():
+                        round_points_map[round_row['round_id']] = int(round_row['round_total'])
+                
+                # Zbierz punkty z każdej kolejki w kolejności (najstarsza pierwsza)
+                # Jeśli gracz nie typował w rundzie, dodaj 0
+                round_points_list = []
+                for round_id, _ in all_rounds:
+                    round_points = round_points_map.get(round_id, 0)
+                    round_points_list.append(round_points)
+                
                 original_total = int(row['total_points'])
                 worst_score = int(row['worst_score']) if row['worst_score'] else 0
                 
-                if exclude_worst and worst_score > 0 and len(round_points) > 1:
+                if exclude_worst and worst_score > 0 and len(round_points_list) > 1:
                     total_points = original_total - worst_score
                     excluded_worst = True
                 else:
@@ -884,7 +991,7 @@ class TipperStorageMySQL:
                     'best_score': int(row['best_score']),
                     'worst_score': worst_score,
                     'excluded_worst': excluded_worst,
-                    'round_points': sorted(round_points, reverse=True)
+                    'round_points': round_points_list  # Lista punktów z każdej kolejki (w kolejności dat)
                 })
             
             leaderboard.sort(key=lambda x: x['total_points'], reverse=True)
@@ -894,42 +1001,107 @@ class TipperStorageMySQL:
             return []
     
     def get_round_leaderboard(self, round_id: str) -> List[Dict]:
-        """Zwraca ranking dla rundy"""
+        """Zwraca ranking dla rundy - wszyscy gracze, nawet ci bez typów (z 0 punktami)"""
         try:
+            logger.info(f"DEBUG: get_round_leaderboard dla round_id='{round_id}'")
+            
+            # Pobierz wszystkich graczy
+            players_df = self.conn.query("SELECT player_name FROM players", ttl=0)
+            all_players = set()
+            if not players_df.empty:
+                for _, row in players_df.iterrows():
+                    all_players.add(row['player_name'])
+            
+            logger.info(f"DEBUG: Znaleziono {len(all_players)} graczy w bazie")
+            
+            # Jeśli nie ma graczy, zwróć pustą listę
+            if not all_players:
+                logger.info(f"DEBUG: Brak graczy w bazie dla rundy {round_id}")
+                return []
+            
+            # Sprawdź jakie round_id są w bazie (debug)
+            all_rounds_df = self.conn.query("SELECT DISTINCT round_id FROM rounds", ttl=0)
+            all_round_ids = []
+            if not all_rounds_df.empty:
+                all_round_ids = [str(row['round_id']) for _, row in all_rounds_df.iterrows()]
+            logger.info(f"DEBUG: Round IDs w bazie: {all_round_ids[:10]}... (pokazuję pierwsze 10)")
+            logger.info(f"DEBUG: Szukam round_id='{round_id}' w bazie")
+            
+            # Jeśli nie znaleziono dokładnego round_id, spróbuj znaleźć podobny (bez prefiksu round_)
+            actual_round_id = round_id
+            if round_id not in all_round_ids:
+                # Spróbuj znaleźć round_id bez prefiksu "round_"
+                round_id_without_prefix = round_id.replace("round_", "", 1) if round_id.startswith("round_") else round_id
+                # Szukaj round_id, który zawiera datę
+                for db_round_id in all_round_ids:
+                    if round_id_without_prefix in db_round_id or db_round_id in round_id:
+                        actual_round_id = db_round_id
+                        logger.info(f"DEBUG: Znaleziono podobny round_id: '{db_round_id}' zamiast '{round_id}'")
+                        break
+            
+            # Pobierz mecze w rundzie (aby wiedzieć ile meczów było)
+            matches_df = self.conn.query(
+                f"SELECT match_id, match_date FROM matches WHERE round_id = '{actual_round_id}' ORDER BY match_date ASC",
+                ttl=0
+            )
+            logger.info(f"DEBUG: Znaleziono {len(matches_df)} meczów dla round_id='{actual_round_id}'")
+            matches_count = len(matches_df) if not matches_df.empty else 0
+            match_ids = []
+            if not matches_df.empty:
+                match_ids = [str(row['match_id']) for _, row in matches_df.iterrows()]
+            
             # Pobierz punkty per gracz dla rundy
             points_df = self.conn.query(
-                f"SELECT player_name, match_id, points FROM match_points WHERE round_id = '{round_id}' ORDER BY player_name, match_id",
+                f"SELECT player_name, match_id, points FROM match_points WHERE round_id = '{actual_round_id}' ORDER BY player_name, match_id",
                 ttl=0
             )
             
             player_totals = {}
             player_match_points = {}
             
-            for _, row in points_df.iterrows():
-                player_name = row['player_name']
-                match_id = row['match_id']
-                points = int(row['points'])
-                
-                if player_name not in player_totals:
-                    player_totals[player_name] = 0
-                    player_match_points[player_name] = []
-                
-                player_totals[player_name] += points
-                player_match_points[player_name].append(points)
+            # Inicjalizuj wszystkich graczy z 0 punktami
+            for player_name in all_players:
+                player_totals[player_name] = 0
+                player_match_points[player_name] = [0] * matches_count if matches_count > 0 else []
             
-            # Stwórz ranking
+            # Wypełnij punkty dla graczy, którzy typowali
+            if not points_df.empty:
+                for _, row in points_df.iterrows():
+                    player_name = row['player_name']
+                    match_id = str(row['match_id'])
+                    points = int(row['points'])
+                    
+                    # Znajdź indeks meczu w liście
+                    if match_id in match_ids:
+                        match_idx = match_ids.index(match_id)
+                        if player_name in player_match_points and match_idx < len(player_match_points[player_name]):
+                            player_match_points[player_name][match_idx] = points
+                            player_totals[player_name] += points
+            
+            # Stwórz ranking (wszyscy gracze, nawet z 0 punktami)
             leaderboard = []
-            for player_name, total_points in sorted(player_totals.items(), key=lambda x: x[1], reverse=True):
+            for player_name in all_players:
+                total_points = player_totals.get(player_name, 0)
+                match_points_list = player_match_points.get(player_name, [])
+                # Policz ile meczów z typami (nie 0)
+                matches_with_predictions = sum(1 for p in match_points_list if p > 0)
+                
                 leaderboard.append({
                     'player_name': player_name,
                     'total_points': total_points,
-                    'match_points': player_match_points[player_name],
-                    'matches_count': len(player_match_points[player_name])
+                    'match_points': match_points_list,
+                    'matches_count': matches_with_predictions
                 })
             
+            # Sortuj po punktach (malejąco)
+            leaderboard.sort(key=lambda x: x['total_points'], reverse=True)
+            
+            logger.info(f"DEBUG: Zwracam ranking dla rundy {round_id}: {len(leaderboard)} graczy")
             return leaderboard
         except Exception as e:
             logger.error(f"Błąd pobierania rankingu rundy: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return []
     
     def get_selected_teams(self) -> List[str]:

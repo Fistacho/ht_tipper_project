@@ -88,7 +88,9 @@ def main():
             st.markdown("---")
             st.subheader("💾 Informacje o storage")
             try:
+                logger.info("DEBUG: Tworzę storage...")
                 storage = get_storage()
+                logger.info(f"DEBUG: Storage utworzony: {type(storage).__name__}")
                 storage_type = type(storage).__name__
                 st.info(f"Typ storage: **{storage_type}**")
                 
@@ -473,17 +475,30 @@ def main():
             st.subheader("📅 Wybór rundy")
             
             # Znajdź ostatnią rozegraną kolejkę (domyślnie)
+            # filtered_rounds jest posortowane DESC (najnowsza pierwsza), więc szukamy pierwszej rozegranej
             default_round_idx = 0
+            last_played_idx = 0
             for idx, (date, matches) in enumerate(filtered_rounds):
                 # Sprawdź czy kolejka ma rozegrane mecze
                 has_played = any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches)
                 if has_played:
-                    default_round_idx = idx
-                    break  # Weź pierwszą (najnowszą) rozegraną kolejkę
+                    last_played_idx = idx
+                    # Nie break - znajdź ostatnią (najnowszą) rozegraną kolejkę w liście
             
-            # Sprawdź czy jest zapisany wybór rundy w session_state
-            if 'selected_round_idx' in st.session_state:
-                default_round_idx = st.session_state.selected_round_idx
+            # Użyj ostatniej rozegranej kolejki jako domyślnej (jeśli znaleziono)
+            if last_played_idx > 0 or any(any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches) for _, matches in filtered_rounds[:1]):
+                # Sprawdź czy pierwsza kolejka jest rozegrana (najnowsza)
+                if filtered_rounds and any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in filtered_rounds[0][1]):
+                    default_round_idx = 0  # Pierwsza kolejka (najnowsza) jest rozegrana
+                else:
+                    default_round_idx = last_played_idx  # Użyj ostatniej znalezionej rozegranej
+            else:
+                default_round_idx = 0  # Jeśli nie ma rozegranych, użyj pierwszej (najnowszej)
+            
+            # Sprawdź czy jest zapisany wybór rundy w session_state (tylko jeśli użytkownik wybrał ręcznie)
+            # Używamy osobnego klucza dla rankingu, aby nie nadpisywać domyślnej kolejki
+            if 'ranking_selected_round_idx' in st.session_state:
+                default_round_idx = st.session_state.ranking_selected_round_idx
             
             # Numeruj kolejki według daty asc (numer 1 = najstarsza), ale wyświetlaj sort desc (najnowsza pierwsza)
             round_options = []
@@ -493,7 +508,9 @@ def main():
             
             selected_round_idx = st.selectbox("Wybierz rundę:", range(len(round_options)), index=default_round_idx, format_func=lambda x: round_options[x], key="ranking_round_select")
             
-            # Zapisz wybór rundy w session_state
+            # Zapisz wybór rundy w session_state (osobny klucz dla rankingu)
+            st.session_state.ranking_selected_round_idx = selected_round_idx
+            # Również zapisz w głównym kluczu dla synchronizacji z sekcją wprowadzania typów
             st.session_state.selected_round_idx = selected_round_idx
             
             if selected_round_idx is not None:
@@ -508,6 +525,42 @@ def main():
                 
                 # Ranking dla wybranej rundy
                 round_leaderboard = storage.get_round_leaderboard(round_id)
+                
+                # Debug: sprawdź czy są gracze w bazie i czy runda istnieje
+                if not round_leaderboard:
+                    # Wymuś przeładowanie danych z bazy (wyczyść cache)
+                    if hasattr(storage, 'reload_data'):
+                        storage.reload_data()
+                    
+                    # Sprawdź czy są gracze w bazie
+                    all_players = list(storage.data.get('players', {}).keys())
+                    logger.info(f"DEBUG: Po przeładowaniu - graczy w storage.data: {len(all_players)}")
+                    logger.info(f"DEBUG: Gracze: {all_players[:5]}...")
+                    
+                    if not all_players:
+                        st.warning("⚠️ Brak graczy w bazie. Dodaj graczy, aby zobaczyć ranking.")
+                    else:
+                        # Sprawdź czy runda istnieje w storage
+                        round_exists = round_id in storage.data.get('rounds', {})
+                        # Sprawdź czy są mecze w rundzie
+                        round_data = storage.data.get('rounds', {}).get(round_id, {})
+                        matches_in_round = len(round_data.get('matches', []))
+                        
+                        # Sprawdź bezpośrednio w bazie (jeśli MySQL storage)
+                        if hasattr(storage, 'conn'):
+                            try:
+                                players_df = storage.conn.query("SELECT COUNT(*) as cnt FROM players", ttl=0)
+                                players_count_db = int(players_df.iloc[0]['cnt']) if not players_df.empty else 0
+                                logger.info(f"DEBUG: Graczy w bazie (bezpośrednie zapytanie): {players_count_db}")
+                            except Exception as e:
+                                logger.error(f"DEBUG: Błąd zapytania do bazy: {e}")
+                                players_count_db = 0
+                        else:
+                            players_count_db = len(all_players)
+                        
+                        debug_info = f"📊 Debug: round_id='{round_id}', runda istnieje={round_exists}, mecze={matches_in_round}, graczy (cache)={len(all_players)}, graczy (DB)={players_count_db}"
+                        logger.info(debug_info)
+                        st.info(f"📊 Brak danych do wyświetlenia dla tej kolejki\n\n**Debug:**\n- round_id: `{round_id}`\n- Runda istnieje: {round_exists}\n- Mecze w rundzie: {matches_in_round}\n- Graczy w cache: {len(all_players)}\n- Graczy w bazie: {players_count_db}")
                 
                 if round_leaderboard:
                     # Pobierz mecze z rundy dla wyświetlenia typów
@@ -608,15 +661,28 @@ def main():
         st.subheader("📅 Wybór rundy")
         
         # Znajdź ostatnią rozegraną kolejkę (domyślnie)
+        # filtered_rounds jest posortowane DESC (najnowsza pierwsza), więc szukamy pierwszej rozegranej
         default_round_idx = 0
+        last_played_idx = 0
         for idx, (date, matches) in enumerate(filtered_rounds):
             # Sprawdź czy kolejka ma rozegrane mecze
             has_played = any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches)
             if has_played:
-                default_round_idx = idx
-                break  # Weź pierwszą (najnowszą) rozegraną kolejkę
+                last_played_idx = idx
+                # Nie break - znajdź ostatnią (najnowszą) rozegraną kolejkę w liście
+        
+        # Użyj ostatniej rozegranej kolejki jako domyślnej (jeśli znaleziono)
+        if last_played_idx > 0 or any(any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches) for _, matches in filtered_rounds[:1]):
+            # Sprawdź czy pierwsza kolejka jest rozegrana (najnowsza)
+            if filtered_rounds and any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in filtered_rounds[0][1]):
+                default_round_idx = 0  # Pierwsza kolejka (najnowsza) jest rozegrana
+            else:
+                default_round_idx = last_played_idx  # Użyj ostatniej znalezionej rozegranej
+        else:
+            default_round_idx = 0  # Jeśli nie ma rozegranych, użyj pierwszej (najnowszej)
         
         # Sprawdź czy jest zapisany wybór rundy w session_state (synchronizacja z rankingiem)
+        # Jeśli użytkownik wybrał kolejkę w rankingu, użyj tego wyboru
         if 'selected_round_idx' in st.session_state:
             default_round_idx = st.session_state.selected_round_idx
         
@@ -934,7 +1000,15 @@ def main():
             
     
     except Exception as e:
-        st.error(f"❌ Błąd: {str(e)}")
+        error_msg = str(e)
+        # Jeśli błąd to tuple (np. z pymysql), wyświetl czytelniejszy komunikat
+        if isinstance(e, tuple) and len(e) == 2:
+            error_code, error_message = e
+            if error_message:
+                error_msg = f"Błąd MySQL ({error_code}): {error_message}"
+            else:
+                error_msg = f"Błąd MySQL (kod: {error_code})"
+        st.error(f"❌ Błąd: {error_msg}")
         logger.error(f"Błąd typera: {e}", exc_info=True)
 
 
