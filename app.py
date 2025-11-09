@@ -1560,11 +1560,6 @@ def main():
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
                                         
-                                        # Dla MySQL storage - upewnij się, że dane są zapisane przed przeładowaniem
-                                        # Dodaj krótkie opóźnienie, aby upewnić się, że zapis się zakończył
-                                        import time
-                                        time.sleep(0.1)  # 100ms opóźnienie, aby upewnić się, że zapis się zakończył
-                                        
                                         # Wymuś przeładowanie danych z bazy przed rerun, aby existing_predictions było dostępne
                                         # add_prediction czyści cache po każdym typie, więc cache jest pusty
                                         # Przed rerun musimy przeładować dane, aby pola tekstowe miały poprawne wartości domyślne
@@ -1746,11 +1741,6 @@ def main():
                                         # Zapisz zmiany (dla JSON storage)
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
-                                        
-                                        # Dla MySQL storage - upewnij się, że dane są zapisane przed przeładowaniem
-                                        # Dodaj krótkie opóźnienie, aby upewnić się, że zapis się zakończył
-                                        import time
-                                        time.sleep(0.1)  # 100ms opóźnienie, aby upewnić się, że zapis się zakończył
                                         
                                         # Wymuś przeładowanie danych z bazy przed rerun, aby existing_predictions było dostępne
                                         # add_prediction czyści cache po każdym typie, więc cache jest pusty
