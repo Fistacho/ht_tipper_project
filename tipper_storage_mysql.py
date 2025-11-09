@@ -25,6 +25,7 @@ class TipperStorageMySQL:
         # Użyj współdzielonego połączenia z session_state, aby uniknąć przekroczenia limitu połączeń
         connection_key = 'mysql_connection_wrapper'
         connection_raw_key = 'mysql_connection_raw'
+        mysql_config_key = 'mysql_config'
         
         # Sprawdź czy mamy już połączenie w session_state
         if connection_key in st.session_state and connection_raw_key in st.session_state:
@@ -200,13 +201,24 @@ class TipperStorageMySQL:
                             except:
                                 pass
                             
+                            # Pobierz konfigurację MySQL (z self.mysql_config lub z session_state)
+                            mysql_config = self.mysql_config
+                            if not mysql_config:
+                                mysql_config_key = 'mysql_config'
+                                if mysql_config_key in st.session_state:
+                                    mysql_config = st.session_state[mysql_config_key]
+                            
+                            if not mysql_config:
+                                logger.error("DEBUG: Brak konfiguracji MySQL do ponownego połączenia")
+                                return False
+                            
                             # Utwórz nowe połączenie
                             new_conn = pymysql.connect(
-                                host=self.mysql_config['host'],
-                                port=int(self.mysql_config['port']),
-                                user=self.mysql_config['username'],
-                                password=self.mysql_config['password'],
-                                database=self.mysql_config['database'],
+                                host=mysql_config['host'],
+                                port=int(mysql_config['port']),
+                                user=mysql_config['username'],
+                                password=mysql_config['password'],
+                                database=mysql_config['database'],
                                 charset='utf8mb4',
                                 cursorclass=pymysql.cursors.DictCursor,
                                 autocommit=True,
@@ -225,6 +237,8 @@ class TipperStorageMySQL:
                             return True
                         except Exception as e:
                             logger.error(f"DEBUG: Błąd ponownego połączenia z MySQL: {e}")
+                            import traceback
+                            logger.error(f"Traceback: {traceback.format_exc()}")
                             return False
                     
                     def _check_connection(self):
