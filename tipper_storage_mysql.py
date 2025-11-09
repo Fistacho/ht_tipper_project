@@ -24,31 +24,65 @@ class TipperStorageMySQL:
         """Inicjalizuje połączenie z bazą MySQL (używa współdzielonego połączenia z session_state)"""
         # Użyj współdzielonego połączenia z session_state, aby uniknąć przekroczenia limitu połączeń
         connection_key = 'mysql_connection_wrapper'
+        connection_raw_key = 'mysql_connection_raw'
         
         # Sprawdź czy mamy już połączenie w session_state
-        if connection_key in st.session_state:
+        if connection_key in st.session_state and connection_raw_key in st.session_state:
             try:
                 # Sprawdź czy połączenie jest jeszcze aktywne
                 test_conn = st.session_state[connection_key]
-                if hasattr(test_conn, 'conn'):
-                    # Spróbuj wykonać proste zapytanie, aby sprawdzić czy połączenie działa
+                raw_conn = st.session_state[connection_raw_key]
+                
+                if hasattr(test_conn, 'conn') and raw_conn:
+                    # Sprawdź czy połączenie jest otwarte (bez wykonywania zapytania)
                     try:
-                        import pandas as pd
-                        with test_conn.conn.cursor() as cursor:
-                            cursor.execute("SELECT 1")
-                            cursor.fetchone()
-                        logger.info("DEBUG: Używam istniejącego połączenia MySQL z session_state")
-                        self.conn = test_conn
-                        self._init_database()
-                        return
-                    except Exception:
-                        # Połączenie nie działa, usuń je i utwórz nowe
-                        logger.info("DEBUG: Istniejące połączenie MySQL nie działa, tworzę nowe")
+                        # Sprawdź czy połączenie jest otwarte
+                        if raw_conn.open:
+                            # Spróbuj wykonać proste zapytanie ping, aby sprawdzić czy połączenie działa
+                            raw_conn.ping(reconnect=False)
+                            logger.info("DEBUG: Używam istniejącego połączenia MySQL z session_state")
+                            self.conn = test_conn
+                            self._init_database()
+                            return
+                        else:
+                            # Połączenie zamknięte
+                            logger.info("DEBUG: Istniejące połączenie MySQL jest zamknięte, tworzę nowe")
+                            if connection_key in st.session_state:
+                                del st.session_state[connection_key]
+                            if connection_raw_key in st.session_state:
+                                try:
+                                    raw_conn.close()
+                                except:
+                                    pass
+                                del st.session_state[connection_raw_key]
+                    except Exception as ping_error:
+                        # Połączenie nie działa (ping nie powiódł się)
+                        logger.info(f"DEBUG: Istniejące połączenie MySQL nie działa (ping failed: {ping_error}), tworzę nowe")
+                        if connection_key in st.session_state:
+                            del st.session_state[connection_key]
+                        if connection_raw_key in st.session_state:
+                            try:
+                                raw_conn.close()
+                            except:
+                                pass
+                            del st.session_state[connection_raw_key]
+                else:
+                    # Brak prawidłowego połączenia
+                    logger.info("DEBUG: Istniejące połączenie MySQL nie ma prawidłowej struktury, tworzę nowe")
+                    if connection_key in st.session_state:
                         del st.session_state[connection_key]
+                    if connection_raw_key in st.session_state:
+                        del st.session_state[connection_raw_key]
             except Exception as e:
                 logger.info(f"DEBUG: Błąd sprawdzania istniejącego połączenia: {e}")
                 if connection_key in st.session_state:
                     del st.session_state[connection_key]
+                if connection_raw_key in st.session_state:
+                    try:
+                        st.session_state[connection_raw_key].close()
+                    except:
+                        pass
+                    del st.session_state[connection_raw_key]
         
         # Najpierw spróbuj odczytać z płaskich zmiennych (MYSQL_HOST, MYSQL_PORT, itd.)
         mysql_config = None
@@ -124,6 +158,7 @@ class TipperStorageMySQL:
         if mysql_config and all(mysql_config.values()):
             try:
                 import pymysql
+                logger.info(f"DEBUG: Próba utworzenia nowego połączenia MySQL do {mysql_config['host']}:{mysql_config['port']}")
                 connection = pymysql.connect(
                     host=mysql_config['host'],
                     port=int(mysql_config['port']),
@@ -132,7 +167,10 @@ class TipperStorageMySQL:
                     database=mysql_config['database'],
                     charset='utf8mb4',
                     cursorclass=pymysql.cursors.DictCursor,
-                    autocommit=True  # Włącz autocommit, aby uniknąć problemów z transakcjami
+                    autocommit=True,  # Włącz autocommit, aby uniknąć problemów z transakcjami
+                    connect_timeout=10,  # Timeout połączenia (sekundy)
+                    read_timeout=30,  # Timeout odczytu (sekundy)
+                    write_timeout=30  # Timeout zapisu (sekundy)
                 )
                 
                 # Użyj wrapper dla kompatybilności z st.connection
@@ -160,9 +198,10 @@ class TipperStorageMySQL:
                 # Zapisz połączenie w session_state, aby było współdzielone
                 wrapper = MySQLConnectionWrapper(connection)
                 st.session_state[connection_key] = wrapper
+                st.session_state[connection_raw_key] = connection  # Zapisz również surowe połączenie do sprawdzania
                 self.conn = wrapper
                 self._init_database()
-                logger.info("Połączono z bazą MySQL (bezpośrednio przez pymysql, współdzielone połączenie)")
+                logger.info(f"Połączono z bazą MySQL (bezpośrednio przez pymysql, współdzielone połączenie). Session ID: {id(st.session_state)}")
             except Exception as e:
                 logger.error(f"Błąd połączenia z MySQL: {e}")
                 import traceback
