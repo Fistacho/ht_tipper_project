@@ -1523,6 +1523,13 @@ def main():
                                 
                                 total_saved = saved_count + updated_count
                                 if total_saved > 0:
+                                    # Zapisz zmiany
+                                    if hasattr(storage, '_save_data'):
+                                        storage._save_data()
+                                    # Wyczyść cache jeśli istnieje
+                                    if hasattr(storage, 'reload_data'):
+                                        storage.reload_data()
+                                    
                                     if updated_count > 0 and saved_count > 0:
                                         st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
                                     elif updated_count > 0:
@@ -1681,6 +1688,13 @@ def main():
                                     
                                     total_saved = saved_count + updated_count
                                     if total_saved > 0:
+                                        # Zapisz zmiany
+                                        if hasattr(storage, '_save_data'):
+                                            storage._save_data()
+                                        # Wyczyść cache jeśli istnieje
+                                        if hasattr(storage, 'reload_data'):
+                                            storage.reload_data()
+                                        
                                         if updated_count > 0 and saved_count > 0:
                                             st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
                                         elif updated_count > 0:
