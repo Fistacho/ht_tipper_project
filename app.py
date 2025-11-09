@@ -1560,26 +1560,30 @@ def main():
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
                                         
+                                        # Dla MySQL storage - upewnij się, że dane są zapisane przed przeładowaniem
+                                        # Dodaj krótkie opóźnienie, aby upewnić się, że zapis się zakończył
+                                        import time
+                                        time.sleep(0.1)  # 100ms opóźnienie, aby upewnić się, że zapis się zakończył
+                                        
                                         # Wymuś przeładowanie danych z bazy przed rerun, aby existing_predictions było dostępne
                                         # add_prediction czyści cache po każdym typie, więc cache jest pusty
                                         # Przed rerun musimy przeładować dane, aby pola tekstowe miały poprawne wartości domyślne
                                         if hasattr(storage, 'reload_data'):
                                             storage.reload_data()
                                         
-                                        # Pobierz zaktualizowane typy z bazy i zaktualizuj session_state
-                                        # Zamiast usuwać klucze, zaktualizuj je wartościami z bazy, aby pola tekstowe od razu pokazywały zapisane typy
-                                        updated_predictions = storage.get_player_predictions(player_name, round_id)
+                                        # Usuń klucze z session_state, aby pola tekstowe zostały ponownie zainicjalizowane z wartościami z bazy
+                                        # Streamlit text_input zachowuje wartość w session_state po rerun, więc musimy je usunąć
+                                        # Po rerun() pola tekstowe będą inicjalizowane z existing_predictions, które są pobierane po przeładowaniu danych
+                                        keys_to_remove = []
                                         for match in selected_matches:
                                             match_id = str(match.get('match_id', ''))
                                             input_key = f"tipper_pred_{player_name}_{match_id}"
-                                            
-                                            if match_id in updated_predictions:
-                                                pred = updated_predictions[match_id]
-                                                new_value = f"{safe_int(pred.get('home', 0))}-{safe_int(pred.get('away', 0))}"
-                                                st.session_state[input_key] = new_value
-                                            else:
-                                                # Jeśli typ nie istnieje, ustaw pusty string
-                                                st.session_state[input_key] = ""
+                                            if input_key in st.session_state:
+                                                keys_to_remove.append(input_key)
+                                        
+                                        # Usuń klucze po zakończeniu iteracji (aby uniknąć modyfikacji podczas iteracji)
+                                        for key in keys_to_remove:
+                                            del st.session_state[key]
                                         
                                         if updated_count > 0 and saved_count > 0:
                                             st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
@@ -1743,26 +1747,30 @@ def main():
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
                                         
+                                        # Dla MySQL storage - upewnij się, że dane są zapisane przed przeładowaniem
+                                        # Dodaj krótkie opóźnienie, aby upewnić się, że zapis się zakończył
+                                        import time
+                                        time.sleep(0.1)  # 100ms opóźnienie, aby upewnić się, że zapis się zakończył
+                                        
                                         # Wymuś przeładowanie danych z bazy przed rerun, aby existing_predictions było dostępne
                                         # add_prediction czyści cache po każdym typie, więc cache jest pusty
                                         # Przed rerun musimy przeładować dane, aby pola tekstowe miały poprawne wartości domyślne
                                         if hasattr(storage, 'reload_data'):
                                             storage.reload_data()
                                         
-                                        # Pobierz zaktualizowane typy z bazy i zaktualizuj session_state
-                                        # Zamiast usuwać klucze, zaktualizuj je wartościami z bazy, aby pola tekstowe od razu pokazywały zapisane typy
-                                        updated_predictions = storage.get_player_predictions(player_name, round_id)
+                                        # Usuń klucze z session_state, aby pola tekstowe zostały ponownie zainicjalizowane z wartościami z bazy
+                                        # Streamlit text_input zachowuje wartość w session_state po rerun, więc musimy je usunąć
+                                        # Po rerun() pola tekstowe będą inicjalizowane z existing_predictions, które są pobierane po przeładowaniu danych
+                                        keys_to_remove = []
                                         for match in selected_matches:
                                             match_id = str(match.get('match_id', ''))
                                             input_key = f"tipper_pred_{player_name}_{match_id}"
-                                            
-                                            if match_id in updated_predictions:
-                                                pred = updated_predictions[match_id]
-                                                new_value = f"{safe_int(pred.get('home', 0))}-{safe_int(pred.get('away', 0))}"
-                                                st.session_state[input_key] = new_value
-                                            else:
-                                                # Jeśli typ nie istnieje, ustaw pusty string
-                                                st.session_state[input_key] = ""
+                                            if input_key in st.session_state:
+                                                keys_to_remove.append(input_key)
+                                        
+                                        # Usuń klucze po zakończeniu iteracji (aby uniknąć modyfikacji podczas iteracji)
+                                        for key in keys_to_remove:
+                                            del st.session_state[key]
                                         
                                         if updated_count > 0 and saved_count > 0:
                                             st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
