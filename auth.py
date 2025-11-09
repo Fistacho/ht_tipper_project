@@ -292,6 +292,7 @@ def login_page() -> bool:
                         date_to_round_number[round_id] = idx
                     
                     # Znajdź ostatnią rozegraną kolejkę (domyślnie)
+                    # round_options jest posortowane DESC (najnowsza pierwsza), więc szukamy pierwszej rozegranej
                     default_round_idx = 0
                     for idx, (round_id, _, _) in enumerate(round_options):
                         round_data = storage.data['rounds'].get(round_id, {})
@@ -303,7 +304,7 @@ def login_page() -> bool:
                         )
                         if has_played:
                             default_round_idx = idx
-                            break  # Weź pierwszą (najnowszą) rozegraną kolejkę
+                            break  # Znajdź pierwszą (najnowszą) rozegraną kolejkę w liście
                     
                     # Wybór rundy
                     round_display_options = [f"Kolejka {date_to_round_number.get(rid, '?')} - {date} ({matches} meczów)" 
