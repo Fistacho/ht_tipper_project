@@ -1791,11 +1791,9 @@ def main():
                                                     logger.error(f"Błąd weryfikacji zapisanych typów: {e}")
                                                     pass
                                         
-                                        # Wymuś przeładowanie danych z bazy przed rerun, aby existing_predictions było dostępne
-                                        # add_prediction czyści cache po każdym typie, więc cache jest pusty
-                                        # Przed rerun musimy przeładować dane, aby pola tekstowe miały poprawne wartości domyślne
-                                        if hasattr(storage, 'reload_data'):
-                                            storage.reload_data()
+                                        # Ustaw flagę, aby przeładować dane po rerun
+                                        reload_key = f'reload_predictions_{player_name}_{round_id}'
+                                        st.session_state[reload_key] = True
                                         
                                         # Usuń klucze z session_state, aby pola tekstowe zostały ponownie zainicjalizowane z wartościami z bazy
                                         # Streamlit text_input zachowuje wartość w session_state po rerun, więc musimy je usunąć
