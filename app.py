@@ -1421,6 +1421,15 @@ def main():
             else:
                 # Wyświetl sekcję dla każdego gracza
                 for player_name in all_players_list:
+                    # Sprawdź czy trzeba przeładować dane po zapisaniu typów
+                    reload_key = f'reload_predictions_{player_name}_{round_id}'
+                    if st.session_state.get(reload_key, False):
+                        # Przeładuj dane przed pobraniem existing_predictions
+                        if hasattr(storage, 'reload_data'):
+                            storage.reload_data()
+                        # Usuń flagę
+                        st.session_state[reload_key] = False
+                    
                     # Pobierz istniejące typy gracza dla tej rundy
                     existing_predictions = storage.get_player_predictions(player_name, round_id)
                     
@@ -1581,11 +1590,9 @@ def main():
                                                     logger.error(f"Błąd weryfikacji zapisanych typów: {e}")
                                                     pass
                                         
-                                        # Wymuś przeładowanie danych z bazy przed rerun, aby existing_predictions było dostępne
-                                        # add_prediction czyści cache po każdym typie, więc cache jest pusty
-                                        # Przed rerun musimy przeładować dane, aby pola tekstowe miały poprawne wartości domyślne
-                                        if hasattr(storage, 'reload_data'):
-                                            storage.reload_data()
+                                        # Ustaw flagę, aby przeładować dane po rerun
+                                        reload_key = f'reload_predictions_{player_name}_{round_id}'
+                                        st.session_state[reload_key] = True
                                         
                                         # Usuń klucze z session_state, aby pola tekstowe zostały ponownie zainicjalizowane z wartościami z bazy
                                         # Streamlit text_input zachowuje wartość w session_state po rerun, więc musimy je usunąć
