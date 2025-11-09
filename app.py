@@ -85,7 +85,20 @@ def main():
     st.subheader("📅 Filtr sezonu")
     
     # Pobierz wszystkie dostępne sezony
-    all_seasons = storage.data.get('seasons', {})
+    # Użyj try-except, aby obsłużyć błędy ładowania danych
+    try:
+        all_seasons = storage.data.get('seasons', {})
+    except Exception as e:
+        logger.error(f"Błąd pobierania sezonów z storage: {e}")
+        # Jeśli błąd, spróbuj przeładować dane
+        if hasattr(storage, 'reload_data'):
+            storage.reload_data()
+        try:
+            all_seasons = storage.data.get('seasons', {})
+        except Exception as e2:
+            logger.error(f"Błąd ponownego pobierania sezonów: {e2}")
+            all_seasons = {}
+    
     season_options = []
     season_ids = []
     
@@ -118,6 +131,9 @@ def main():
     
     # Jeśli nie ma sezonów, dodaj domyślny
     if not season_options:
+        # Najpierw sprawdź czy mamy zapisany sezon w session_state (fallback)
+        saved_season_id = st.session_state.get('selected_season_id', None)
+        
         # Pobierz aktualny sezon z storage lub użyj domyślnego
         try:
             current_season_id = storage.get_current_season()
@@ -125,10 +141,27 @@ def main():
             logger.error(f"Błąd pobierania aktualnego sezonu: {e}")
             current_season_id = None
         
+        # Użyj zapisanego sezonu z session_state jako fallback, jeśli aktualny sezon nie jest dostępny
+        if not current_season_id and saved_season_id:
+            current_season_id = saved_season_id
+            logger.info(f"DEBUG: Używam zapisanego sezonu z session_state jako fallback: {saved_season_id}")
+        
         if current_season_id:
             season_number = current_season_id.replace('season_', '') if current_season_id.startswith('season_') else current_season_id
-            season_options.append(f"Sezon {season_number}")
-            season_ids.append(current_season_id)
+            # Pomiń sezony z "current_season" lub innymi nieprawidłowymi wartościami
+            if season_number != "current_season" and season_number and season_number != "":
+                try:
+                    # Sprawdź czy to liczba
+                    int(season_number)
+                    season_options.append(f"Sezon {season_number}")
+                    season_ids.append(current_season_id)
+                except ValueError:
+                    # Nieprawidłowy format sezonu
+                    season_options.append("Brak sezonów")
+                    season_ids.append(None)
+            else:
+                season_options.append("Brak sezonów")
+                season_ids.append(None)
         else:
             season_options.append("Brak sezonów")
             season_ids.append(None)
@@ -1692,8 +1725,18 @@ def main():
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
                                         
-                                        # NIE wywołuj reload_data() - add_prediction już czyści cache
-                                        # Cache się odświeży automatycznie przy następnym dostępie po st.rerun()
+                                        # Wyczyść cache i wymuś przeładowanie danych przed rerun (aby sezony były dostępne)
+                                        # add_prediction czyści cache po każdym typie, więc cache jest już pusty
+                                        # Wymuś przeładowanie cache przed rerun, aby sezony były dostępne
+                                        if hasattr(storage, 'reload_data'):
+                                            storage.reload_data()
+                                        # Wymuś przeładowanie danych z bazy (cache jest pusty, więc załaduje świeże dane)
+                                        if hasattr(storage, 'data'):
+                                            try:
+                                                _ = storage.data  # Wymuś przeładowanie cache z bazy
+                                                logger.info(f"DEBUG: Przeładowano dane z bazy - sezony: {len(storage.data.get('seasons', {}))}")
+                                            except Exception as e:
+                                                logger.error(f"DEBUG: Błąd przeładowania danych: {e}")
                                         
                                         if updated_count > 0 and saved_count > 0:
                                             st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
