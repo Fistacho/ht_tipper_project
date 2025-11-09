@@ -24,52 +24,38 @@ def get_storage():
         # Sprawdź czy MySQL jest skonfigurowane w Streamlit secrets
         if hasattr(st, 'secrets'):
             try:
-                # W TOML sekcja [connections.mysql] jest dostępna jako st.secrets.connections.mysql
-                # Najprostsza metoda - spróbuj bezpośrednio odczytać
                 mysql_found = False
                 
-                # Metoda 1: Spróbuj odczytać przez atrybuty (st.secrets.connections.mysql)
+                # Metoda 1: Sprawdź płaskie zmienne (MYSQL_HOST, MYSQL_PORT, itd.)
                 try:
-                    if hasattr(st.secrets, 'connections'):
-                        logger.info("DEBUG: st.secrets.connections istnieje")
-                        if hasattr(st.secrets.connections, 'mysql'):
-                            logger.info("DEBUG: st.secrets.connections.mysql istnieje - MySQL wykryty!")
-                            mysql_found = True
-                        else:
-                            logger.info("DEBUG: st.secrets.connections.mysql NIE istnieje")
-                            # Spróbuj sprawdzić co jest w connections
-                            try:
-                                conn_attrs = [attr for attr in dir(st.secrets.connections) if not attr.startswith('_')]
-                                logger.info(f"DEBUG: Atrybuty w st.secrets.connections: {conn_attrs}")
-                            except:
-                                pass
+                    mysql_host = getattr(st.secrets, 'MYSQL_HOST', None)
+                    mysql_database = getattr(st.secrets, 'MYSQL_DATABASE', None)
+                    mysql_username = getattr(st.secrets, 'MYSQL_USERNAME', None)
+                    mysql_password = getattr(st.secrets, 'MYSQL_PASSWORD', None)
+                    
+                    if all([mysql_host, mysql_database, mysql_username, mysql_password]):
+                        mysql_found = True
+                        logger.info("DEBUG: MySQL wykryty przez płaskie zmienne (MYSQL_HOST, itd.)")
                     else:
-                        logger.info("DEBUG: st.secrets.connections NIE istnieje")
-                        # Sprawdź co jest w st.secrets
-                        try:
-                            secrets_attrs = [attr for attr in dir(st.secrets) if not attr.startswith('_')]
-                            logger.info(f"DEBUG: Atrybuty w st.secrets: {secrets_attrs}")
-                        except:
-                            pass
+                        logger.info("DEBUG: Płaskie zmienne MySQL nie są kompletne")
+                        logger.info(f"DEBUG: MYSQL_HOST={bool(mysql_host)}, MYSQL_DATABASE={bool(mysql_database)}, MYSQL_USERNAME={bool(mysql_username)}, MYSQL_PASSWORD={bool(mysql_password)}")
                 except AttributeError as e:
-                    logger.info(f"DEBUG: Błąd przy odczycie przez atrybuty: {e}")
+                    logger.info(f"DEBUG: Błąd przy odczycie płaskich zmiennych MySQL: {e}")
                 
-                # Metoda 2: Spróbuj bezpośrednio st.connection('mysql') - to powinno działać automatycznie
-                # To jest najprostsza metoda - jeśli st.connection('mysql') działa, MySQL jest dostępne
+                # Metoda 2: Spróbuj odczytać przez sekcję [connections.mysql] (dla kompatybilności)
                 if not mysql_found:
                     try:
-                        # Spróbuj utworzyć connection - jeśli się powiedzie, MySQL jest dostępne
-                        logger.info("DEBUG: Próba utworzenia st.connection('mysql')")
-                        test_conn = st.connection('mysql', type='sql')
-                        if test_conn:
-                            mysql_found = True
-                            logger.info("DEBUG: MySQL connection utworzony przez st.connection() - MySQL wykryty!")
-                    except Exception as e:
-                        logger.info(f"DEBUG: st.connection('mysql') nie działa: {e}")
-                        # Sprawdź szczegóły błędu
-                        error_str = str(e)
-                        if 'mysql' in error_str.lower() or 'connection' in error_str.lower():
-                            logger.info("DEBUG: Błąd związany z MySQL - może secrets nie są poprawnie skonfigurowane")
+                        if hasattr(st.secrets, 'connections'):
+                            logger.info("DEBUG: st.secrets.connections istnieje")
+                            if hasattr(st.secrets.connections, 'mysql'):
+                                logger.info("DEBUG: st.secrets.connections.mysql istnieje - MySQL wykryty!")
+                                mysql_found = True
+                            else:
+                                logger.info("DEBUG: st.secrets.connections.mysql NIE istnieje")
+                        else:
+                            logger.info("DEBUG: st.secrets.connections NIE istnieje")
+                    except AttributeError as e:
+                        logger.info(f"DEBUG: Błąd przy odczycie sekcji [connections.mysql]: {e}")
                 
                 # Jeśli znaleziono konfigurację MySQL, użyj MySQL storage
                 if mysql_found:
@@ -78,6 +64,12 @@ def get_storage():
                     return TipperStorageMySQL()
                 else:
                     logger.info("DEBUG: MySQL nie znaleziony w secrets - używam JSON")
+                    # Sprawdź co jest w st.secrets (debug)
+                    try:
+                        secrets_attrs = [attr for attr in dir(st.secrets) if not attr.startswith('_')]
+                        logger.info(f"DEBUG: Atrybuty w st.secrets: {secrets_attrs}")
+                    except:
+                        pass
             except (AttributeError, KeyError) as e:
                 logger.info(f"MySQL nie jest dostępne w secrets: {e}")
                 import traceback
