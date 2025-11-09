@@ -165,13 +165,32 @@ def main():
     
     # Pobierz dane z API
     try:
-        load_dotenv()
+        # Najpierw spróbuj odczytać z Streamlit secrets (dla Streamlit Cloud)
+        consumer_key = None
+        consumer_secret = None
+        access_token = None
+        access_token_secret = None
         
-        # Pobierz klucze OAuth z zmiennych środowiskowych
-        consumer_key = os.getenv('HATTRICK_CONSUMER_KEY')
-        consumer_secret = os.getenv('HATTRICK_CONSUMER_SECRET')
-        access_token = os.getenv('HATTRICK_ACCESS_TOKEN')
-        access_token_secret = os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
+        try:
+            # Spróbuj odczytać z st.secrets (Streamlit Cloud)
+            if hasattr(st, 'secrets'):
+                try:
+                    consumer_key = getattr(st.secrets, 'HATTRICK_CONSUMER_KEY', None)
+                    consumer_secret = getattr(st.secrets, 'HATTRICK_CONSUMER_SECRET', None)
+                    access_token = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN', None)
+                    access_token_secret = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN_SECRET', None)
+                except (AttributeError, KeyError):
+                    pass
+        except Exception:
+            pass
+        
+        # Jeśli nie ma secrets, spróbuj z .env (dla lokalnego rozwoju)
+        if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
+            load_dotenv()
+            consumer_key = consumer_key or os.getenv('HATTRICK_CONSUMER_KEY')
+            consumer_secret = consumer_secret or os.getenv('HATTRICK_CONSUMER_SECRET')
+            access_token = access_token or os.getenv('HATTRICK_ACCESS_TOKEN')
+            access_token_secret = access_token_secret or os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
         
         if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
             st.error("❌ Brak kluczy OAuth. Uruchom: python get_oauth_simple.py")

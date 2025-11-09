@@ -51,9 +51,9 @@ def verify_password(password: str, hashed_password: str, salt: str) -> bool:
 
 def load_users() -> Dict[str, Dict[str, str]]:
     """
-    Ładuje użytkowników z zmiennych środowiskowych
+    Ładuje użytkowników z Streamlit secrets lub zmiennych środowiskowych
     
-    Format w .env:
+    Format w Streamlit secrets lub .env:
     APP_USERNAME=admin
     APP_PASSWORD_HASH=hashed_password
     APP_PASSWORD_SALT=salt
@@ -69,36 +69,78 @@ def load_users() -> Dict[str, Dict[str, str]]:
     Returns:
         Dict z username -> {password_hash, salt}
     """
-    load_dotenv()
     users = {}
     
-    # Sprawdź pojedynczego użytkownika (stary format)
-    username = os.getenv('APP_USERNAME')
-    password_hash = os.getenv('APP_PASSWORD_HASH')
-    password_salt = os.getenv('APP_PASSWORD_SALT')
+    # Najpierw spróbuj odczytać z Streamlit secrets (dla Streamlit Cloud)
+    try:
+        if hasattr(st, 'secrets'):
+            # Sprawdź pojedynczego użytkownika (stary format)
+            try:
+                username = getattr(st.secrets, 'APP_USERNAME', None)
+                password_hash = getattr(st.secrets, 'APP_PASSWORD_HASH', None)
+                password_salt = getattr(st.secrets, 'APP_PASSWORD_SALT', None)
+                
+                if username and password_hash and password_salt:
+                    users[username] = {
+                        'password_hash': password_hash,
+                        'salt': password_salt
+                    }
+            except (AttributeError, KeyError):
+                pass
+            
+            # Sprawdź wielu użytkowników (nowy format)
+            i = 1
+            while True:
+                try:
+                    user_username = getattr(st.secrets, f'APP_USER_{i}_USERNAME', None)
+                    user_password_hash = getattr(st.secrets, f'APP_USER_{i}_PASSWORD_HASH', None)
+                    user_password_salt = getattr(st.secrets, f'APP_USER_{i}_PASSWORD_SALT', None)
+                    
+                    if not user_username:
+                        break
+                    
+                    if user_password_hash and user_password_salt:
+                        users[user_username] = {
+                            'password_hash': user_password_hash,
+                            'salt': user_password_salt
+                        }
+                    i += 1
+                except (AttributeError, KeyError):
+                    break
+    except (AttributeError, KeyError):
+        pass
     
-    if username and password_hash and password_salt:
-        users[username] = {
-            'password_hash': password_hash,
-            'salt': password_salt
-        }
-    
-    # Sprawdź wielu użytkowników (nowy format)
-    i = 1
-    while True:
-        user_username = os.getenv(f'APP_USER_{i}_USERNAME')
-        user_password_hash = os.getenv(f'APP_USER_{i}_PASSWORD_HASH')
-        user_password_salt = os.getenv(f'APP_USER_{i}_PASSWORD_SALT')
+    # Jeśli nie ma secrets lub nie znaleziono użytkowników, spróbuj z .env (dla lokalnego rozwoju)
+    if not users:
+        load_dotenv()
         
-        if not user_username:
-            break
+        # Sprawdź pojedynczego użytkownika (stary format)
+        username = os.getenv('APP_USERNAME')
+        password_hash = os.getenv('APP_PASSWORD_HASH')
+        password_salt = os.getenv('APP_PASSWORD_SALT')
         
-        if user_password_hash and user_password_salt:
-            users[user_username] = {
-                'password_hash': user_password_hash,
-                'salt': user_password_salt
+        if username and password_hash and password_salt:
+            users[username] = {
+                'password_hash': password_hash,
+                'salt': password_salt
             }
-        i += 1
+        
+        # Sprawdź wielu użytkowników (nowy format)
+        i = 1
+        while True:
+            user_username = os.getenv(f'APP_USER_{i}_USERNAME')
+            user_password_hash = os.getenv(f'APP_USER_{i}_PASSWORD_HASH')
+            user_password_salt = os.getenv(f'APP_USER_{i}_PASSWORD_SALT')
+            
+            if not user_username:
+                break
+            
+            if user_password_hash and user_password_salt:
+                users[user_username] = {
+                    'password_hash': user_password_hash,
+                    'salt': user_password_salt
+                }
+            i += 1
     
     # Jeśli nie ma żadnych użytkowników, utwórz domyślnego
     if not users:
