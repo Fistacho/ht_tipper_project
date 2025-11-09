@@ -474,29 +474,43 @@ def main():
             st.markdown("---")
             st.subheader("📅 Wybór rundy")
             
-            # Znajdź pierwszą nie rozegraną kolejkę (domyślnie dla rankingu po zalogowaniu)
-            # filtered_rounds jest posortowane DESC (najnowsza pierwsza), więc szukamy pierwszej nie rozegranej
+            # Znajdź najstarszą kolejkę bez wyników z API (domyślnie dla rankingu po zalogowaniu)
+            # filtered_rounds jest posortowane DESC (najnowsza pierwsza: 14, 13, 12...)
+            # Szukamy najstarszej kolejki bez wyników z API (ostatniej w liście DESC, która jest bez wyników)
+            # NIE używamy session_state dla domyślnego wyboru - zawsze szukamy najstarszej bez wyników
             default_round_idx = None
+            logger.info(f"DEBUG ranking: Sprawdzam {len(filtered_rounds)} kolejek (posortowane DESC)")
+            # Przejdź przez wszystkie kolejki i zapamiętaj najstarszą bez wyników
             for idx, (date, matches) in enumerate(filtered_rounds):
-                # Sprawdź czy kolejka ma rozegrane mecze
-                has_played = any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches)
+                # Sprawdź czy kolejka ma wyniki z API (czyli czy mecze mają home_goals i away_goals)
+                # Kolejka ma wyniki z API jeśli PRZYNAJMNIEJ JEDEN mecz ma wyniki
+                matches_with_results = [
+                    m for m in matches 
+                    if m.get('home_goals') is not None and m.get('away_goals') is not None
+                ]
+                has_api_results = len(matches_with_results) > 0
                 round_number = date_to_round_number.get(date, '?')
-                logger.info(f"DEBUG ranking: idx={idx}, date={date}, round_number={round_number}, has_played={has_played}")
-                if not has_played:
-                    # Znajdź pierwszą nie rozegraną kolejkę (najnowszą nie rozegraną)
+                logger.info(f"DEBUG ranking: idx={idx}, date={date}, round_number={round_number}, has_api_results={has_api_results}, matches_count={len(matches)}, matches_with_results={len(matches_with_results)}")
+                if not has_api_results:
+                    # Zapamiętaj najstarszą kolejkę bez wyników (ostatnią w liście DESC)
                     default_round_idx = idx
-                    logger.info(f"DEBUG ranking: Znaleziono nie rozegraną kolejkę {round_number} na indeksie {idx}")
-                    break
+                    logger.info(f"DEBUG ranking: ✅ Znaleziono kolejkę bez wyników z API: {round_number} na indeksie {idx}")
+                else:
+                    logger.info(f"DEBUG ranking: ⏭️ Pomijam kolejkę {round_number} (ma wyniki z API)")
             
-            # Jeśli nie znaleziono nie rozegranej kolejki, użyj pierwszej (najnowszej)
+            # Jeśli nie znaleziono kolejki bez wyników z API, użyj pierwszej (najnowszej)
             if default_round_idx is None:
                 default_round_idx = 0
-                logger.info(f"DEBUG ranking: Nie znaleziono nie rozegranej kolejki, używam indeksu 0")
+                logger.info(f"DEBUG ranking: Nie znaleziono kolejki bez wyników z API, używam indeksu 0")
+            else:
+                logger.info(f"DEBUG ranking: ✅ Wybrano najstarszą kolejkę bez wyników z API na indeksie {default_round_idx}")
             
             # Sprawdź czy jest zapisany wybór rundy w session_state (tylko jeśli użytkownik wybrał ręcznie)
             # Używamy osobnego klucza dla rankingu, aby nie nadpisywać domyślnej kolejki
-            if 'ranking_selected_round_idx' in st.session_state:
+            # ALE tylko jeśli użytkownik już wcześniej wybrał kolejkę ręcznie (nie przy pierwszym załadowaniu)
+            if 'ranking_selected_round_idx' in st.session_state and st.session_state.get('user_manually_selected_round', False):
                 default_round_idx = st.session_state.ranking_selected_round_idx
+                logger.info(f"DEBUG ranking: Używam zapisanego wyboru użytkownika: {default_round_idx}")
             
             # Numeruj kolejki według daty asc (numer 1 = najstarsza), ale wyświetlaj sort desc (najnowsza pierwsza)
             round_options = []
@@ -507,6 +521,9 @@ def main():
             selected_round_idx = st.selectbox("Wybierz rundę:", range(len(round_options)), index=default_round_idx, format_func=lambda x: round_options[x], key="ranking_round_select")
             
             # Zapisz wybór rundy w session_state (osobny klucz dla rankingu)
+            # Oznacz że użytkownik wybrał kolejkę ręcznie (jeśli wybór różni się od domyślnego)
+            if selected_round_idx != default_round_idx:
+                st.session_state.user_manually_selected_round = True
             st.session_state.ranking_selected_round_idx = selected_round_idx
             # Również zapisz w głównym kluczu dla synchronizacji z sekcją wprowadzania typów
             st.session_state.selected_round_idx = selected_round_idx
@@ -658,29 +675,43 @@ def main():
         st.markdown("---")
         st.subheader("📅 Wybór rundy")
         
-        # Znajdź pierwszą nie rozegraną kolejkę (domyślnie dla sekcji wprowadzania typów po zalogowaniu)
-        # filtered_rounds jest posortowane DESC (najnowsza pierwsza), więc szukamy pierwszej nie rozegranej
+        # Znajdź najstarszą kolejkę bez wyników z API (domyślnie dla sekcji wprowadzania typów po zalogowaniu)
+        # filtered_rounds jest posortowane DESC (najnowsza pierwsza: 14, 13, 12...)
+        # Szukamy najstarszej kolejki bez wyników z API (ostatniej w liście DESC, która jest bez wyników)
+        # NIE używamy session_state dla domyślnego wyboru - zawsze szukamy najstarszej bez wyników
         default_round_idx = None
+        logger.info(f"DEBUG input: Sprawdzam {len(filtered_rounds)} kolejek (posortowane DESC)")
+        # Przejdź przez wszystkie kolejki i zapamiętaj najstarszą bez wyników
         for idx, (date, matches) in enumerate(filtered_rounds):
-            # Sprawdź czy kolejka ma rozegrane mecze
-            has_played = any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches)
+            # Sprawdź czy kolejka ma wyniki z API (czyli czy mecze mają home_goals i away_goals)
+            # Kolejka ma wyniki z API jeśli PRZYNAJMNIEJ JEDEN mecz ma wyniki
+            matches_with_results = [
+                m for m in matches 
+                if m.get('home_goals') is not None and m.get('away_goals') is not None
+            ]
+            has_api_results = len(matches_with_results) > 0
             round_number = date_to_round_number.get(date, '?')
-            logger.info(f"DEBUG input: idx={idx}, date={date}, round_number={round_number}, has_played={has_played}")
-            if not has_played:
-                # Znajdź pierwszą nie rozegraną kolejkę (najnowszą nie rozegraną)
+            logger.info(f"DEBUG input: idx={idx}, date={date}, round_number={round_number}, has_api_results={has_api_results}, matches_count={len(matches)}, matches_with_results={len(matches_with_results)}")
+            if not has_api_results:
+                # Zapamiętaj najstarszą kolejkę bez wyników (ostatnią w liście DESC)
                 default_round_idx = idx
-                logger.info(f"DEBUG input: Znaleziono nie rozegraną kolejkę {round_number} na indeksie {idx}")
-                break
+                logger.info(f"DEBUG input: ✅ Znaleziono kolejkę bez wyników z API: {round_number} na indeksie {idx}")
+            else:
+                logger.info(f"DEBUG input: ⏭️ Pomijam kolejkę {round_number} (ma wyniki z API)")
         
-        # Jeśli nie znaleziono nie rozegranej kolejki, użyj pierwszej (najnowszej)
+        # Jeśli nie znaleziono kolejki bez wyników z API, użyj pierwszej (najnowszej)
         if default_round_idx is None:
             default_round_idx = 0
-            logger.info(f"DEBUG input: Nie znaleziono nie rozegranej kolejki, używam indeksu 0")
+            logger.info(f"DEBUG input: Nie znaleziono kolejki bez wyników z API, używam indeksu 0")
+        else:
+            logger.info(f"DEBUG input: ✅ Wybrano najstarszą kolejkę bez wyników z API na indeksie {default_round_idx}")
         
         # Sprawdź czy jest zapisany wybór rundy w session_state (synchronizacja z rankingiem)
         # Jeśli użytkownik wybrał kolejkę w rankingu, użyj tego wyboru
-        if 'selected_round_idx' in st.session_state:
+        # ALE tylko jeśli użytkownik już wcześniej wybrał kolejkę ręcznie
+        if 'selected_round_idx' in st.session_state and st.session_state.get('user_manually_selected_round', False):
             default_round_idx = st.session_state.selected_round_idx
+            logger.info(f"DEBUG input: Używam zapisanego wyboru użytkownika: {default_round_idx}")
         
         # Numeruj kolejki według daty asc (numer 1 = najstarsza), ale wyświetlaj sort desc (najnowsza pierwsza)
         round_options = []
@@ -691,6 +722,9 @@ def main():
         selected_round_idx = st.selectbox("Wybierz rundę:", range(len(round_options)), index=default_round_idx, format_func=lambda x: round_options[x], key="round_select_main")
         
         # Zapisz wybór rundy w session_state (synchronizacja z rankingiem)
+        # Oznacz że użytkownik wybrał kolejkę ręcznie (jeśli wybór różni się od domyślnego)
+        if selected_round_idx != default_round_idx:
+            st.session_state.user_manually_selected_round = True
         st.session_state.selected_round_idx = selected_round_idx
         
         if selected_round_idx is not None:
