@@ -47,6 +47,107 @@ def main():
     username = st.session_state.get('username', 'Użytkownik')
     
     st.title("🎯 Hattrick Typer")
+    
+    # Inicjalizacja storage (potrzebne do pobrania sezonów)
+    # Użyj współdzielonej instancji storage z session_state, aby uniknąć wielokrotnych połączeń MySQL
+    if 'shared_storage' not in st.session_state:
+        st.session_state.shared_storage = get_storage()
+    storage = st.session_state.shared_storage
+    
+    # Filtr sezonu - na górze pod tytułem
+    st.markdown("---")
+    st.subheader("📅 Filtr sezonu")
+    
+    # Pobierz wszystkie dostępne sezony
+    all_seasons = storage.data.get('seasons', {})
+    season_options = []
+    season_ids = []
+    
+    # Przygotuj listę sezonów do wyboru (posortowane: najnowszy pierwszy)
+    # Filtruj sezony - pomiń "current_season" i inne nieprawidłowe wartości
+    seasons_list = []
+    for season_id, season_data in all_seasons.items():
+        # Wyciągnij numer sezonu z season_id (np. "season_80" -> "80")
+        season_number = season_id.replace('season_', '') if season_id.startswith('season_') else season_id
+        
+        # Pomiń sezony z "current_season" lub innymi nieprawidłowymi wartościami
+        if season_number == "current_season" or not season_number or season_number == "":
+            continue
+        
+        try:
+            # Spróbuj przekonwertować na liczbę dla sortowania
+            season_num = int(season_number)
+        except ValueError:
+            # Jeśli nie można przekonwertować, pomiń ten sezon
+            continue
+        seasons_list.append((season_num, season_id, season_number))
+    
+    # Sortuj sezony: najnowszy pierwszy (malejąco)
+    seasons_list.sort(key=lambda x: x[0], reverse=True)
+    
+    for season_num, season_id, season_number in seasons_list:
+        season_display = f"Sezon {season_number}"
+        season_options.append(season_display)
+        season_ids.append(season_id)
+    
+    # Jeśli nie ma sezonów, dodaj domyślny
+    if not season_options:
+        # Pobierz aktualny sezon z storage lub użyj domyślnego
+        current_season_id = storage.get_current_season()
+        if current_season_id:
+            season_number = current_season_id.replace('season_', '') if current_season_id.startswith('season_') else current_season_id
+            season_options.append(f"Sezon {season_number}")
+            season_ids.append(current_season_id)
+        else:
+            season_options.append("Brak sezonów")
+            season_ids.append(None)
+    
+    # Selectbox do wyboru sezonu
+    if season_options:
+        # Znajdź indeks aktualnego sezonu
+        current_season_id = storage.get_current_season()
+        default_index = 0
+        if current_season_id and current_season_id in season_ids:
+            default_index = season_ids.index(current_season_id)
+        elif current_season_id:
+            # Jeśli aktualny sezon nie jest na liście, dodaj go (tylko jeśli to prawidłowy sezon)
+            season_number = current_season_id.replace('season_', '') if current_season_id.startswith('season_') else current_season_id
+            # Pomiń sezony z "current_season" lub innymi nieprawidłowymi wartościami
+            if season_number != "current_season" and season_number and season_number != "":
+                try:
+                    # Sprawdź czy to liczba
+                    int(season_number)
+                    season_options.insert(0, f"Sezon {season_number}")
+                    season_ids.insert(0, current_season_id)
+                    default_index = 0
+                except ValueError:
+                    # Nieprawidłowy format sezonu - nie dodawaj
+                    pass
+        
+        # Sprawdź czy użytkownik wybrał sezon wcześniej
+        if 'selected_season_id' in st.session_state and st.session_state.selected_season_id in season_ids:
+            default_index = season_ids.index(st.session_state.selected_season_id)
+        
+        selected_season_display = st.selectbox(
+            "Wybierz sezon:",
+            options=range(len(season_options)),
+            index=default_index,
+            format_func=lambda x: season_options[x],
+            key="season_filter"
+        )
+        
+        selected_season_id = season_ids[selected_season_display]
+        
+        # Zapisz wybrany sezon w session_state
+        st.session_state.selected_season_id = selected_season_id
+        
+        # NIE ustawiaj wybranego sezonu jako aktualnego w storage - pozwól użytkownikowi przeglądać archiwalne sezony
+        # Aktualny sezon w storage jest ustawiany tylko automatycznie (gdy sezon się zmienia z API)
+        # Użytkownik może wybrać archiwalny sezon do przeglądania, ale to nie zmienia aktualnego sezonu
+    else:
+        selected_season_id = None
+        st.warning("⚠️ Brak sezonów w bazie. Sezon zostanie utworzony po pobraniu meczów z API.")
+    
     st.markdown("---")
     
     # Sidebar z konfiguracją
@@ -88,9 +189,9 @@ def main():
             st.markdown("---")
             st.subheader("💾 Informacje o storage")
             try:
-                logger.info("DEBUG: Tworzę storage...")
-                storage = get_storage()
-                logger.info(f"DEBUG: Storage utworzony: {type(storage).__name__}")
+                # Użyj współdzielonej instancji storage (nie tworz nowej!)
+                storage = st.session_state.get('shared_storage', storage)
+                logger.info(f"DEBUG: Storage type: {type(storage).__name__}")
                 storage_type = type(storage).__name__
                 st.info(f"Typ storage: **{storage_type}**")
                 
@@ -113,38 +214,235 @@ def main():
         st.markdown("---")
         st.header("⚙️ Konfiguracja")
         
-        # ID lig dla typera
+        # ID lig dla typera - dynamiczne dodawanie/usuwanie
         st.subheader("🏆 Ligi typera")
-        league_1 = st.number_input(
-            "Liga 1 (LeagueLevelUnitID):",
+        
+        # Storage już zainicjalizowany wcześniej (przy filtrze sezonu)
+        
+        # Pobierz aktualne ligi (lista ID)
+        selected_league_ids = storage.get_selected_leagues()
+        
+        # Pobierz nazwy lig z API (jeśli są klucze OAuth)
+        league_names_map = {}  # {league_id: league_name}
+        
+        if selected_league_ids:
+            # Sprawdź czy mamy klucze OAuth
+            consumer_key = None
+            consumer_secret = None
+            access_token = None
+            access_token_secret = None
+            
+            try:
+                if hasattr(st, 'secrets'):
+                    consumer_key = getattr(st.secrets, 'HATTRICK_CONSUMER_KEY', None)
+                    consumer_secret = getattr(st.secrets, 'HATTRICK_CONSUMER_SECRET', None)
+                    access_token = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN', None)
+                    access_token_secret = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN_SECRET', None)
+            except:
+                pass
+            
+            if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
+                load_dotenv()
+                consumer_key = consumer_key or os.getenv('HATTRICK_CONSUMER_KEY')
+                consumer_secret = consumer_secret or os.getenv('HATTRICK_CONSUMER_SECRET')
+                access_token = access_token or os.getenv('HATTRICK_ACCESS_TOKEN')
+                access_token_secret = access_token_secret or os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
+            
+            # Pobierz nazwy lig z API
+            if all([consumer_key, consumer_secret, access_token, access_token_secret]):
+                try:
+                    client = HattrickOAuthSimple(consumer_key, consumer_secret)
+                    client.set_access_tokens(access_token, access_token_secret)
+                    
+                    for league_id in selected_league_ids:
+                        try:
+                            league_details = client.get_league_details(league_id)
+                            if league_details and league_details.get('league_name'):
+                                league_names_map[league_id] = league_details['league_name']
+                            else:
+                                league_names_map[league_id] = f"Liga {league_id}"
+                        except Exception as e:
+                            logger.error(f"Błąd pobierania nazwy ligi {league_id} z API: {e}")
+                            league_names_map[league_id] = f"Liga {league_id}"
+                except Exception as e:
+                    logger.error(f"Błąd inicjalizacji klienta OAuth: {e}")
+                    # Użyj domyślnych nazw
+                    for league_id in selected_league_ids:
+                        league_names_map[league_id] = f"Liga {league_id}"
+            else:
+                # Użyj domyślnych nazw jeśli brak OAuth
+                for league_id in selected_league_ids:
+                    league_names_map[league_id] = f"Liga {league_id}"
+            
+            # Zapisz w session_state dla użycia w dalszej części aplikacji
+            st.session_state.league_names_map = league_names_map
+        
+        # Wyświetl listę lig z możliwością usunięcia
+        if selected_league_ids:
+            st.markdown("**Aktualne ligi:**")
+            for idx, league_id in enumerate(selected_league_ids, 1):
+                league_name = league_names_map.get(league_id, f"Liga {league_id}")
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.write(f"🏆 **{league_name}** (ID: {league_id})")
+                with col2:
+                    if st.button("🗑️ Usuń", key=f"delete_league_{league_id}"):
+                        selected_league_ids.remove(league_id)
+                        storage.set_selected_leagues(selected_league_ids)
+                        st.success(f"✅ Usunięto ligę {league_name}")
+                        st.rerun()
+        else:
+            st.info("📊 Brak lig. Dodaj nową ligę.")
+        
+        # Dodawanie nowej ligi
+        st.markdown("---")
+        st.markdown("**➕ Dodaj nową ligę:**")
+        new_league_id = st.number_input(
+            "ID ligi (LeagueLevelUnitID):",
             value=32612,
             min_value=1,
-            help="Wprowadź ID pierwszej ligi"
-        )
-        league_2 = st.number_input(
-            "Liga 2 (LeagueLevelUnitID):",
-            value=9399,
-            min_value=1,
-            help="Wprowadź ID drugiej ligi"
+            key="new_league_id",
+            help="Wprowadź ID ligi do dodania"
         )
         
-        TIPPER_LEAGUES = [league_1, league_2]
+        # Sprawdź czy jest pobrana nazwa z API (z poprzedniego przebiegu)
+        fetched_league_name = st.session_state.get('fetched_league_name', '')
+        if fetched_league_name:
+            # Wyczyść po użyciu
+            del st.session_state['fetched_league_name']
         
-        # Przycisk odświeżania danych
-        if st.button("🔄 Odśwież dane", type="primary"):
-            st.cache_data.clear()
-            st.rerun()
+        # Przycisk do pobrania nazwy z API
+        col_fetch, col_name = st.columns([1, 3])
+        with col_fetch:
+            fetch_name_clicked = st.button("🔍 Pobierz nazwę z API", key="fetch_league_name", use_container_width=True)
+        
+        with col_name:
+            # Użyj pobranej nazwy jako wartości domyślnej, jeśli jest dostępna
+            default_name = fetched_league_name if fetched_league_name else ""
+            new_league_name = st.text_input(
+                "Nazwa ligi:",
+                value=default_name,
+                key="new_league_name",
+                help="Nazwa ligi (można pobrać z API lub wprowadzić ręcznie)",
+                placeholder="Nazwa ligi (pobierz z API lub wprowadź ręcznie)"
+            )
+        
+        # Pobierz nazwę z API jeśli kliknięto przycisk
+        if fetch_name_clicked:
+            try:
+                # Sprawdź czy mamy klucze OAuth
+                consumer_key = None
+                consumer_secret = None
+                access_token = None
+                access_token_secret = None
+                
+                try:
+                    if hasattr(st, 'secrets'):
+                        consumer_key = getattr(st.secrets, 'HATTRICK_CONSUMER_KEY', None)
+                        consumer_secret = getattr(st.secrets, 'HATTRICK_CONSUMER_SECRET', None)
+                        access_token = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN', None)
+                        access_token_secret = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN_SECRET', None)
+                except:
+                    pass
+                
+                if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
+                    load_dotenv()
+                    consumer_key = consumer_key or os.getenv('HATTRICK_CONSUMER_KEY')
+                    consumer_secret = consumer_secret or os.getenv('HATTRICK_CONSUMER_SECRET')
+                    access_token = access_token or os.getenv('HATTRICK_ACCESS_TOKEN')
+                    access_token_secret = access_token_secret or os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
+                
+                if all([consumer_key, consumer_secret, access_token, access_token_secret]):
+                    with st.spinner("Pobieranie nazwy ligi z API..."):
+                        client = HattrickOAuthSimple(consumer_key, consumer_secret)
+                        client.set_access_tokens(access_token, access_token_secret)
+                        league_details = client.get_league_details(new_league_id)
+                        
+                        if league_details and league_details.get('league_name'):
+                            # Zapisz pobraną nazwę w session_state dla następnego przebiegu
+                            st.session_state.fetched_league_name = league_details['league_name']
+                            st.success(f"✅ Pobrano nazwę: {league_details['league_name']}")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Nie udało się pobrać nazwy ligi z API")
+                else:
+                    st.warning("⚠️ Brak kluczy OAuth. Skonfiguruj OAuth aby pobrać nazwę z API.")
+            except Exception as e:
+                logger.error(f"Błąd pobierania nazwy ligi z API: {e}")
+                st.error(f"❌ Błąd pobierania nazwy ligi z API: {str(e)}")
+        
+        col_add1, col_add2 = st.columns([1, 1])
+        with col_add1:
+            if st.button("➕ Dodaj ligę", type="primary", use_container_width=True):
+                if new_league_id not in selected_league_ids:
+                    # Pobierz nazwę z API jeśli nie podano ręcznie
+                    final_league_name = new_league_name
+                    
+                    if not final_league_name:
+                        try:
+                            # Sprawdź czy mamy klucze OAuth
+                            consumer_key = None
+                            consumer_secret = None
+                            access_token = None
+                            access_token_secret = None
+                            
+                            try:
+                                if hasattr(st, 'secrets'):
+                                    consumer_key = getattr(st.secrets, 'HATTRICK_CONSUMER_KEY', None)
+                                    consumer_secret = getattr(st.secrets, 'HATTRICK_CONSUMER_SECRET', None)
+                                    access_token = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN', None)
+                                    access_token_secret = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN_SECRET', None)
+                            except:
+                                pass
+                            
+                            if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
+                                load_dotenv()
+                                consumer_key = consumer_key or os.getenv('HATTRICK_CONSUMER_KEY')
+                                consumer_secret = consumer_secret or os.getenv('HATTRICK_CONSUMER_SECRET')
+                                access_token = access_token or os.getenv('HATTRICK_ACCESS_TOKEN')
+                                access_token_secret = access_token_secret or os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
+                            
+                            if all([consumer_key, consumer_secret, access_token, access_token_secret]):
+                                with st.spinner("Pobieranie nazwy ligi z API..."):
+                                    client = HattrickOAuthSimple(consumer_key, consumer_secret)
+                                    client.set_access_tokens(access_token, access_token_secret)
+                                    league_details = client.get_league_details(new_league_id)
+                                    
+                                    if league_details and league_details.get('league_name'):
+                                        final_league_name = league_details['league_name']
+                                    else:
+                                        final_league_name = f"Liga {new_league_id}"
+                            else:
+                                final_league_name = f"Liga {new_league_id}"
+                        except Exception as e:
+                            logger.error(f"Błąd pobierania nazwy ligi z API: {e}")
+                            final_league_name = f"Liga {new_league_id}"
+                    
+                    # Dodaj tylko ID ligi (nie zapisujemy nazwy)
+                    selected_league_ids.append(new_league_id)
+                    storage.set_selected_leagues(selected_league_ids)
+                    st.success(f"✅ Dodano ligę: {final_league_name} (ID: {new_league_id})")
+                    st.rerun()
+                else:
+                    st.warning(f"⚠️ Liga o ID {new_league_id} już istnieje")
+        
+        with col_add2:
+            if st.button("🔄 Odśwież dane", use_container_width=True):
+                st.cache_data.clear()
+                st.rerun()
+        
+        # Użyj wybranych lig (lista ID dla API)
+        TIPPER_LEAGUES = selected_league_ids
         
         # Informacje
-        st.info(f"**Liga 1:** {league_1}")
-        st.info(f"**Liga 2:** {league_2}")
+        if TIPPER_LEAGUES:
+            league_names = [league_names_map.get(league_id, f"Liga {league_id}") for league_id in TIPPER_LEAGUES]
+            st.info(f"**Aktywne ligi ({len(TIPPER_LEAGUES)}):** {', '.join(league_names)}")
+        else:
+            st.warning("⚠️ Brak aktywnych lig. Dodaj ligi aby pobrać mecze.")
         
         st.markdown("---")
         st.subheader("💾 Import/Eksport danych")
-        
-        # Inicjalizacja storage (wcześniej dla eksportu/importu)
-        # Automatycznie wybiera MySQL jeśli dostępne, w przeciwnym razie JSON
-        storage = get_storage()
         
         # Eksport danych
         if st.button("📥 Pobierz backup danych", use_container_width=True, help="Pobierz aktualny plik tipper_data.json"):
@@ -263,18 +561,47 @@ def main():
         client = HattrickOAuthSimple(consumer_key, consumer_secret)
         client.set_access_tokens(access_token, access_token_secret)
         
-        # Pobierz mecze z obu lig
+        # Pobierz nazwy lig z API dla wszystkich zapisanych ID (jeśli jeszcze nie pobrano w sekcji konfiguracji)
+        # league_names_map powinna być już wypełniona z sekcji konfiguracji, ale uzupełnij jeśli brakuje
+        if 'league_names_map' not in st.session_state or not st.session_state.get('league_names_map'):
+            league_names_map = {}
+            for league_id in TIPPER_LEAGUES:
+                try:
+                    league_details = client.get_league_details(league_id)
+                    if league_details and league_details.get('league_name'):
+                        league_names_map[league_id] = league_details['league_name']
+                    else:
+                        league_names_map[league_id] = f"Liga {league_id}"
+                except Exception as e:
+                    logger.error(f"Błąd pobierania nazwy ligi {league_id} z API: {e}")
+                    league_names_map[league_id] = f"Liga {league_id}"
+            st.session_state.league_names_map = league_names_map
+        else:
+            league_names_map = st.session_state.league_names_map
+        
+        # Pobierz mecze z obu lig wraz z informacją o sezonie
         all_fixtures = []
+        current_season = None
         with st.spinner("Pobieranie meczów z lig..."):
             for league_id in TIPPER_LEAGUES:
                 try:
-                    fixtures = client.get_league_fixtures(league_id)
+                    league_data = client.get_league_fixtures(league_id)
+                    if league_data and 'fixtures' in league_data:
+                        fixtures = league_data['fixtures']
+                        season = league_data.get('season')
+                        
+                        # Zapisz sezon (użyj pierwszego znalezionego sezonu)
+                        if season and current_season is None:
+                            current_season = season
+                        
                     if fixtures:
-                        # Dodaj informację o lidze
+                        # Dodaj informację o lidze i sezonie
                         for fixture in fixtures:
                             fixture['league_id'] = league_id
+                            if season:
+                                fixture['season'] = season
                         all_fixtures.extend(fixtures)
-                        logger.info(f"Pobrano {len(fixtures)} meczów z ligi {league_id}")
+                        logger.info(f"Pobrano {len(fixtures)} meczów z ligi {league_id}, sezon: {season}")
                 except Exception as e:
                     logger.error(f"Błąd pobierania meczów z ligi {league_id}: {e}")
                     st.warning(f"⚠️ Nie udało się pobrać meczów z ligi {league_id}: {e}")
@@ -282,6 +609,80 @@ def main():
         if not all_fixtures:
             st.error("❌ Nie udało się pobrać meczów z API")
             return
+        
+        # Jeśli nie znaleziono sezonu w meczach, spróbuj pobrać z get_league_details
+        if current_season is None:
+            try:
+                for league_id in TIPPER_LEAGUES:
+                    league_details = client.get_league_details(league_id)
+                    if league_details and 'season' in league_details:
+                        current_season = league_details['season']
+                        logger.info(f"Pobrano sezon z get_league_details dla ligi {league_id}: {current_season}")
+                        break
+            except Exception as e:
+                logger.warning(f"Nie udało się pobrać sezonu z get_league_details: {e}")
+        
+        # Jeśli nadal nie ma sezonu, użyj domyślnego
+        if current_season is None:
+            current_season = "current_season"
+            logger.warning("Nie znaleziono sezonu w API, używam domyślnego: current_season")
+        
+        # Zapisz sezon w storage
+        season_id = f"season_{current_season}"
+        if season_id not in storage.data.get('seasons', {}):
+            # Pobierz pierwszą ligę dla sezonu
+            first_league_id = TIPPER_LEAGUES[0] if TIPPER_LEAGUES else None
+            storage.add_season(first_league_id, season_id, None, None)
+            logger.info(f"Dodano sezon do storage: {season_id}")
+        
+        # Sprawdź czy aktualny sezon z API jest inny niż zapisany w storage
+        # Jeśli tak, oznacza to, że sezon się zmienił (np. z 80 na 81)
+        stored_current_season_id = storage.get_current_season()
+        
+        # Jeśli API zwraca sezon 80, to jest to aktualny sezon
+        # Sezon 80 jest aktualny, dopóki nie ma 14 rund i API nie zwróci nowego sezonu (81)
+        if stored_current_season_id and stored_current_season_id != season_id:
+            # Sprawdź czy stary sezon ma już 14 rund (sezon zakończony)
+            if stored_current_season_id.startswith('season_'):
+                # Policz rundy w starym sezonie
+                rounds_in_old_season = []
+                for round_id, round_data in storage.data.get('rounds', {}).items():
+                    if round_data.get('season_id') == stored_current_season_id:
+                        rounds_in_old_season.append(round_id)
+                
+                # Jeśli stary sezon ma 14 rund, to się skończył i nowy sezon z API jest aktualny
+                if len(rounds_in_old_season) >= 14:
+                    old_season_num = stored_current_season_id.replace('season_', '') if stored_current_season_id.startswith('season_') else stored_current_season_id
+                    logger.info(f"Wykryto zmianę sezonu: {old_season_num} -> {current_season}. Stary sezon ({old_season_num}) ma {len(rounds_in_old_season)} rund - sezon zakończony.")
+                    # Ustaw nowy sezon jako aktualny
+                    storage.set_current_season(season_id)
+                    # Jeśli użytkownik nie wybrał sezonu ręcznie, ustaw nowy sezon jako domyślny
+                    if 'selected_season_id' not in st.session_state or st.session_state.selected_season_id == stored_current_season_id:
+                        st.session_state.selected_season_id = season_id
+                else:
+                    # Stary sezon nie ma jeszcze 14 rund - użyj starego sezonu jako aktualnego
+                    # API może zwracać nowy sezon, ale stary sezon jeszcze się nie skończył
+                    logger.info(f"Stary sezon {stored_current_season_id} ma tylko {len(rounds_in_old_season)} rund - jeszcze się nie skończył. Używam starego sezonu jako aktualnego.")
+                    season_id = stored_current_season_id
+            else:
+                # Stary sezon nie ma prawidłowego formatu - użyj nowego sezonu z API
+                logger.info(f"Stary sezon {stored_current_season_id} nie ma prawidłowego formatu. Używam nowego sezonu z API: {season_id}")
+                storage.set_current_season(season_id)
+        
+        # Użyj wybranego sezonu z filtra (jeśli jest), w przeciwnym razie użyj aktualnego
+        # ZAWSZE ustaw aktualny sezon w storage (sezon 80 z API jest aktualny)
+        # To zapewni, że sezon 80 jest zapisany jako aktualny sezon w bazie
+        storage.set_current_season(season_id)
+        logger.info(f"Ustawiono aktualny sezon w storage: {season_id} (z API: {current_season})")
+        
+        # Jeśli użytkownik nie wybrał sezonu ręcznie, użyj aktualnego sezonu z API
+        if 'selected_season_id' not in st.session_state or not st.session_state.selected_season_id:
+            st.session_state.selected_season_id = season_id
+            logger.info(f"Ustawiono wybrany sezon w session_state: {season_id}")
+        else:
+            # Użytkownik wybrał sezon ręcznie - użyj wybranego sezonu
+            season_id = st.session_state.selected_season_id
+            logger.info(f"Używam wybranego sezonu z filtra: {season_id}")
         
         # Grupuj mecze według rund (na podstawie daty)
         rounds = defaultdict(list)
@@ -304,28 +705,64 @@ def main():
             st.warning("⚠️ Brak meczów do wyświetlenia")
             return
         
-        # Pobierz wszystkie unikalne nazwy drużyn z meczów
-        all_team_names = set()
+        # Pobierz wszystkie unikalne nazwy drużyn z meczów wraz z informacją o lidze
+        # Słownik: {team_name: league_name}
+        teams_with_leagues = {}
         for _, matches in sorted_rounds_asc:
             for match in matches:
                 home_team = match.get('home_team_name', '').strip()
                 away_team = match.get('away_team_name', '').strip()
+                match_league_id = match.get('league_id')
+                # Pobierz nazwę ligi z league_names_map (pobrane z API)
+                league_name = league_names_map.get(match_league_id, f"Liga {match_league_id}" if match_league_id else "?")
+                
                 if home_team:
-                    all_team_names.add(home_team)
+                    teams_with_leagues[home_team] = league_name
                 if away_team:
-                    all_team_names.add(away_team)
+                    teams_with_leagues[away_team] = league_name
         
-        all_team_names = sorted(list(all_team_names))
+        all_team_names = sorted(list(teams_with_leagues.keys()))
         
         # Przeładuj dane z pliku (aby mieć aktualne dane po restarcie)
         storage.reload_data()
         
         # Pobierz zapisane ustawienia
         selected_teams = storage.get_selected_teams()
+        logger.info(f"DEBUG: Pobrano z bazy selected_teams: {len(selected_teams) if selected_teams else 0} drużyn")
         
-        # Jeśli nie ma zapisanych ustawień, wybierz wszystkie drużyny domyślnie
+        # Sprawdź czy wybrane drużyny zawierają drużyny z meczów z API
+        # Zbierz wszystkie drużyny z meczów z API
+        teams_in_matches = set()
+        for _, matches in sorted_rounds_asc:
+            for match in matches:
+                home_team = match.get('home_team_name', '').strip()
+                away_team = match.get('away_team_name', '').strip()
+                if home_team:
+                    teams_in_matches.add(home_team)
+                if away_team:
+                    teams_in_matches.add(away_team)
+        
+        logger.info(f"DEBUG: Drużyny w meczach z API: {len(teams_in_matches)} drużyn")
+        logger.info(f"DEBUG: Przykładowe drużyny z API: {list(teams_in_matches)[:5]}")
+        
+        # Jeśli nie ma zapisanych ustawień LUB wybrane drużyny nie zawierają żadnej drużyny z meczów z API
+        # wybierz wszystkie drużyny z API i zapisz je w bazie
         if not selected_teams:
-            selected_teams = all_team_names.copy()
+            logger.info(f"DEBUG: Brak zapisanych drużyn w bazie, wybieram wszystkie drużyny z API ({len(teams_in_matches)} drużyn)")
+            selected_teams = sorted(list(teams_in_matches))
+            # Zapisz nowy wybór drużyn w bazie
+            storage.set_selected_teams(selected_teams)
+            logger.info(f"DEBUG: Zapisano {len(selected_teams)} drużyn w bazie")
+        elif not any(team in teams_in_matches for team in selected_teams):
+            logger.warning(f"DEBUG: Wybrane drużyny ({len(selected_teams)}) nie zawierają żadnej drużyny z meczów z API ({len(teams_in_matches)}). Automatycznie wybieram wszystkie drużyny z API.")
+            logger.warning(f"DEBUG: Przykładowe wybrane drużyny: {selected_teams[:5]}")
+            logger.warning(f"DEBUG: Przykładowe drużyny z API: {list(teams_in_matches)[:5]}")
+            selected_teams = sorted(list(teams_in_matches))
+            # Zapisz nowy wybór drużyn w bazie
+            storage.set_selected_teams(selected_teams)
+            logger.info(f"DEBUG: Zapisano {len(selected_teams)} drużyn w bazie")
+        
+        logger.info(f"DEBUG: Końcowe wybrane drużyny ({len(selected_teams)}): {selected_teams[:5]}...")
         
         # Wybór drużyn do typowania - w sidebarze
         with st.sidebar:
@@ -333,11 +770,13 @@ def main():
             st.subheader("⚙️ Wybór drużyn do typowania")
             st.markdown("*Zaznacz drużyny, które chcesz uwzględnić w typerze*")
             
-            # Użyj checkboxów dla wyboru drużyn
+            # Użyj checkboxów dla wyboru drużyn (z informacją o lidze)
             new_selected_teams = []
             
             for team_name in all_team_names:
-                if st.checkbox(team_name, value=team_name in selected_teams, key=f"team_select_{team_name}"):
+                league_name = teams_with_leagues.get(team_name, "?")
+                team_label = f"{team_name} _(Liga: {league_name})_"
+                if st.checkbox(team_label, value=team_name in selected_teams, key=f"team_select_{team_name}"):
                     new_selected_teams.append(team_name)
             
             # Przycisk zapisu ustawień
@@ -347,7 +786,11 @@ def main():
                 st.rerun()
             
             # Użyj aktualnie wybranych drużyn
-            selected_teams = new_selected_teams if new_selected_teams else selected_teams
+            # Jeśli użytkownik nie zaznaczył żadnych drużyn, użyj zapisanych z bazy
+            # (nie nadpisuj pustą listą, bo wtedy wszystkie mecze będą wyświetlane)
+            if new_selected_teams:
+                selected_teams = new_selected_teams
+            # Jeśli new_selected_teams jest puste, zostaw selected_teams bez zmian (zapisane z bazy)
         
         # Filtruj mecze - tylko te, w których uczestniczą wybrane drużyny
         def filter_matches_by_teams(matches: List[Dict], team_names: List[str]) -> List[Dict]:
@@ -366,12 +809,60 @@ def main():
             
             return filtered
         
-        # Filtruj rundy (według daty asc dla numeracji)
+        # Filtruj rundy (według daty asc dla numeracji) - również po sezonie
         filtered_rounds_asc = []
+        # Użyj wybranego sezonu z filtra, jeśli nie ma, użyj aktualnego sezonu (season_80)
+        # Upewnij się, że selected_season_id jest zawsze ustawiony
+        selected_season_id = st.session_state.get('selected_season_id', None)
+        if not selected_season_id:
+            # Jeśli nie ma wybranego sezonu, użyj aktualnego sezonu z API
+            selected_season_id = season_id
+            st.session_state.selected_season_id = season_id
+            logger.info(f"DEBUG filtrowanie rund: selected_season_id był None, ustawiono na {season_id}")
+        logger.info(f"DEBUG filtrowanie rund: selected_season_id={selected_season_id}, season_id={season_id}, liczba rund z API={len(sorted_rounds_asc)}")
+        
         for date, matches in sorted_rounds_asc:
+            # Sprawdź czy runda jest przypisana do wybranego sezonu
+            round_id = f"round_{date}"
+            round_data = storage.data.get('rounds', {}).get(round_id, {})
+            round_season_id = round_data.get('season_id') if round_data else None
+            
+            logger.info(f"DEBUG filtrowanie rund: date={date}, round_id={round_id}, round_season_id={round_season_id}, selected_season_id={selected_season_id}, mecze={len(matches)}")
+            
+            # Filtrowanie po sezonie:
+            # - Jeśli runda ma przypisany sezon i jest inny niż wybrany, pomiń ją
+            # - Jeśli runda nie ma przypisanego sezonu (round_season_id jest None), dodaj ją (będzie przypisana do wybranego sezonu)
+            # - Jeśli runda ma przypisany sezon i jest taki sam jak wybrany, dodaj ją
+            # WAŻNE: Jeśli selected_season_id jest None, nie filtruj po sezonie (dodaj wszystkie rundy)
+            if selected_season_id:
+                # Jeśli runda ma przypisany sezon i jest inny niż wybrany, pomiń ją
+                if round_season_id and round_season_id != selected_season_id:
+                    # Pomiń rundy z innych sezonów
+                    logger.info(f"DEBUG filtrowanie rund: Pomijam rundę {round_id} - ma sezon {round_season_id}, wybrany sezon to {selected_season_id}")
+                    continue
+                # Jeśli runda nie ma przypisanego sezonu (round_season_id jest None) LUB sezon pasuje, dodaj ją
+                logger.info(f"DEBUG filtrowanie rund: Dodaję rundę {round_id} - nie ma przypisanego sezonu (None) lub sezon pasuje ({round_season_id} == {selected_season_id})")
+            else:
+                # Jeśli selected_season_id jest None, nie filtruj po sezonie (dodaj wszystkie rundy)
+                logger.warning(f"DEBUG filtrowanie rund: selected_season_id jest None - nie filtruję po sezonie, dodaję wszystkie rundy")
+            
             filtered_matches = filter_matches_by_teams(matches, selected_teams)
+            logger.info(f"DEBUG filtrowanie rund: Po filtrowaniu drużyn - mecze={len(filtered_matches)} z {len(matches)}")
+            logger.info(f"DEBUG filtrowanie rund: Wybrane drużyny ({len(selected_teams)}): {selected_teams[:5]}...")
+            if len(matches) > 0:
+                sample_match = matches[0]
+                sample_home = sample_match.get('home_team_name', '?')
+                sample_away = sample_match.get('away_team_name', '?')
+                logger.info(f"DEBUG filtrowanie rund: Przykładowy mecz: {sample_home} vs {sample_away}")
+                logger.info(f"DEBUG filtrowanie rund: Czy {sample_home} w selected_teams? {sample_home in selected_teams}")
+                logger.info(f"DEBUG filtrowanie rund: Czy {sample_away} w selected_teams? {sample_away in selected_teams}")
             if filtered_matches:  # Tylko jeśli są jakieś mecze po filtrowaniu
                 filtered_rounds_asc.append((date, filtered_matches))
+                logger.info(f"DEBUG filtrowanie rund: ✅ Dodano rundę {round_id} do filtered_rounds_asc")
+            else:
+                logger.warning(f"DEBUG filtrowanie rund: ❌ Pomijam rundę {round_id} - brak meczów po filtrowaniu drużyn (było {len(matches)} meczów)")
+        
+        logger.info(f"DEBUG filtrowanie rund: Końcowa liczba rund po filtrowaniu: {len(filtered_rounds_asc)}")
         
         if not filtered_rounds_asc:
             st.warning(f"⚠️ Brak meczów dla wybranych drużyn ({len(selected_teams)} drużyn)")
@@ -388,17 +879,25 @@ def main():
         
         # Ranking - na samą górę
         st.markdown("---")
-        st.subheader("🏆 Ranking")
+        # Wyświetl sezon w nagłówku rankingu (użyj wybranego sezonu z filtra)
+        if 'selected_season_id' in st.session_state and st.session_state.selected_season_id:
+            selected_season_num = st.session_state.selected_season_id.replace('season_', '') if st.session_state.selected_season_id.startswith('season_') else st.session_state.selected_season_id
+            season_display = f"Sezon {selected_season_num}"
+        else:
+            season_display = current_season if current_season != "current_season" else "Bieżący"
+        st.subheader(f"🏆 Ranking {season_display}")
         
         # Tabs dla rankingu per kolejka i całości - domyślnie ranking całości (pierwszy tab)
         ranking_tab1, ranking_tab2 = st.tabs(["🏆 Ranking całości", "📊 Ranking per kolejka"])
         
         # Dla rankingu całości nie potrzebujemy wyboru rundy
         with ranking_tab1:
-            st.markdown("### 🏆 Ranking całości")
+            st.markdown(f"### 🏆 Ranking całości - Sezon {season_display}")
             
             exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza", value=True, key="exclude_worst_overall")
-            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst)
+            # Użyj wybranego sezonu z filtra
+            selected_season_id = st.session_state.get('selected_season_id', season_id)
+            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst, season_id=selected_season_id)
             
             if leaderboard:
                 # Przygotuj dane do wyświetlenia
@@ -535,8 +1034,9 @@ def main():
                 
                 # Dodaj rundę do storage jeśli nie istnieje
                 if round_id not in storage.data['rounds']:
-                    # Sezon zostanie automatycznie utworzony w add_round jeśli nie istnieje
-                    storage.add_round("current_season", round_id, selected_matches, selected_round_date)
+                    # Użyj wybranego sezonu z filtra
+                    selected_season_id = st.session_state.get('selected_season_id', season_id)
+                    storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
                 
                 # Ranking dla wybranej rundy
                 round_leaderboard = storage.get_round_leaderboard(round_id)
@@ -629,8 +1129,8 @@ def main():
                                 pred = player_predictions[match_id]
                                 home_team = match.get('home_team_name', '?')
                                 away_team = match.get('away_team_name', '?')
-                                pred_home = pred.get('home', 0)
-                                pred_away = pred.get('away', 0)
+                                pred_home = int(pred.get('home', 0))
+                                pred_away = int(pred.get('away', 0))
                                 
                                 # Pobierz punkty dla tego meczu
                                 match_points_dict = round_data.get('match_points', {}).get(player_name, {})
@@ -639,7 +1139,7 @@ def main():
                                 # Pobierz wynik meczu jeśli rozegrany
                                 home_goals = match.get('home_goals')
                                 away_goals = match.get('away_goals')
-                                result = f"{home_goals}-{away_goals}" if home_goals is not None and away_goals is not None else "—"
+                                result = f"{int(home_goals)}-{int(away_goals)}" if home_goals is not None and away_goals is not None else "—"
                                 
                                 types_table_data.append({
                                     'Mecz': f"{home_team} vs {away_team}",
@@ -734,11 +1234,19 @@ def main():
             
             # Dodaj rundę do storage jeśli nie istnieje
             if round_id not in storage.data['rounds']:
-                # Sezon zostanie automatycznie utworzony w add_round jeśli nie istnieje
-                storage.add_round("current_season", round_id, selected_matches, selected_round_date)
+                # Użyj wybranego sezonu z filtra
+                selected_season_id = st.session_state.get('selected_season_id', season_id)
+                storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
             
             # Wyświetl mecze w rundzie - tabela na górze dla czytelności
             st.subheader(f"⚽ Kolejka {round_number} - {selected_round_date}")
+            
+            # Pobierz league_names_map z session_state (jeśli dostępna)
+            if 'league_names_map' in st.session_state:
+                league_names_map = st.session_state.league_names_map
+            else:
+                # Jeśli nie ma w session_state, utwórz pustą mapę
+                league_names_map = {}
             
             # Sprawdź czy mecze są już rozegrane
             matches_played = []
@@ -763,7 +1271,7 @@ def main():
                 # Status meczu
                 status = "⏳ Oczekuje"
                 if home_goals is not None and away_goals is not None:
-                    status = f"✅ {home_goals}-{away_goals}"
+                    status = f"✅ {int(home_goals)}-{int(away_goals)}"
                     # Aktualizuj wynik w storage
                     try:
                         storage.update_match_result(round_id, match_id, int(home_goals), int(away_goals))
@@ -777,9 +1285,18 @@ def main():
                     except:
                         pass
                 
+                # Pobierz ID ligi dla meczu
+                match_league_id = match.get('league_id', '?')
+                # Pobierz nazwę ligi z league_names_map (pobrane z API)
+                if match_league_id != '?':
+                    league_name = league_names_map.get(match_league_id, f"Liga {match_league_id}")
+                    league_info = f" (Liga: {league_name})"
+                else:
+                    league_info = ""
+                
                 matches_table_data.append({
-                    'Gospodarz': home_team,
-                    'Gość': away_team,
+                    'Gospodarz': f"{home_team}{league_info}",
+                    'Gość': f"{away_team}{league_info}",
                     'Data': match_date,
                     'Status': status
                 })
@@ -869,7 +1386,7 @@ def main():
                             has_existing = match_id in existing_predictions
                             if has_existing:
                                 existing_pred = existing_predictions[match_id]
-                                default_value = f"{existing_pred.get('home', 0)}-{existing_pred.get('away', 0)}"
+                                default_value = f"{int(existing_pred.get('home', 0))}-{int(existing_pred.get('away', 0))}"
                             else:
                                 default_value = ""
                             
@@ -881,11 +1398,20 @@ def main():
                                 points = tipper.calculate_points((pred_home, pred_away), (int(home_goals), int(away_goals)))
                                 points_display = f" | **Punkty: {points}**"
                             
+                            # Pobierz ID ligi dla meczu
+                            match_league_id = match.get('league_id', '?')
+                            # Pobierz nazwę ligi z league_names_map (pobrane z API)
+                            if match_league_id != '?':
+                                league_name = league_names_map.get(match_league_id, f"Liga {match_league_id}")
+                                league_info = f" _(Liga: {league_name})_"
+                            else:
+                                league_info = ""
+                            
                             col1, col2 = st.columns([3, 1.5])
                             with col1:
                                 status_icon = "✅" if has_existing else "❌"
-                                result_text = f" ({home_goals}-{away_goals})" if home_goals is not None and away_goals is not None else ""
-                                st.write(f"{status_icon} **{home_team}** vs **{away_team}**{result_text} {points_display}")
+                                result_text = f" ({int(home_goals)}-{int(away_goals)})" if home_goals is not None and away_goals is not None else ""
+                                st.write(f"{status_icon} **{home_team}** vs **{away_team}**{league_info}{result_text} {points_display}")
                             with col2:
                                 if can_edit:
                                     # Pole tekstowe bez automatycznego zapisu

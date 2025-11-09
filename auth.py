@@ -177,7 +177,104 @@ def login_page() -> bool:
     # Wyświetl ranking (read-only) przed formularzem logowania
     try:
         from tipper_storage import get_storage
-        storage = get_storage()
+        # Użyj współdzielonej instancji storage z session_state, aby uniknąć wielokrotnych połączeń MySQL
+        if 'shared_storage' not in st.session_state:
+            st.session_state.shared_storage = get_storage()
+        storage = st.session_state.shared_storage
+        
+        st.title("🎯 Hattrick Typer")
+        
+        # Filtr sezonu - na górze pod tytułem
+        st.markdown("---")
+        st.subheader("📅 Filtr sezonu")
+        
+        # Pobierz wszystkie dostępne sezony
+        all_seasons = storage.data.get('seasons', {})
+        season_options = []
+        season_ids = []
+        
+        # Przygotuj listę sezonów do wyboru (posortowane: najnowszy pierwszy)
+        # Filtruj sezony - pomiń "current_season" i inne nieprawidłowe wartości
+        seasons_list = []
+        for season_id, season_data in all_seasons.items():
+            # Wyciągnij numer sezonu z season_id (np. "season_80" -> "80")
+            season_number = season_id.replace('season_', '') if season_id.startswith('season_') else season_id
+            
+            # Pomiń sezony z "current_season" lub innymi nieprawidłowymi wartościami
+            if season_number == "current_season" or not season_number or season_number == "":
+                continue
+            
+            try:
+                # Spróbuj przekonwertować na liczbę dla sortowania
+                season_num = int(season_number)
+            except ValueError:
+                # Jeśli nie można przekonwertować, pomiń ten sezon
+                continue
+            seasons_list.append((season_num, season_id, season_number))
+        
+        # Sortuj sezony: najnowszy pierwszy (malejąco)
+        seasons_list.sort(key=lambda x: x[0], reverse=True)
+        
+        for season_num, season_id, season_number in seasons_list:
+            season_display = f"Sezon {season_number}"
+            season_options.append(season_display)
+            season_ids.append(season_id)
+        
+        # Jeśli nie ma sezonów, dodaj domyślny
+        if not season_options:
+            # Pobierz aktualny sezon z storage lub użyj domyślnego
+            current_season_id = storage.get_current_season()
+            if current_season_id:
+                season_number = current_season_id.replace('season_', '') if current_season_id.startswith('season_') else current_season_id
+                season_options.append(f"Sezon {season_number}")
+                season_ids.append(current_season_id)
+            else:
+                season_options.append("Brak sezonów")
+                season_ids.append(None)
+        
+        # Selectbox do wyboru sezonu
+        if season_options:
+            # Znajdź indeks aktualnego sezonu
+            current_season_id = storage.get_current_season()
+            default_index = 0
+            if current_season_id and current_season_id in season_ids:
+                default_index = season_ids.index(current_season_id)
+            elif current_season_id:
+                # Jeśli aktualny sezon nie jest na liście, dodaj go (tylko jeśli to prawidłowy sezon)
+                season_number = current_season_id.replace('season_', '') if current_season_id.startswith('season_') else current_season_id
+                # Pomiń sezony z "current_season" lub innymi nieprawidłowymi wartościami
+                if season_number != "current_season" and season_number and season_number != "":
+                    try:
+                        # Sprawdź czy to liczba
+                        int(season_number)
+                        season_options.insert(0, f"Sezon {season_number}")
+                        season_ids.insert(0, current_season_id)
+                        default_index = 0
+                    except ValueError:
+                        # Nieprawidłowy format sezonu - nie dodawaj
+                        pass
+            
+            # Sprawdź czy użytkownik wybrał sezon wcześniej
+            if 'selected_season_id' in st.session_state and st.session_state.selected_season_id in season_ids:
+                default_index = season_ids.index(st.session_state.selected_season_id)
+            
+            selected_season_display = st.selectbox(
+                "Wybierz sezon:",
+                options=range(len(season_options)),
+                index=default_index,
+                format_func=lambda x: season_options[x],
+                key="login_season_filter"
+            )
+            
+            selected_season_id = season_ids[selected_season_display]
+            
+            # Zapisz wybrany sezon w session_state
+            st.session_state.selected_season_id = selected_season_id
+        else:
+            selected_season_id = None
+            st.warning("⚠️ Brak sezonów w bazie. Sezon zostanie utworzony po pobraniu meczów z API.")
+        
+        st.markdown("---")
         
         # Ranking - sekcja read-only
         st.subheader("🏆 Ranking (tylko do odczytu)")
@@ -188,10 +285,17 @@ def login_page() -> bool:
         
         # Ranking całości
         with ranking_tab1:
-            st.markdown("### 🏆 Ranking całości")
+            # Wyświetl sezon w nagłówku rankingu
+            if selected_season_id:
+                season_num = selected_season_id.replace('season_', '') if selected_season_id.startswith('season_') else selected_season_id
+                season_display = f"Sezon {season_num}"
+            else:
+                season_display = "Bieżący"
+            st.markdown(f"### 🏆 Ranking całości - {season_display}")
             
             exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza", value=True, key="login_exclude_worst_overall")
-            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst)
+            # Użyj wybranego sezonu z filtra
+            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst, season_id=selected_season_id)
             
             if leaderboard:
                 # Przygotuj dane do wyświetlenia
@@ -257,10 +361,26 @@ def login_page() -> bool:
         
         # Ranking per kolejka
         with ranking_tab2:
-            st.markdown("### 📊 Ranking per kolejka")
+            # Wyświetl sezon w nagłówku rankingu
+            if selected_season_id:
+                season_num = selected_season_id.replace('season_', '') if selected_season_id.startswith('season_') else selected_season_id
+                season_display = f"Sezon {season_num}"
+            else:
+                season_display = "Bieżący"
+            st.markdown(f"### 📊 Ranking per kolejka - {season_display}")
             
-            # Pobierz wszystkie rundy z storage
-            all_rounds = sorted(storage.data['rounds'].items(), key=lambda x: x[1].get('start_date', ''))
+            # Pobierz wszystkie rundy z storage - filtruj po sezonie
+            all_rounds = []
+            for round_id, round_data in storage.data['rounds'].items():
+                round_season_id = round_data.get('season_id')
+                # Jeśli sezon jest wybrany, filtruj tylko rundy z tego sezonu
+                if selected_season_id:
+                    if round_season_id and round_season_id != selected_season_id:
+                        continue  # Pomiń rundy z innych sezonów
+                all_rounds.append((round_id, round_data))
+            
+            # Sortuj po dacie
+            all_rounds = sorted(all_rounds, key=lambda x: x[1].get('start_date', ''))
             
             if all_rounds:
                 # Stwórz listę opcji rund
@@ -382,8 +502,8 @@ def login_page() -> bool:
                                         pred = player_predictions[match_id]
                                         home_team = match.get('home_team_name', '?')
                                         away_team = match.get('away_team_name', '?')
-                                        pred_home = pred.get('home', 0)
-                                        pred_away = pred.get('away', 0)
+                                        pred_home = int(pred.get('home', 0))
+                                        pred_away = int(pred.get('away', 0))
                                         
                                         # Pobierz punkty dla tego meczu
                                         match_points_dict = round_data.get('match_points', {}).get(player_name, {})
@@ -392,7 +512,7 @@ def login_page() -> bool:
                                         # Pobierz wynik meczu jeśli rozegrany
                                         home_goals = match.get('home_goals')
                                         away_goals = match.get('away_goals')
-                                        result = f"{home_goals}-{away_goals}" if home_goals is not None and away_goals is not None else "—"
+                                        result = f"{int(home_goals)}-{int(away_goals)}" if home_goals is not None and away_goals is not None else "—"
                                         
                                         types_table_data.append({
                                             'Mecz': f"{home_team} vs {away_team}",

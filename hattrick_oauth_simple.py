@@ -223,13 +223,16 @@ class HattrickOAuthSimple:
         
         return teams
     
-    def get_league_fixtures(self, league_level_unit_id: int) -> Optional[List[Dict[str, Any]]]:
-        """Pobiera terminarz ligi"""
+    def get_league_fixtures(self, league_level_unit_id: int) -> Optional[Dict[str, Any]]:
+        """Pobiera terminarz ligi wraz z informacją o sezonie"""
         params = {'LeagueLevelUnitID': str(league_level_unit_id)}
         root = self.make_api_request('leaguefixtures', params)
         
         if root is None:
             return None
+        
+        # Pobierz sezon z root
+        season = root.find('Season').text if root.find('Season') is not None else None
         
         fixtures = []
         for match in root.findall('.//Match'):
@@ -246,7 +249,10 @@ class HattrickOAuthSimple:
             }
             fixtures.append(match_info)
         
-        return fixtures
+        return {
+            'season': season,
+            'fixtures': fixtures
+        }
     
     def get_team_matches(self, team_id: int, season: int = None, match_types: List[int] = None, max_seasons_back: int = 2) -> Optional[List[Dict[str, Any]]]:
         """Pobiera mecze drużyny z opcjonalnym filtrowaniem według typów meczów

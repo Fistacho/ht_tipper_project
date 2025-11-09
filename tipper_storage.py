@@ -288,7 +288,7 @@ class TipperStorage:
                         
                         self.data['rounds'][round_id]['match_points'][player_name][match_id] = points
                         
-                        # Przelicz całkowite punkty gracza
+                        # Przelicz całkowite punkty gracza (dla aktualnego sezonu)
                         self._recalculate_player_totals()
                     break
         
@@ -301,8 +301,12 @@ class TipperStorage:
             logger.error(f"Runda {round_id} nie istnieje")
             return
         
+        # Pobierz season_id z rundy
+        round_data = self.data['rounds'][round_id]
+        season_id = round_data.get('season_id')
+        
         # Znajdź mecz w rundzie
-        matches = self.data['rounds'][round_id]['matches']
+        matches = round_data['matches']
         for match in matches:
             if str(match.get('match_id')) == str(match_id):
                 match['home_goals'] = home_goals
@@ -312,7 +316,7 @@ class TipperStorage:
         
         # Przelicz punkty dla wszystkich graczy
         from tipper import Tipper
-        predictions = self.data['rounds'][round_id].get('predictions', {})
+        predictions = round_data.get('predictions', {})
         
         for player_name, player_predictions in predictions.items():
             if match_id in player_predictions:
@@ -331,19 +335,24 @@ class TipperStorage:
                     }
                 
                 # Zapisz punkty dla tego meczu
-                if 'match_points' not in self.data['rounds'][round_id]:
-                    self.data['rounds'][round_id]['match_points'] = {}
-                if player_name not in self.data['rounds'][round_id]['match_points']:
-                    self.data['rounds'][round_id]['match_points'][player_name] = {}
+                if 'match_points' not in round_data:
+                    round_data['match_points'] = {}
+                if player_name not in round_data['match_points']:
+                    round_data['match_points'][player_name] = {}
                 
-                self.data['rounds'][round_id]['match_points'][player_name][match_id] = points
+                round_data['match_points'][player_name][match_id] = points
         
         self._save_data()
-        self._recalculate_player_totals()
+        # Przelicz całkowite punkty gracza (dla sezonu tej rundy)
+        self._recalculate_player_totals(season_id=season_id)
     
-    def _recalculate_player_totals(self):
-        """Przelicza całkowite punkty dla wszystkich graczy"""
+    def _recalculate_player_totals(self, season_id: Optional[str] = None):
+        """Przelicza całkowite punkty dla wszystkich graczy (dla danego sezonu)"""
         from tipper import Tipper
+        
+        # Jeśli nie podano sezonu, użyj aktualnego sezonu
+        if season_id is None:
+            season_id = self.get_current_season()
         
         for player_name, player_data in self.data['players'].items():
             total_points = 0
@@ -352,8 +361,12 @@ class TipperStorage:
             worst_score = float('inf')
             round_scores = {}  # {round_id: total_points_in_round}
             
-            # Przejdź przez wszystkie rundy
+            # Przejdź przez wszystkie rundy (filtruj po sezonie jeśli ustawiony)
             for round_id, round_data in self.data['rounds'].items():
+                round_season_id = round_data.get('season_id')
+                # Jeśli sezon jest ustawiony, filtruj tylko rundy z tego sezonu
+                if season_id is not None and round_season_id != season_id:
+                    continue
                 if player_name in round_data.get('predictions', {}):
                     round_points = 0
                     match_points = round_data.get('match_points', {}).get(player_name, {})
@@ -394,12 +407,38 @@ class TipperStorage:
         else:
             return self.data['players'][player_name]['predictions']
     
-    def get_leaderboard(self, exclude_worst: bool = True) -> List[Dict]:
-        """Zwraca ranking graczy (z opcją odrzucenia najgorszego wyniku)"""
+    def get_current_season(self) -> Optional[str]:
+        """Zwraca aktualny sezon (z settings)"""
+        if 'settings' not in self.data:
+            self.data['settings'] = {}
+        return self.data['settings'].get('current_season', None)
+    
+    def set_current_season(self, season_id: str):
+        """Ustawia aktualny sezon"""
+        if 'settings' not in self.data:
+            self.data['settings'] = {}
+        self.data['settings']['current_season'] = season_id
+        self._save_data()
+    
+    def get_leaderboard(self, exclude_worst: bool = True, season_id: Optional[str] = None) -> List[Dict]:
+        """Zwraca ranking graczy (z opcją odrzucenia najgorszego wyniku) dla danego sezonu"""
         leaderboard = []
         
+        # Jeśli nie podano sezonu, użyj aktualnego sezonu
+        if season_id is None:
+            season_id = self.get_current_season()
+        
         # Pobierz wszystkie rundy posortowane po dacie (najstarsza pierwsza)
-        all_rounds = sorted(self.data['rounds'].items(), key=lambda x: x[1].get('start_date', ''))
+        # Filtruj tylko rundy z aktualnego sezonu (jeśli sezon jest ustawiony)
+        all_rounds = []
+        for round_id, round_data in self.data['rounds'].items():
+            round_season_id = round_data.get('season_id')
+            # Jeśli sezon jest ustawiony, filtruj tylko rundy z tego sezonu
+            if season_id is None or round_season_id == season_id:
+                all_rounds.append((round_id, round_data))
+        
+        # Sortuj po dacie (najstarsza pierwsza)
+        all_rounds = sorted(all_rounds, key=lambda x: x[1].get('start_date', ''))
         
         for player_name, player_data in self.data['players'].items():
             total_points = player_data['total_points']
@@ -512,5 +551,24 @@ class TipperStorage:
         if 'settings' not in self.data:
             self.data['settings'] = {}
         self.data['settings']['selected_teams'] = team_names
+        self._save_data()
+    
+    def get_selected_leagues(self) -> List[int]:
+        """Zwraca listę ID wybranych lig"""
+        if 'settings' not in self.data:
+            self.data['settings'] = {'selected_leagues': [32612, 9399]}  # Domyślne ligi
+        leagues = self.data['settings'].get('selected_leagues', [32612, 9399])
+        # Obsługa starego formatu (słownik) - konwersja do listy
+        if isinstance(leagues, dict):
+            leagues = list(leagues.keys())
+            self.data['settings']['selected_leagues'] = leagues
+            self._save_data()
+        return leagues
+    
+    def set_selected_leagues(self, league_ids: List[int]):
+        """Zapisuje listę ID wybranych lig"""
+        if 'settings' not in self.data:
+            self.data['settings'] = {}
+        self.data['settings']['selected_leagues'] = league_ids
         self._save_data()
 

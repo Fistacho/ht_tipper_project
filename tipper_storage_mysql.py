@@ -45,26 +45,26 @@ class TipperStorageMySQL:
                             self._init_database()
                             return
                         else:
-                            # Połączenie zamknięte
-                            logger.info("DEBUG: Istniejące połączenie MySQL jest zamknięte, tworzę nowe")
-                            if connection_key in st.session_state:
-                                del st.session_state[connection_key]
-                            if connection_raw_key in st.session_state:
-                                try:
-                                    raw_conn.close()
-                                except:
-                                    pass
-                                del st.session_state[connection_raw_key]
-                    except Exception as ping_error:
-                        # Połączenie nie działa (ping nie powiódł się)
-                        logger.info(f"DEBUG: Istniejące połączenie MySQL nie działa (ping failed: {ping_error}), tworzę nowe")
-                        if connection_key in st.session_state:
-                            del st.session_state[connection_key]
-                        if connection_raw_key in st.session_state:
+                            # Połączenie zamknięte - zamknij i usuń z session_state
+                            logger.info("DEBUG: Istniejące połączenie MySQL jest zamknięte, zamykam i tworzę nowe")
                             try:
                                 raw_conn.close()
                             except:
                                 pass
+                            if connection_key in st.session_state:
+                                del st.session_state[connection_key]
+                            if connection_raw_key in st.session_state:
+                                del st.session_state[connection_raw_key]
+                    except Exception as ping_error:
+                        # Połączenie nie działa (ping nie powiódł się) - zamknij i usuń z session_state
+                        logger.info(f"DEBUG: Istniejące połączenie MySQL nie działa (ping failed: {ping_error}), zamykam i tworzę nowe")
+                        try:
+                            raw_conn.close()
+                        except:
+                            pass
+                        if connection_key in st.session_state:
+                            del st.session_state[connection_key]
+                        if connection_raw_key in st.session_state:
                             del st.session_state[connection_raw_key]
                 else:
                     # Brak prawidłowego połączenia
@@ -158,7 +158,16 @@ class TipperStorageMySQL:
         if mysql_config and all(mysql_config.values()):
             try:
                 import pymysql
-                logger.info(f"DEBUG: Próba utworzenia nowego połączenia MySQL do {mysql_config['host']}:{mysql_config['port']}")
+                # Loguj konfigurację (bez hasła)
+                logger.info(f"DEBUG: Próba utworzenia nowego połączenia MySQL")
+                logger.info(f"DEBUG: Host: {mysql_config['host']}, Port: {mysql_config['port']}, Database: {mysql_config['database']}, User: {mysql_config['username']}")
+                
+                # Sprawdź czy wszystkie wymagane wartości są niepuste
+                if not mysql_config['host'] or not mysql_config['database'] or not mysql_config['username'] or not mysql_config['password']:
+                    error_msg = "Brak wymaganych parametrów połączenia MySQL (host, database, username, password)"
+                    logger.error(f"ERROR: {error_msg}")
+                    raise ValueError(error_msg)
+                
                 connection = pymysql.connect(
                     host=mysql_config['host'],
                     port=int(mysql_config['port']),
@@ -202,24 +211,50 @@ class TipperStorageMySQL:
                 self.conn = wrapper
                 self._init_database()
                 logger.info(f"Połączono z bazą MySQL (bezpośrednio przez pymysql, współdzielone połączenie). Session ID: {id(st.session_state)}")
+            except pymysql.err.OperationalError as e:
+                # pymysql.err.OperationalError może mieć różne formaty
+                if len(e.args) >= 2:
+                    error_code, error_message = e.args[0], e.args[1]
+                elif len(e.args) == 1:
+                    error_code = 0
+                    error_message = str(e.args[0])
+                else:
+                    error_code = 0
+                    error_message = str(e)
+                
+                logger.error(f"Błąd operacyjny MySQL (kod: {error_code}): {error_message}")
+                logger.error(f"Host: {mysql_config.get('host', 'N/A')}, Port: {mysql_config.get('port', 'N/A')}, Database: {mysql_config.get('database', 'N/A')}, User: {mysql_config.get('username', 'N/A')}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                # Rzuć bardziej szczegółowy błąd
+                if error_code:
+                    raise pymysql.err.OperationalError(error_code, f"Błąd połączenia z MySQL: {error_message}. Sprawdź konfigurację w Streamlit Secrets.")
+                else:
+                    raise pymysql.err.OperationalError(0, f"Błąd połączenia z MySQL: {error_message}. Sprawdź konfigurację w Streamlit Secrets.")
             except Exception as e:
-                logger.error(f"Błąd połączenia z MySQL: {e}")
+                logger.error(f"Błąd połączenia z MySQL: {type(e).__name__}: {e}")
+                logger.error(f"Host: {mysql_config.get('host', 'N/A')}, Port: {mysql_config.get('port', 'N/A')}, Database: {mysql_config.get('database', 'N/A')}, User: {mysql_config.get('username', 'N/A')}")
                 import traceback
                 logger.error(f"Traceback: {traceback.format_exc()}")
                 raise
         else:
             # Fallback: spróbuj st.connection (ma wbudowany pooling)
             try:
-                logger.info("DEBUG: Próba utworzenia połączenia MySQL przez st.connection('mysql')")
+                logger.info("DEBUG: Brak konfiguracji MySQL w secrets, próba utworzenia połączenia przez st.connection('mysql')")
+                logger.warning("DEBUG: MySQL config nie znaleziony. Sprawdź Streamlit Secrets:")
+                logger.warning("DEBUG: Wymagane zmienne: MYSQL_HOST, MYSQL_PORT, MYSQL_DATABASE, MYSQL_USERNAME, MYSQL_PASSWORD")
+                logger.warning("DEBUG: LUB sekcja [connections.mysql] z polami: host, port, database, username, password")
                 self.conn = st.connection('mysql', type='sql')
                 logger.info("DEBUG: Połączenie MySQL utworzone przez st.connection()")
                 self._init_database()
                 logger.info("Połączono z bazą MySQL (przez st.connection)")
             except Exception as e:
-                logger.error(f"Błąd połączenia z MySQL przez st.connection: {e}")
+                error_msg = f"Błąd połączenia z MySQL przez st.connection: {e}"
+                logger.error(error_msg)
+                logger.error("DEBUG: Sprawdź konfigurację MySQL w Streamlit Secrets")
                 import traceback
                 logger.error(f"Traceback: {traceback.format_exc()}")
-                raise
+                raise RuntimeError(f"{error_msg}. Sprawdź konfigurację MySQL w Streamlit Secrets.")
     
     def _init_database(self):
         """Inicjalizuje strukturę bazy danych (tworzy tabele jeśli nie istnieją)"""
@@ -930,11 +965,55 @@ class TipperStorageMySQL:
             logger.error(f"Błąd pobierania typów gracza: {e}")
             return {}
     
-    def get_leaderboard(self, exclude_worst: bool = True) -> List[Dict]:
-        """Zwraca ranking graczy (z opcją odrzucenia najgorszego wyniku)"""
+    def get_current_season(self) -> Optional[str]:
+        """Zwraca aktualny sezon (z settings)"""
         try:
+            result = self.conn.query(
+                "SELECT setting_value FROM settings WHERE setting_key = 'current_season'",
+                ttl=0
+            )
+            if not result.empty:
+                value = result.iloc[0]['setting_value']
+                return value if value else None
+            return None
+        except Exception as e:
+            logger.error(f"Błąd pobierania aktualnego sezonu: {e}")
+            return None
+    
+    def set_current_season(self, season_id: str):
+        """Ustawia aktualny sezon"""
+        try:
+            self.conn.query(
+                f"INSERT INTO settings (setting_key, setting_value) VALUES ('current_season', '{season_id}') "
+                f"ON DUPLICATE KEY UPDATE setting_value = '{season_id}'",
+                ttl=0
+            )
+            # Wyczyść cache po zapisie
+            TipperStorageMySQL._memory_cache = None
+            TipperStorageMySQL._cache_timestamp = None
+            logger.info(f"Ustawiono aktualny sezon: {season_id}")
+        except Exception as e:
+            logger.error(f"Błąd ustawiania aktualnego sezonu: {e}")
+    
+    def get_leaderboard(self, exclude_worst: bool = True, season_id: Optional[str] = None) -> List[Dict]:
+        """Zwraca ranking graczy (z opcją odrzucenia najgorszego wyniku) dla danego sezonu"""
+        try:
+            # Jeśli nie podano sezonu, użyj aktualnego sezonu
+            if season_id is None:
+                season_id = self.get_current_season()
+            
             # Pobierz wszystkie rundy posortowane po dacie (najstarsza pierwsza)
-            rounds_df = self.conn.query("SELECT round_id, start_date FROM rounds ORDER BY start_date ASC", ttl=0)
+            # Filtruj tylko rundy z aktualnego sezonu (jeśli sezon jest ustawiony)
+            if season_id:
+                rounds_df = self.conn.query(
+                    f"SELECT r.round_id, r.start_date FROM rounds r "
+                    f"INNER JOIN seasons s ON r.season_id = s.season_id "
+                    f"WHERE s.season_id = '{season_id}' "
+                    f"ORDER BY r.start_date ASC",
+                    ttl=0
+                )
+            else:
+                rounds_df = self.conn.query("SELECT round_id, start_date FROM rounds ORDER BY start_date ASC", ttl=0)
             all_rounds = []
             if not rounds_df.empty:
                 for _, round_row in rounds_df.iterrows():
@@ -1127,4 +1206,44 @@ class TipperStorageMySQL:
             logger.info(f"Zapisano wybrane drużyny: {len(teams)}")
         except Exception as e:
             logger.error(f"Błąd zapisywania wybranych drużyn: {e}")
+    
+    def get_selected_leagues(self) -> List[int]:
+        """Zwraca listę ID wybranych lig"""
+        try:
+            result = self.conn.query(
+                "SELECT setting_value FROM settings WHERE setting_key = 'selected_leagues'",
+                ttl=0
+            )
+            if not result.empty:
+                value = result.iloc[0]['setting_value']
+                if value:
+                    leagues_data = json.loads(value)
+                    # Obsługa starego formatu (słownik) - konwersja do listy
+                    if isinstance(leagues_data, dict):
+                        leagues_data = list(leagues_data.keys())
+                        # Zaktualizuj w bazie do nowego formatu
+                        self.set_selected_leagues(leagues_data)
+                    # Konwertuj na int jeśli są stringi
+                    return [int(league_id) if isinstance(league_id, str) else league_id for league_id in leagues_data]
+            return [32612, 9399]  # Domyślne ligi
+        except Exception as e:
+            logger.error(f"Błąd pobierania wybranych lig: {e}")
+            return [32612, 9399]
+    
+    def set_selected_leagues(self, league_ids: List[int]):
+        """Zapisuje listę ID wybranych lig"""
+        try:
+            value = json.dumps(league_ids)
+            self.conn.query(
+                f"INSERT INTO settings (setting_key, setting_value) VALUES ('selected_leagues', '{value}') "
+                f"ON DUPLICATE KEY UPDATE setting_value = '{value}'",
+                ttl=0
+            )
+            # Wyczyść cache po zapisie
+            TipperStorageMySQL._memory_cache = None
+            TipperStorageMySQL._cache_timestamp = None
+            
+            logger.info(f"Zapisano wybrane ligi: {len(league_ids)}")
+        except Exception as e:
+            logger.error(f"Błąd zapisywania wybranych lig: {e}")
 
