@@ -1560,10 +1560,26 @@ def main():
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
                                         
-                                        # Dla MySQL storage - dodaj krótkie opóźnienie, aby upewnić się, że zapis się zakończył
+                                        # Dla MySQL storage - upewnij się, że dane są zapisane przed przeładowaniem
                                         import time
                                         if hasattr(storage, 'conn'):
-                                            time.sleep(0.2)  # 200ms opóźnienie, aby upewnić się, że zapis się zakończył
+                                            # Sprawdź, czy dane są zapisane - poczekaj maksymalnie 1 sekundę
+                                            max_attempts = 10
+                                            for attempt in range(max_attempts):
+                                                time.sleep(0.1)  # 100ms opóźnienie między próbami
+                                                # Sprawdź, czy zapisane typy są dostępne w bazie
+                                                try:
+                                                    test_predictions = storage.get_player_predictions(player_name, round_id)
+                                                    # Sprawdź, czy wszystkie zapisane typy są dostępne
+                                                    saved_match_ids = set(predictions_to_save.keys())
+                                                    available_match_ids = set(test_predictions.keys())
+                                                    if saved_match_ids.issubset(available_match_ids):
+                                                        # Wszystkie typy są dostępne - można przeładować
+                                                        logger.info(f"DEBUG: Wszystkie {len(saved_match_ids)} typów są dostępne w bazie po {attempt + 1} próbach")
+                                                        break
+                                                except Exception as e:
+                                                    logger.error(f"Błąd weryfikacji zapisanych typów: {e}")
+                                                    pass
                                         
                                         # Wymuś przeładowanie danych z bazy przed rerun, aby existing_predictions było dostępne
                                         # add_prediction czyści cache po każdym typie, więc cache jest pusty
@@ -1747,10 +1763,26 @@ def main():
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
                                         
-                                        # Dla MySQL storage - dodaj krótkie opóźnienie, aby upewnić się, że zapis się zakończył
+                                        # Dla MySQL storage - upewnij się, że dane są zapisane przed przeładowaniem
                                         import time
                                         if hasattr(storage, 'conn'):
-                                            time.sleep(0.2)  # 200ms opóźnienie, aby upewnić się, że zapis się zakończył
+                                            # Sprawdź, czy dane są zapisane - poczekaj maksymalnie 1 sekundę
+                                            max_attempts = 10
+                                            for attempt in range(max_attempts):
+                                                time.sleep(0.1)  # 100ms opóźnienie między próbami
+                                                # Sprawdź, czy zapisane typy są dostępne w bazie
+                                                try:
+                                                    test_predictions = storage.get_player_predictions(player_name, round_id)
+                                                    # Sprawdź, czy wszystkie zapisane typy są dostępne
+                                                    saved_match_ids = set(parsed.keys())
+                                                    available_match_ids = set(test_predictions.keys())
+                                                    if saved_match_ids.issubset(available_match_ids):
+                                                        # Wszystkie typy są dostępne - można przeładować
+                                                        logger.info(f"DEBUG: Wszystkie {len(saved_match_ids)} typów są dostępne w bazie po {attempt + 1} próbach")
+                                                        break
+                                                except Exception as e:
+                                                    logger.error(f"Błąd weryfikacji zapisanych typów: {e}")
+                                                    pass
                                         
                                         # Wymuś przeładowanie danych z bazy przed rerun, aby existing_predictions było dostępne
                                         # add_prediction czyści cache po każdym typie, więc cache jest pusty
