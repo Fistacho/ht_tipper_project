@@ -474,15 +474,24 @@ def main():
             st.markdown("---")
             st.subheader("📅 Wybór rundy")
             
-            # Znajdź ostatnią rozegraną kolejkę (domyślnie)
-            # filtered_rounds jest posortowane DESC (najnowsza pierwsza), więc szukamy pierwszej rozegranej
-            default_round_idx = 0
+            # Znajdź pierwszą nie rozegraną kolejkę (domyślnie dla rankingu po zalogowaniu)
+            # filtered_rounds jest posortowane DESC (najnowsza pierwsza), więc szukamy pierwszej nie rozegranej
+            default_round_idx = None
             for idx, (date, matches) in enumerate(filtered_rounds):
                 # Sprawdź czy kolejka ma rozegrane mecze
                 has_played = any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches)
-                if has_played:
+                round_number = date_to_round_number.get(date, '?')
+                logger.info(f"DEBUG ranking: idx={idx}, date={date}, round_number={round_number}, has_played={has_played}")
+                if not has_played:
+                    # Znajdź pierwszą nie rozegraną kolejkę (najnowszą nie rozegraną)
                     default_round_idx = idx
-                    break  # Znajdź pierwszą (najnowszą) rozegraną kolejkę w liście
+                    logger.info(f"DEBUG ranking: Znaleziono nie rozegraną kolejkę {round_number} na indeksie {idx}")
+                    break
+            
+            # Jeśli nie znaleziono nie rozegranej kolejki, użyj pierwszej (najnowszej)
+            if default_round_idx is None:
+                default_round_idx = 0
+                logger.info(f"DEBUG ranking: Nie znaleziono nie rozegranej kolejki, używam indeksu 0")
             
             # Sprawdź czy jest zapisany wybór rundy w session_state (tylko jeśli użytkownik wybrał ręcznie)
             # Używamy osobnego klucza dla rankingu, aby nie nadpisywać domyślnej kolejki
@@ -649,15 +658,24 @@ def main():
         st.markdown("---")
         st.subheader("📅 Wybór rundy")
         
-        # Znajdź ostatnią rozegraną kolejkę (domyślnie)
-        # filtered_rounds jest posortowane DESC (najnowsza pierwsza), więc szukamy pierwszej rozegranej
-        default_round_idx = 0
+        # Znajdź pierwszą nie rozegraną kolejkę (domyślnie dla sekcji wprowadzania typów po zalogowaniu)
+        # filtered_rounds jest posortowane DESC (najnowsza pierwsza), więc szukamy pierwszej nie rozegranej
+        default_round_idx = None
         for idx, (date, matches) in enumerate(filtered_rounds):
             # Sprawdź czy kolejka ma rozegrane mecze
             has_played = any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches)
-            if has_played:
+            round_number = date_to_round_number.get(date, '?')
+            logger.info(f"DEBUG input: idx={idx}, date={date}, round_number={round_number}, has_played={has_played}")
+            if not has_played:
+                # Znajdź pierwszą nie rozegraną kolejkę (najnowszą nie rozegraną)
                 default_round_idx = idx
-                break  # Znajdź pierwszą (najnowszą) rozegraną kolejkę w liście
+                logger.info(f"DEBUG input: Znaleziono nie rozegraną kolejkę {round_number} na indeksie {idx}")
+                break
+        
+        # Jeśli nie znaleziono nie rozegranej kolejki, użyj pierwszej (najnowszej)
+        if default_round_idx is None:
+            default_round_idx = 0
+            logger.info(f"DEBUG input: Nie znaleziono nie rozegranej kolejki, używam indeksu 0")
         
         # Sprawdź czy jest zapisany wybór rundy w session_state (synchronizacja z rankingiem)
         # Jeśli użytkownik wybrał kolejkę w rankingu, użyj tego wyboru

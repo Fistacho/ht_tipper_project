@@ -291,20 +291,27 @@ def login_page() -> bool:
                     for idx, (round_id, date_str, _) in enumerate(sorted_by_date, 1):
                         date_to_round_number[round_id] = idx
                     
-                    # Znajdź ostatnią rozegraną kolejkę (domyślnie)
-                    # round_options jest posortowane DESC (najnowsza pierwsza), więc szukamy pierwszej rozegranej
-                    default_round_idx = 0
+                    # Znajdź ostatnią rozegraną kolejkę (domyślnie dla ekranu logowania)
+                    # round_options jest posortowane DESC (najnowsza pierwsza: 14, 13, 12...)
+                    # Szukamy pierwszej kolejki z punktacją (czyli takiej, dla której gracze mają już policzone punkty)
+                    default_round_idx = None
                     for idx, (round_id, _, _) in enumerate(round_options):
-                        round_data = storage.data['rounds'].get(round_id, {})
-                        matches = round_data.get('matches', [])
-                        # Sprawdź czy kolejka ma rozegrane mecze
-                        has_played = any(
-                            m.get('home_goals') is not None and m.get('away_goals') is not None 
-                            for m in matches
-                        )
-                        if has_played:
+                        # Sprawdź czy kolejka ma punktację dla graczy
+                        round_leaderboard = storage.get_round_leaderboard(round_id)
+                        # Kolejka ma punktację, jeśli leaderboard nie jest pusty i ma graczy z punktami > 0
+                        has_points = False
+                        if round_leaderboard:
+                            # Sprawdź czy przynajmniej jeden gracz ma punkty > 0
+                            has_points = any(player.get('total_points', 0) > 0 for player in round_leaderboard)
+                        
+                        if has_points:
+                            # Znajdź pierwszą kolejkę z punktacją w liście DESC (najnowszą z punktacją)
                             default_round_idx = idx
-                            break  # Znajdź pierwszą (najnowszą) rozegraną kolejkę w liście
+                            break
+                    
+                    # Jeśli nie znaleziono kolejki z punktacją, użyj pierwszej (najnowszej)
+                    if default_round_idx is None:
+                        default_round_idx = 0
                     
                     # Wybór rundy
                     round_display_options = [f"Kolejka {date_to_round_number.get(rid, '?')} - {date} ({matches} meczów)" 
