@@ -18,7 +18,7 @@ class TipperStorageMySQL:
     # Cache w pamięci (współdzielony między instancjami)
     _memory_cache = None
     _cache_timestamp = None
-    _cache_ttl = 30  # Cache ważny przez 30 sekund
+    _cache_ttl = 120  # Cache ważny przez 120 sekund (2 minuty) - zwiększone dla lepszej wydajności
     
     def __init__(self):
         """Inicjalizuje połączenie z bazą MySQL (używa współdzielonego połączenia z session_state)"""
@@ -435,6 +435,9 @@ class TipperStorageMySQL:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     UNIQUE KEY unique_prediction (round_id, player_name, match_id),
+                    INDEX idx_player_round (player_name, round_id),
+                    INDEX idx_round (round_id),
+                    INDEX idx_player (player_name),
                     FOREIGN KEY (round_id) REFERENCES rounds(round_id) ON DELETE CASCADE,
                     FOREIGN KEY (player_name) REFERENCES players(player_name) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -451,6 +454,9 @@ class TipperStorageMySQL:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     UNIQUE KEY unique_match_points (round_id, player_name, match_id),
+                    INDEX idx_player_round (player_name, round_id),
+                    INDEX idx_round (round_id),
+                    INDEX idx_player (player_name),
                     FOREIGN KEY (round_id) REFERENCES rounds(round_id) ON DELETE CASCADE,
                     FOREIGN KEY (player_name) REFERENCES players(player_name) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1060,15 +1066,41 @@ class TipperStorageMySQL:
             logger.error(f"Błąd pobierania typów dla rundy: {e}")
             return {}
     
-    def get_player_predictions(self, player_name: str, round_id: str = None) -> Dict:
-        """Zwraca typy gracza"""
+    def get_player_predictions(self, player_name: str, round_id: str = None, use_cache: bool = True) -> Dict:
+        """Zwraca typy gracza
+        
+        Args:
+            player_name: Nazwa gracza
+            round_id: ID rundy (opcjonalne)
+            use_cache: Czy używać cache (domyślnie True dla lepszej wydajności)
+        """
         try:
+            # Spróbuj użyć cache jeśli jest dostępny
+            if use_cache and TipperStorageMySQL._memory_cache is not None:
+                cache = TipperStorageMySQL._memory_cache
+                if round_id:
+                    # Pobierz z cache
+                    if round_id in cache.get('rounds', {}):
+                        round_data = cache['rounds'][round_id]
+                        if 'predictions' in round_data and player_name in round_data['predictions']:
+                            return round_data['predictions'][player_name]
+                else:
+                    # Pobierz wszystkie typy gracza z cache
+                    result = {}
+                    for r_id, round_data in cache.get('rounds', {}).items():
+                        if 'predictions' in round_data and player_name in round_data['predictions']:
+                            result[r_id] = round_data['predictions'][player_name]
+                    if result:
+                        return result
+            
+            # Jeśli cache nie zawiera danych, pobierz z bazy
             if round_id:
                 query = f"SELECT * FROM predictions WHERE player_name = '{player_name}' AND round_id = '{round_id}'"
             else:
                 query = f"SELECT * FROM predictions WHERE player_name = '{player_name}'"
             
-            predictions_df = self.conn.query(query, ttl=0)
+            # Użyj cache dla zapytania (ttl=60 sekund) zamiast ttl=0
+            predictions_df = self.conn.query(query, ttl=60 if use_cache else 0)
             
             if round_id:
                 result = {}
@@ -1096,11 +1128,18 @@ class TipperStorageMySQL:
             return {}
     
     def get_current_season(self) -> Optional[str]:
-        """Zwraca aktualny sezon (z settings)"""
+        """Zwraca aktualny sezon (z settings) - używa cache dla lepszej wydajności"""
         try:
+            # Spróbuj użyć cache jeśli jest dostępny
+            if TipperStorageMySQL._memory_cache is not None:
+                cache = TipperStorageMySQL._memory_cache
+                if 'settings' in cache and 'current_season' in cache['settings']:
+                    return cache['settings']['current_season']
+            
+            # Jeśli cache nie zawiera danych, pobierz z bazy z cache (ttl=60 sekund)
             result = self.conn.query(
                 "SELECT setting_value FROM settings WHERE setting_key = 'current_season'",
-                ttl=0
+                ttl=60  # Użyj cache dla lepszej wydajności
             )
             if not result.empty:
                 value = result.iloc[0]['setting_value']
@@ -1306,11 +1345,18 @@ class TipperStorageMySQL:
             return []
     
     def get_selected_teams(self) -> List[str]:
-        """Zwraca listę wybranych drużyn"""
+        """Zwraca listę wybranych drużyn - używa cache dla lepszej wydajności"""
         try:
+            # Spróbuj użyć cache jeśli jest dostępny
+            if TipperStorageMySQL._memory_cache is not None:
+                cache = TipperStorageMySQL._memory_cache
+                if 'settings' in cache and 'selected_teams' in cache['settings']:
+                    return cache['settings']['selected_teams']
+            
+            # Jeśli cache nie zawiera danych, pobierz z bazy z cache (ttl=60 sekund)
             result = self.conn.query(
                 "SELECT setting_value FROM settings WHERE setting_key = 'selected_teams'",
-                ttl=0
+                ttl=60  # Użyj cache dla lepszej wydajności
             )
             if not result.empty:
                 value = result.iloc[0]['setting_value']
@@ -1338,11 +1384,23 @@ class TipperStorageMySQL:
             logger.error(f"Błąd zapisywania wybranych drużyn: {e}")
     
     def get_selected_leagues(self) -> List[int]:
-        """Zwraca listę ID wybranych lig"""
+        """Zwraca listę ID wybranych lig - używa cache dla lepszej wydajności"""
         try:
+            # Spróbuj użyć cache jeśli jest dostępny
+            if TipperStorageMySQL._memory_cache is not None:
+                cache = TipperStorageMySQL._memory_cache
+                if 'settings' in cache and 'selected_leagues' in cache['settings']:
+                    leagues_data = cache['settings']['selected_leagues']
+                    # Obsługa starego formatu (słownik) - konwersja do listy
+                    if isinstance(leagues_data, dict):
+                        leagues_data = list(leagues_data.keys())
+                    # Konwertuj na int jeśli są stringi
+                    return [int(league_id) if isinstance(league_id, str) else league_id for league_id in leagues_data]
+            
+            # Jeśli cache nie zawiera danych, pobierz z bazy z cache (ttl=60 sekund)
             result = self.conn.query(
                 "SELECT setting_value FROM settings WHERE setting_key = 'selected_leagues'",
-                ttl=0
+                ttl=60  # Użyj cache dla lepszej wydajności
             )
             if not result.empty:
                 value = result.iloc[0]['setting_value']

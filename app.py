@@ -1643,22 +1643,21 @@ def main():
                                     if hasattr(storage, '_save_data'):
                                         storage._save_data()
                                     
-                                    # Wyczyść cache storage PRZED sprawdzaniem typów w bazie
-                                    # To zapewnia, że get_player_predictions pobierze najnowsze dane
-                                    if hasattr(storage, 'reload_data'):
-                                        log_msg = f"DEBUG SINGLE: Wywołuję reload_data() przed sprawdzaniem typów w bazie"
-                                        logger.info(log_msg)
-                                        log_to_file(log_msg)
-                                        storage.reload_data()
-                                    
-                                    # Sprawdź typy w bazie PO zapisie
+                                    # Sprawdź typy w bazie PO zapisie (bez cache, aby uzyskać najnowsze dane)
                                     log_msg = f"DEBUG SINGLE: Sprawdzam typy w bazie PO zapisie dla {player_name} w rundzie {round_id}"
                                     logger.info(log_msg)
                                     log_to_file(log_msg)
-                                    test_predictions = storage.get_player_predictions(player_name, round_id)
+                                    test_predictions = storage.get_player_predictions(player_name, round_id, use_cache=False)
                                     log_msg = f"DEBUG SINGLE: Typy w bazie PO zapisie: {list(test_predictions.keys())}"
                                     logger.info(log_msg)
                                     log_to_file(log_msg)
+                                    
+                                    # Wyczyść cache storage PO sprawdzeniu typów (aby następne odczyty używały świeżych danych)
+                                    if hasattr(storage, 'reload_data'):
+                                        log_msg = f"DEBUG SINGLE: Wywołuję reload_data() po sprawdzeniu typów w bazie"
+                                        logger.info(log_msg)
+                                        log_to_file(log_msg)
+                                        storage.reload_data()
                                     
                                     # Usuń klucze z session_state, aby pola tekstowe zostały ponownie zainicjalizowane z wartościami z bazy
                                     # Streamlit text_input zachowuje wartość w session_state po rerun, więc musimy je usunąć
@@ -1868,11 +1867,11 @@ def main():
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
                                         
-                                        # Sprawdź typy w bazie PO zapisie
+                                        # Sprawdź typy w bazie PO zapisie (bez cache, aby uzyskać najnowsze dane)
                                         log_msg = f"DEBUG BULK: Sprawdzam typy w bazie PO zapisie dla {player_name} w rundzie {round_id}"
                                         logger.info(log_msg)
                                         log_to_file(log_msg)
-                                        test_predictions = storage.get_player_predictions(player_name, round_id)
+                                        test_predictions = storage.get_player_predictions(player_name, round_id, use_cache=False)
                                         log_msg = f"DEBUG BULK: Typy w bazie PO zapisie: {list(test_predictions.keys())}"
                                         logger.info(log_msg)
                                         log_to_file(log_msg)
@@ -1909,7 +1908,7 @@ def main():
                                         if errors:
                                             st.warning(f"⚠️ {len(errors)} typów nie zostało zapisanych:\n" + "\n".join(errors[:5]))
                                         
-                                        # Wyczyść cache storage przed rerun
+                                        # Wyczyść cache storage PO sprawdzeniu typów (aby następne odczyty używały świeżych danych)
                                         if hasattr(storage, 'reload_data'):
                                             storage.reload_data()
                                         
