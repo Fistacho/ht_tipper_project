@@ -557,9 +557,11 @@ class TipperStorageMySQL:
         """Dodaje ligę do systemu"""
         try:
             league_id_str = str(league_id)
+            # Użyj podanej nazwy lub domyślnej
+            final_league_name = league_name or f"Liga {league_id}"
             self.conn.query(
-                f"INSERT INTO leagues (league_id, league_name) VALUES ('{league_id_str}', '{league_name or f\"Liga {league_id}\"}') "
-                f"ON DUPLICATE KEY UPDATE league_name = '{league_name or f\"Liga {league_id}\"}'",
+                f"INSERT INTO leagues (league_id, league_name) VALUES ('{league_id_str}', '{final_league_name}') "
+                f"ON DUPLICATE KEY UPDATE league_name = '{final_league_name}'",
                 ttl=0
             )
             logger.info(f"Dodano ligę: {league_id}")
