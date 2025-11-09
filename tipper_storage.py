@@ -22,10 +22,15 @@ def get_storage():
     try:
         import streamlit as st
         # Sprawdź czy MySQL jest skonfigurowane w Streamlit secrets
-        if hasattr(st, 'secrets') and 'connections' in st.secrets and 'mysql' in st.secrets.connections:
-            logger.info("Używam MySQL jako storage")
-            from tipper_storage_mysql import TipperStorageMySQL
-            return TipperStorageMySQL()
+        if hasattr(st, 'secrets'):
+            try:
+                # Sprawdź czy secrets.connections.mysql istnieje
+                if hasattr(st.secrets, 'connections') and hasattr(st.secrets.connections, 'mysql'):
+                    logger.info("Używam MySQL jako storage")
+                    from tipper_storage_mysql import TipperStorageMySQL
+                    return TipperStorageMySQL()
+            except (AttributeError, KeyError) as e:
+                logger.info(f"MySQL nie jest dostępne w secrets: {e}")
     except Exception as e:
         logger.info(f"MySQL nie jest dostępne, używam JSON: {e}")
     

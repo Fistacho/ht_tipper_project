@@ -209,6 +209,7 @@ Lub użyj narzędzia do zarządzania bazą danych (np. phpMyAdmin, MySQL Workben
    - Dodaj następującą konfigurację:
 
 ```toml
+# MySQL Database Connection (WYMAGANE)
 [connections.mysql]
 dialect = "mysql"
 host = "twoj_host_mysql"
@@ -216,7 +217,23 @@ port = 3306
 database = "nazwa_bazy_danych"
 username = "nazwa_uzytkownika"
 password = "haslo"
+
+# Hattrick OAuth (WYMAGANE)
+HATTRICK_CONSUMER_KEY = "twoj_consumer_key"
+HATTRICK_CONSUMER_SECRET = "twoj_consumer_secret"
+HATTRICK_ACCESS_TOKEN = "twoj_access_token"
+HATTRICK_ACCESS_TOKEN_SECRET = "twoj_access_token_secret"
+
+# Authentication (WYMAGANE)
+APP_USERNAME = "admin"
+APP_PASSWORD_HASH = "wygenerowany_hash"
+APP_PASSWORD_SALT = "wygenerowana_sol"
 ```
+
+**Uwaga:** 
+- `HATTRICK_ACCESS_TOKEN` i `HATTRICK_ACCESS_TOKEN_SECRET` są opcjonalne (można je wygenerować w aplikacji)
+- Aby wygenerować hash hasła, uruchom lokalnie: `python generate_password.py`
+- Szczegółowa dokumentacja: zobacz plik `STREAMLIT_SECRETS.md`
 
 2. **Lokalnie (opcjonalnie):**
    - Utwórz folder `.streamlit` w katalogu głównym projektu

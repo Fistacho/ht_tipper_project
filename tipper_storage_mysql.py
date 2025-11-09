@@ -23,7 +23,53 @@ class TipperStorageMySQL:
             logger.info("Połączono z bazą MySQL")
         except Exception as e:
             logger.error(f"Błąd połączenia z MySQL: {e}")
-            raise
+            # Jeśli nie można połączyć przez Streamlit connection, spróbuj bezpośrednio przez pymysql
+            try:
+                import pymysql
+                import os
+                import tomllib
+                
+                # Wczytaj secrets.toml bezpośrednio
+                secrets_path = os.path.join('.streamlit', 'secrets.toml')
+                if os.path.exists(secrets_path):
+                    with open(secrets_path, 'rb') as f:
+                        secrets = tomllib.load(f)
+                    
+                    mysql_config = secrets['connections']['mysql']
+                    
+                    # Połącz bezpośrednio przez pymysql
+                    connection = pymysql.connect(
+                        host=mysql_config['host'],
+                        port=int(mysql_config['port']),
+                        user=mysql_config['username'],
+                        password=mysql_config['password'],
+                        database=mysql_config['database'],
+                        charset='utf8mb4',
+                        cursorclass=pymysql.cursors.DictCursor
+                    )
+                    
+                    # Użyj wrapper dla kompatybilności z st.connection
+                    class MySQLConnectionWrapper:
+                        def __init__(self, conn):
+                            self.conn = conn
+                        
+                        def query(self, sql, ttl=600):
+                            import pandas as pd
+                            with self.conn.cursor() as cursor:
+                                cursor.execute(sql)
+                                results = cursor.fetchall()
+                                if results:
+                                    return pd.DataFrame(results)
+                                return pd.DataFrame()
+                    
+                    self.conn = MySQLConnectionWrapper(connection)
+                    self._init_database()
+                    logger.info("Połączono z bazą MySQL (bezpośrednio przez pymysql)")
+                else:
+                    raise
+            except Exception as e2:
+                logger.error(f"Błąd połączenia z MySQL (również bezpośrednio): {e2}")
+                raise e
     
     def _init_database(self):
         """Inicjalizuje strukturę bazy danych (tworzy tabele jeśli nie istnieją)"""
