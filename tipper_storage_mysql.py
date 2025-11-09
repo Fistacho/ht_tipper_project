@@ -537,9 +537,11 @@ class TipperStorageMySQL:
                     value_str = json.dumps(value)
                 else:
                     value_str = str(value)
+                # Escapuj pojedyncze cudzysłowy dla SQL
+                value_str_escaped = value_str.replace("'", "''")
                 self.conn.query(
-                    f"INSERT INTO settings (setting_key, setting_value) VALUES ('{key}', '{value_str.replace(\"'\", \"''\")}') "
-                    f"ON DUPLICATE KEY UPDATE setting_value = '{value_str.replace(\"'\", \"''\")}'",
+                    f"INSERT INTO settings (setting_key, setting_value) VALUES ('{key}', '{value_str_escaped}') "
+                    f"ON DUPLICATE KEY UPDATE setting_value = '{value_str_escaped}'",
                     ttl=0
                 )
             
