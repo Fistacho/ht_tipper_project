@@ -1560,8 +1560,11 @@ def main():
                                     if hasattr(storage, '_save_data'):
                                         storage._save_data()
                                     
-                                    # NIE wywołuj reload_data() - add_prediction już czyści cache
-                                    # Cache się odświeży automatycznie przy następnym dostępie po st.rerun()
+                                    # Wymuś przeładowanie danych z bazy przed rerun, aby existing_predictions było dostępne
+                                    # add_prediction czyści cache po każdym typie, więc cache jest pusty
+                                    # Przed rerun musimy przeładować dane, aby pola tekstowe miały poprawne wartości domyślne
+                                    if hasattr(storage, 'reload_data'):
+                                        storage.reload_data()
                                     
                                     if updated_count > 0 and saved_count > 0:
                                         st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
@@ -1725,10 +1728,11 @@ def main():
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
                                         
-                                        # NIE wywołuj reload_data() ani nie wymuszaj przeładowania danych przed rerun
-                                        # add_prediction już czyści cache po każdym typie, więc cache jest pusty
-                                        # Po st.rerun() cache zostanie automatycznie przeładowany z bazy przy pierwszym dostępie do storage.data
-                                        # Wymuszenie przeładowania przed rerun może powodować błędy, jeśli baza nie jest gotowa
+                                        # Wymuś przeładowanie danych z bazy przed rerun, aby existing_predictions było dostępne
+                                        # add_prediction czyści cache po każdym typie, więc cache jest pusty
+                                        # Przed rerun musimy przeładować dane, aby pola tekstowe miały poprawne wartości domyślne
+                                        if hasattr(storage, 'reload_data'):
+                                            storage.reload_data()
                                         
                                         if updated_count > 0 and saved_count > 0:
                                             st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
