@@ -1526,9 +1526,12 @@ def main():
                                     # Zapisz zmiany
                                     if hasattr(storage, '_save_data'):
                                         storage._save_data()
-                                    # Wyczyść cache jeśli istnieje
+                                    # Wyczyść cache jeśli istnieje (ale nie ładuj od razu - cache się odświeży przy następnym dostępie)
                                     if hasattr(storage, 'reload_data'):
                                         storage.reload_data()
+                                    # Wymuś przeładowanie danych przed rerun (aby sezony były dostępne)
+                                    if hasattr(storage, 'data'):
+                                        _ = storage.data  # Wymuś przeładowanie cache
                                     
                                     if updated_count > 0 and saved_count > 0:
                                         st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
@@ -1691,9 +1694,12 @@ def main():
                                         # Zapisz zmiany
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
-                                        # Wyczyść cache jeśli istnieje
+                                        # Wyczyść cache jeśli istnieje (ale nie ładuj od razu - cache się odświeży przy następnym dostępie)
                                         if hasattr(storage, 'reload_data'):
                                             storage.reload_data()
+                                        # Wymuś przeładowanie danych przed rerun (aby sezony były dostępne)
+                                        if hasattr(storage, 'data'):
+                                            _ = storage.data  # Wymuś przeładowanie cache
                                         
                                         if updated_count > 0 and saved_count > 0:
                                             st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
