@@ -36,6 +36,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def safe_int(value, default=0):
+    """Bezpiecznie konwertuje wartość na int, obsługując NaN i None"""
+    import math
+    if value is None:
+        return default
+    try:
+        # Sprawdź czy to NaN
+        if isinstance(value, float) and math.isnan(value):
+            return default
+        return int(float(value))
+    except (ValueError, TypeError):
+        return default
+
+
 def main():
     """Główna funkcja aplikacji typera"""
     # Sprawdź autentykację
@@ -51,8 +65,20 @@ def main():
     # Inicjalizacja storage (potrzebne do pobrania sezonów)
     # Użyj współdzielonej instancji storage z session_state, aby uniknąć wielokrotnych połączeń MySQL
     if 'shared_storage' not in st.session_state:
-        st.session_state.shared_storage = get_storage()
+        try:
+            st.session_state.shared_storage = get_storage()
+        except Exception as e:
+            logger.error(f"Błąd inicjalizacji storage: {e}")
+            st.error(f"❌ Błąd inicjalizacji storage: {e}")
+            return
+    
     storage = st.session_state.shared_storage
+    
+    # Sprawdź czy storage ma wymagane metody
+    if not hasattr(storage, 'get_current_season'):
+        logger.error(f"Storage nie ma metody get_current_season. Typ: {type(storage)}")
+        st.error("❌ Błąd: Storage nie ma wymaganej metody get_current_season")
+        return
     
     # Filtr sezonu - na górze pod tytułem
     st.markdown("---")
@@ -93,7 +119,12 @@ def main():
     # Jeśli nie ma sezonów, dodaj domyślny
     if not season_options:
         # Pobierz aktualny sezon z storage lub użyj domyślnego
-        current_season_id = storage.get_current_season()
+        try:
+            current_season_id = storage.get_current_season()
+        except Exception as e:
+            logger.error(f"Błąd pobierania aktualnego sezonu: {e}")
+            current_season_id = None
+        
         if current_season_id:
             season_number = current_season_id.replace('season_', '') if current_season_id.startswith('season_') else current_season_id
             season_options.append(f"Sezon {season_number}")
@@ -105,7 +136,11 @@ def main():
     # Selectbox do wyboru sezonu
     if season_options:
         # Znajdź indeks aktualnego sezonu
-        current_season_id = storage.get_current_season()
+        try:
+            current_season_id = storage.get_current_season()
+        except Exception as e:
+            logger.error(f"Błąd pobierania aktualnego sezonu: {e}")
+            current_season_id = None
         default_index = 0
         if current_season_id and current_season_id in season_ids:
             default_index = season_ids.index(current_season_id)
@@ -637,7 +672,11 @@ def main():
         
         # Sprawdź czy aktualny sezon z API jest inny niż zapisany w storage
         # Jeśli tak, oznacza to, że sezon się zmienił (np. z 80 na 81)
-        stored_current_season_id = storage.get_current_season()
+        try:
+            stored_current_season_id = storage.get_current_season()
+        except Exception as e:
+            logger.error(f"Błąd pobierania aktualnego sezonu z storage: {e}")
+            stored_current_season_id = None
         
         # Jeśli API zwraca sezon 80, to jest to aktualny sezon
         # Sezon 80 jest aktualny, dopóki nie ma 14 rund i API nie zwróci nowego sezonu (81)
@@ -1129,8 +1168,8 @@ def main():
                                 pred = player_predictions[match_id]
                                 home_team = match.get('home_team_name', '?')
                                 away_team = match.get('away_team_name', '?')
-                                pred_home = int(pred.get('home', 0))
-                                pred_away = int(pred.get('away', 0))
+                                pred_home = safe_int(pred.get('home', 0))
+                                pred_away = safe_int(pred.get('away', 0))
                                 
                                 # Pobierz punkty dla tego meczu
                                 match_points_dict = round_data.get('match_points', {}).get(player_name, {})
@@ -1139,7 +1178,7 @@ def main():
                                 # Pobierz wynik meczu jeśli rozegrany
                                 home_goals = match.get('home_goals')
                                 away_goals = match.get('away_goals')
-                                result = f"{int(home_goals)}-{int(away_goals)}" if home_goals is not None and away_goals is not None else "—"
+                                result = f"{safe_int(home_goals)}-{safe_int(away_goals)}" if home_goals is not None and away_goals is not None else "—"
                                 
                                 types_table_data.append({
                                     'Mecz': f"{home_team} vs {away_team}",
@@ -1271,10 +1310,10 @@ def main():
                 # Status meczu
                 status = "⏳ Oczekuje"
                 if home_goals is not None and away_goals is not None:
-                    status = f"✅ {int(home_goals)}-{int(away_goals)}"
+                    status = f"✅ {safe_int(home_goals)}-{safe_int(away_goals)}"
                     # Aktualizuj wynik w storage
                     try:
-                        storage.update_match_result(round_id, match_id, int(home_goals), int(away_goals))
+                        storage.update_match_result(round_id, match_id, safe_int(home_goals), safe_int(away_goals))
                     except:
                         pass
                 else:
@@ -1386,7 +1425,7 @@ def main():
                             has_existing = match_id in existing_predictions
                             if has_existing:
                                 existing_pred = existing_predictions[match_id]
-                                default_value = f"{int(existing_pred.get('home', 0))}-{int(existing_pred.get('away', 0))}"
+                                default_value = f"{safe_int(existing_pred.get('home', 0))}-{safe_int(existing_pred.get('away', 0))}"
                             else:
                                 default_value = ""
                             
@@ -1395,7 +1434,7 @@ def main():
                             if home_goals is not None and away_goals is not None and has_existing:
                                 pred_home = existing_pred.get('home', 0)
                                 pred_away = existing_pred.get('away', 0)
-                                points = tipper.calculate_points((pred_home, pred_away), (int(home_goals), int(away_goals)))
+                                points = tipper.calculate_points((pred_home, pred_away), (safe_int(home_goals), safe_int(away_goals)))
                                 points_display = f" | **Punkty: {points}**"
                             
                             # Pobierz ID ligi dla meczu
@@ -1410,7 +1449,7 @@ def main():
                             col1, col2 = st.columns([3, 1.5])
                             with col1:
                                 status_icon = "✅" if has_existing else "❌"
-                                result_text = f" ({int(home_goals)}-{int(away_goals)})" if home_goals is not None and away_goals is not None else ""
+                                result_text = f" ({safe_int(home_goals)}-{safe_int(away_goals)})" if home_goals is not None and away_goals is not None else ""
                                 st.write(f"{status_icon} **{home_team}** vs **{away_team}**{league_info}{result_text} {points_display}")
                             with col2:
                                 if can_edit:

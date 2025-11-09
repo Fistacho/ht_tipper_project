@@ -13,6 +13,20 @@ import plotly.express as px
 logger = logging.getLogger(__name__)
 
 
+def safe_int(value, default=0):
+    """Bezpiecznie konwertuje wartość na int, obsługując NaN i None"""
+    import math
+    if value is None:
+        return default
+    try:
+        # Sprawdź czy to NaN
+        if isinstance(value, float) and math.isnan(value):
+            return default
+        return int(float(value))
+    except (ValueError, TypeError):
+        return default
+
+
 def hash_password(password: str, salt: str = None) -> tuple:
     """
     Haszuje hasło używając SHA256 z solą
@@ -502,8 +516,8 @@ def login_page() -> bool:
                                         pred = player_predictions[match_id]
                                         home_team = match.get('home_team_name', '?')
                                         away_team = match.get('away_team_name', '?')
-                                        pred_home = int(pred.get('home', 0))
-                                        pred_away = int(pred.get('away', 0))
+                                        pred_home = safe_int(pred.get('home', 0))
+                                        pred_away = safe_int(pred.get('away', 0))
                                         
                                         # Pobierz punkty dla tego meczu
                                         match_points_dict = round_data.get('match_points', {}).get(player_name, {})
@@ -512,7 +526,7 @@ def login_page() -> bool:
                                         # Pobierz wynik meczu jeśli rozegrany
                                         home_goals = match.get('home_goals')
                                         away_goals = match.get('away_goals')
-                                        result = f"{int(home_goals)}-{int(away_goals)}" if home_goals is not None and away_goals is not None else "—"
+                                        result = f"{safe_int(home_goals)}-{safe_int(away_goals)}" if home_goals is not None and away_goals is not None else "—"
                                         
                                         types_table_data.append({
                                             'Mecz': f"{home_team} vs {away_team}",
