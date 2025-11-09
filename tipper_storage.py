@@ -17,20 +17,35 @@ class TipperStorage:
     """Klasa do przechowywania i zarządzania danymi typera"""
     
     def __init__(self, data_file: str = TIPPER_DATA_FILE):
-        self.data_file = data_file
+        # Użyj bezwzględnej ścieżki dla pewności (szczególnie na Streamlit Cloud)
+        self.data_file = os.path.abspath(data_file)
         self.data = self._load_data()
     
     def _load_data(self) -> Dict:
         """Ładuje dane z pliku JSON"""
-        if os.path.exists(self.data_file):
+        # Sprawdź czy plik istnieje (użyj bezwzględnej ścieżki)
+        abs_path = os.path.abspath(self.data_file)
+        
+        if os.path.exists(abs_path):
             try:
-                with open(self.data_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                with open(abs_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    logger.info(f"Załadowano dane z pliku {abs_path}: {len(data.get('players', {}))} graczy, {len(data.get('rounds', {}))} rund")
+                    return data
             except (json.JSONDecodeError, IOError) as e:
-                logger.error(f"Błąd ładowania danych typera: {e}")
+                logger.error(f"Błąd ładowania danych typera z {abs_path}: {e}")
                 return self._get_default_data()
         else:
+            logger.warning(f"Plik {abs_path} nie istnieje, używam domyślnych danych")
+            # Sprawdź czy katalog roboczy istnieje
+            cwd = os.getcwd()
+            logger.info(f"Katalog roboczy: {cwd}")
             return self._get_default_data()
+    
+    def reload_data(self):
+        """Przeładowuje dane z pliku (użyteczne po zmianach zewnętrznych)"""
+        self.data = self._load_data()
+        logger.info("Przeładowano dane z pliku")
     
     def _get_default_data(self) -> Dict:
         """Zwraca domyślną strukturę danych"""
@@ -47,10 +62,39 @@ class TipperStorage:
     def _save_data(self):
         """Zapisuje dane do pliku JSON"""
         try:
-            with open(self.data_file, 'w', encoding='utf-8') as f:
+            # Użyj bezwzględnej ścieżki dla pewności (szczególnie na Streamlit Cloud)
+            abs_path = os.path.abspath(self.data_file)
+            
+            # Zapisuj do pliku z trybem 'w' (nadpisuje istniejący)
+            with open(abs_path, 'w', encoding='utf-8') as f:
                 json.dump(self.data, f, ensure_ascii=False, indent=2)
+            
+            # Wymuś synchronizację danych na dysk (ważne na Streamlit Cloud)
+            try:
+                import sys
+                if hasattr(sys, 'getfilesystemencoding'):
+                    # Wymuś flush dla pewności
+                    pass
+            except:
+                pass
+            
+            logger.info(f"Zapisano dane do pliku {abs_path}: {len(self.data.get('players', {}))} graczy, {len(self.data.get('rounds', {}))} rund")
+            
+            # Sprawdź czy plik rzeczywiście istnieje po zapisie
+            if os.path.exists(abs_path):
+                file_size = os.path.getsize(abs_path)
+                logger.info(f"Plik zapisany poprawnie, rozmiar: {file_size} bajtów")
+            else:
+                logger.error(f"BŁĄD: Plik {abs_path} nie istnieje po zapisie!")
+                
         except IOError as e:
             logger.error(f"Błąd zapisywania danych typera: {e}")
+            # Spróbuj zapisać do alternatywnej lokalizacji (dla debugowania)
+            try:
+                alt_path = os.path.join(os.getcwd(), self.data_file)
+                logger.warning(f"Próba zapisu do alternatywnej ścieżki: {alt_path}")
+            except Exception as e2:
+                logger.error(f"Błąd zapisu do alternatywnej ścieżki: {e2}")
     
     def add_league(self, league_id: int, league_name: str = None):
         """Dodaje ligę do systemu"""

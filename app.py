@@ -226,6 +226,9 @@ def main():
         
         all_team_names = sorted(list(all_team_names))
         
+        # Przeładuj dane z pliku (aby mieć aktualne dane po restarcie)
+        storage.reload_data()
+        
         # Pobierz zapisane ustawienia
         selected_teams = storage.get_selected_teams()
         
