@@ -134,16 +134,25 @@ def main():
                         
                         # Przycisk importu
                         if st.button("💾 Zaimportuj dane", type="primary", use_container_width=True):
-                            # Zrób backup przed importem
-                            backup_data = storage.data.copy()
-                            
-                            # Zaimportuj dane
-                            storage.data = uploaded_data
-                            storage._save_data()
-                            
-                            st.success("✅ Dane zostały zaimportowane pomyślnie!")
-                            st.info("🔄 Odśwież stronę aby zobaczyć zmiany")
-                            st.rerun()
+                            try:
+                                # Zrób backup przed importem
+                                backup_data = storage.data.copy()
+                                
+                                # Zaimportuj dane
+                                # Dla MySQL użyj specjalnej metody importu
+                                if hasattr(storage, '_import_data_to_mysql'):
+                                    storage._import_data_to_mysql(uploaded_data)
+                                else:
+                                    # Dla JSON użyj standardowej metody
+                                    storage.data = uploaded_data
+                                    storage._save_data()
+                                
+                                st.success("✅ Dane zostały zaimportowane pomyślnie!")
+                                st.info("🔄 Odśwież stronę aby zobaczyć zmiany")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Błąd importu danych: {str(e)}")
+                                logger.error(f"Błąd importu danych: {e}", exc_info=True)
                     else:
                         st.error("❌ Nieprawidłowy format pliku. Brakuje wymaganych kluczy.")
                 except json.JSONDecodeError:

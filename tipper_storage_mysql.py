@@ -143,6 +143,14 @@ class TipperStorageMySQL:
         """Zwraca dane w formacie JSON (dla kompatybilności z TipperStorage)"""
         return self._load_data()
     
+    @data.setter
+    def data(self, value: Dict):
+        """Ustawia dane (dla importu) - automatycznie importuje do MySQL"""
+        # Zapisz dane do importu
+        self._pending_import_data = value
+        # Automatycznie zaimportuj
+        self._save_data()
+    
     def _load_data(self) -> Dict:
         """Ładuje wszystkie dane z bazy MySQL do formatu JSON"""
         try:
@@ -282,7 +290,84 @@ class TipperStorageMySQL:
     def _save_data(self):
         """Zapisuje dane do bazy (dla kompatybilności - dane są zapisywane na bieżąco)"""
         # W MySQL dane są zapisywane na bieżąco, więc ta metoda jest pusta
-        pass
+        # Ale jeśli self.data został ustawiony (import), to zaimportuj dane
+        if hasattr(self, '_pending_import_data'):
+            self._import_data_to_mysql(self._pending_import_data)
+            delattr(self, '_pending_import_data')
+    
+    def _import_data_to_mysql(self, data: Dict):
+        """Importuje dane JSON do MySQL"""
+        try:
+            logger.info("Rozpoczynam import danych do MySQL...")
+            
+            # Import lig
+            for league_id, league_data in data.get('leagues', {}).items():
+                self.add_league(int(league_id) if league_id.isdigit() else 0, league_data.get('name'))
+            
+            # Import sezonów
+            for season_id, season_data in data.get('seasons', {}).items():
+                league_id = season_data.get('league_id')
+                if league_id:
+                    self.add_season(int(league_id) if str(league_id).isdigit() else 0, season_id, 
+                                  season_data.get('start_date'), season_data.get('end_date'))
+                else:
+                    self.add_season(None, season_id, season_data.get('start_date'), season_data.get('end_date'))
+            
+            # Import rund i meczów
+            for round_id, round_data in data.get('rounds', {}).items():
+                season_id = round_data.get('season_id', 'current_season')
+                matches = round_data.get('matches', [])
+                start_date = round_data.get('start_date')
+                
+                # Dodaj rundę
+                self.add_round(season_id, round_id, matches, start_date)
+                
+                # Import typów
+                predictions = round_data.get('predictions', {})
+                for player_name, player_predictions in predictions.items():
+                    for match_id, pred_data in player_predictions.items():
+                        prediction = (pred_data.get('home', 0), pred_data.get('away', 0))
+                        self.add_prediction(round_id, player_name, str(match_id), prediction)
+                
+                # Import punktów za mecze
+                match_points = round_data.get('match_points', {})
+                for player_name, player_points in match_points.items():
+                    for match_id, points in player_points.items():
+                        self.conn.query(
+                            f"INSERT INTO match_points (round_id, player_name, match_id, points) "
+                            f"VALUES ('{round_id}', '{player_name}', '{match_id}', {points}) "
+                            f"ON DUPLICATE KEY UPDATE points = {points}",
+                            ttl=0
+                        )
+                
+                # Aktualizuj wyniki meczów jeśli są
+                for match in matches:
+                    match_id = str(match.get('match_id', ''))
+                    home_goals = match.get('home_goals')
+                    away_goals = match.get('away_goals')
+                    if home_goals is not None and away_goals is not None:
+                        self.update_match_result(round_id, match_id, int(home_goals), int(away_goals))
+            
+            # Import ustawień
+            settings = data.get('settings', {})
+            for key, value in settings.items():
+                if isinstance(value, (list, dict)):
+                    value_str = json.dumps(value)
+                else:
+                    value_str = str(value)
+                self.conn.query(
+                    f"INSERT INTO settings (setting_key, setting_value) VALUES ('{key}', '{value_str.replace(\"'\", \"''\")}') "
+                    f"ON DUPLICATE KEY UPDATE setting_value = '{value_str.replace(\"'\", \"''\")}'",
+                    ttl=0
+                )
+            
+            # Przelicz całkowite punkty graczy
+            self._recalculate_player_totals()
+            
+            logger.info("Import danych do MySQL zakonczony pomyslnie!")
+        except Exception as e:
+            logger.error(f"Blad importu danych do MySQL: {e}")
+            raise
     
     def add_league(self, league_id: int, league_name: str = None):
         """Dodaje ligę do systemu"""
