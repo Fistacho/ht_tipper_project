@@ -85,8 +85,11 @@ def load_users() -> Dict[str, Dict[str, str]]:
                         'password_hash': password_hash,
                         'salt': password_salt
                     }
-            except (AttributeError, KeyError):
-                pass
+                    logger.info(f"DEBUG: Użytkownik {username} odczytany z secrets")
+                else:
+                    logger.info("DEBUG: APP_USERNAME nie odczytany z secrets")
+            except (AttributeError, KeyError) as e:
+                logger.info(f"DEBUG: Błąd odczytu autentykacji z secrets: {e}")
             
             # Sprawdź wielu użytkowników (nowy format)
             i = 1
@@ -107,8 +110,8 @@ def load_users() -> Dict[str, Dict[str, str]]:
                     i += 1
                 except (AttributeError, KeyError):
                     break
-    except (AttributeError, KeyError):
-        pass
+    except (AttributeError, KeyError) as e:
+        logger.info(f"DEBUG: Błąd przy próbie odczytu secrets: {e}")
     
     # Jeśli nie ma secrets lub nie znaleziono użytkowników, spróbuj z .env (dla lokalnego rozwoju)
     if not users:

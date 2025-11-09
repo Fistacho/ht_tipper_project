@@ -225,14 +225,21 @@ def main():
             # Spróbuj odczytać z st.secrets (Streamlit Cloud)
             if hasattr(st, 'secrets'):
                 try:
+                    # W TOML zmienne są dostępne bezpośrednio jako atrybuty st.secrets
                     consumer_key = getattr(st.secrets, 'HATTRICK_CONSUMER_KEY', None)
                     consumer_secret = getattr(st.secrets, 'HATTRICK_CONSUMER_SECRET', None)
                     access_token = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN', None)
                     access_token_secret = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN_SECRET', None)
-                except (AttributeError, KeyError):
-                    pass
-        except Exception:
-            pass
+                    
+                    # Debug - sprawdź czy są odczytane
+                    if consumer_key:
+                        logger.info(f"DEBUG: HATTRICK_CONSUMER_KEY odczytany z secrets: {consumer_key[:10]}...")
+                    else:
+                        logger.info("DEBUG: HATTRICK_CONSUMER_KEY NIE odczytany z secrets")
+                except (AttributeError, KeyError) as e:
+                    logger.info(f"DEBUG: Błąd odczytu OAuth z secrets: {e}")
+        except Exception as e:
+            logger.info(f"DEBUG: Błąd przy próbie odczytu secrets: {e}")
         
         # Jeśli nie ma secrets, spróbuj z .env (dla lokalnego rozwoju)
         if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
@@ -241,6 +248,9 @@ def main():
             consumer_secret = consumer_secret or os.getenv('HATTRICK_CONSUMER_SECRET')
             access_token = access_token or os.getenv('HATTRICK_ACCESS_TOKEN')
             access_token_secret = access_token_secret or os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
+            
+            if consumer_key:
+                logger.info("DEBUG: OAuth odczytany z .env")
         
         if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
             st.error("❌ Brak kluczy OAuth. Uruchom: python get_oauth_simple.py")
