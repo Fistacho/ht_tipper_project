@@ -16,17 +16,125 @@ class TipperStorageMySQL:
     
     def __init__(self):
         """Inicjalizuje połączenie z bazą MySQL"""
+        # Najpierw spróbuj odczytać z płaskich zmiennych (MYSQL_HOST, MYSQL_PORT, itd.)
+        mysql_config = None
+        
         try:
-            # Użyj Streamlit connection do MySQL - automatycznie czyta z st.secrets.connections.mysql
-            logger.info("DEBUG: Próba utworzenia połączenia MySQL przez st.connection('mysql')")
-            self.conn = st.connection('mysql', type='sql')
-            logger.info("DEBUG: Połączenie MySQL utworzone przez st.connection()")
-            self._init_database()
-            logger.info("Połączono z bazą MySQL (przez st.connection)")
+            # Metoda 1: Płaskie zmienne w st.secrets (MYSQL_HOST, MYSQL_PORT, itd.)
+            if hasattr(st, 'secrets'):
+                try:
+                    mysql_host = getattr(st.secrets, 'MYSQL_HOST', None)
+                    mysql_port = getattr(st.secrets, 'MYSQL_PORT', None)
+                    mysql_database = getattr(st.secrets, 'MYSQL_DATABASE', None)
+                    mysql_username = getattr(st.secrets, 'MYSQL_USERNAME', None)
+                    mysql_password = getattr(st.secrets, 'MYSQL_PASSWORD', None)
+                    
+                    if all([mysql_host, mysql_database, mysql_username, mysql_password]):
+                        mysql_config = {
+                            'host': mysql_host,
+                            'port': int(mysql_port) if mysql_port else 3306,
+                            'database': mysql_database,
+                            'username': mysql_username,
+                            'password': mysql_password
+                        }
+                        logger.info("DEBUG: MySQL config odczytany z płaskich zmiennych w st.secrets")
+                except Exception as e:
+                    logger.info(f"DEBUG: Błąd odczytu MySQL z płaskich zmiennych: {e}")
+            
+            # Metoda 2: Sekcja [connections.mysql] (dla kompatybilności)
+            if not mysql_config or not all(mysql_config.values()):
+                try:
+                    if hasattr(st, 'secrets') and hasattr(st.secrets, 'connections'):
+                        mysql_obj = getattr(st.secrets.connections, 'mysql', None)
+                        if mysql_obj:
+                            mysql_config = {
+                                'host': getattr(mysql_obj, 'host', None),
+                                'port': getattr(mysql_obj, 'port', 3306),
+                                'database': getattr(mysql_obj, 'database', None),
+                                'username': getattr(mysql_obj, 'username', None),
+                                'password': getattr(mysql_obj, 'password', None)
+                            }
+                            logger.info("DEBUG: MySQL config odczytany z sekcji [connections.mysql]")
+                except Exception as e:
+                    logger.info(f"DEBUG: Błąd odczytu MySQL z sekcji: {e}")
         except Exception as e:
-            logger.error(f"Błąd połączenia z MySQL przez st.connection: {e}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            logger.info(f"DEBUG: Błąd przy próbie odczytu secrets: {e}")
+        
+        # Jeśli nie ma w secrets, spróbuj z pliku secrets.toml (lokalnie)
+        if not mysql_config or not all(mysql_config.values()):
+            try:
+                import tomllib
+                secrets_path = os.path.join('.streamlit', 'secrets.toml')
+                if os.path.exists(secrets_path):
+                    with open(secrets_path, 'rb') as f:
+                        secrets = tomllib.load(f)
+                    
+                    # Najpierw płaskie zmienne
+                    if 'MYSQL_HOST' in secrets:
+                        mysql_config = {
+                            'host': secrets.get('MYSQL_HOST'),
+                            'port': int(secrets.get('MYSQL_PORT', 3306)),
+                            'database': secrets.get('MYSQL_DATABASE'),
+                            'username': secrets.get('MYSQL_USERNAME'),
+                            'password': secrets.get('MYSQL_PASSWORD')
+                        }
+                        logger.info("DEBUG: MySQL config odczytany z płaskich zmiennych w secrets.toml")
+                    # Potem sekcja [connections.mysql]
+                    elif 'connections' in secrets and 'mysql' in secrets['connections']:
+                        mysql_config = secrets['connections']['mysql']
+                        logger.info("DEBUG: MySQL config odczytany z sekcji [connections.mysql] w secrets.toml")
+            except Exception as e:
+                logger.info(f"DEBUG: Błąd odczytu z pliku secrets.toml: {e}")
+        
+        # Jeśli mamy konfigurację, połącz bezpośrednio przez pymysql
+        if mysql_config and all(mysql_config.values()):
+            try:
+                import pymysql
+                connection = pymysql.connect(
+                    host=mysql_config['host'],
+                    port=int(mysql_config['port']),
+                    user=mysql_config['username'],
+                    password=mysql_config['password'],
+                    database=mysql_config['database'],
+                    charset='utf8mb4',
+                    cursorclass=pymysql.cursors.DictCursor
+                )
+                
+                # Użyj wrapper dla kompatybilności z st.connection
+                class MySQLConnectionWrapper:
+                    def __init__(self, conn):
+                        self.conn = conn
+                    
+                    def query(self, sql, ttl=600):
+                        import pandas as pd
+                        with self.conn.cursor() as cursor:
+                            cursor.execute(sql)
+                            results = cursor.fetchall()
+                            if results:
+                                return pd.DataFrame(results)
+                            return pd.DataFrame()
+                
+                self.conn = MySQLConnectionWrapper(connection)
+                self._init_database()
+                logger.info("Połączono z bazą MySQL (bezpośrednio przez pymysql)")
+            except Exception as e:
+                logger.error(f"Błąd połączenia z MySQL: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise
+        else:
+            # Fallback: spróbuj st.connection (może działać w niektórych przypadkach)
+            try:
+                logger.info("DEBUG: Próba utworzenia połączenia MySQL przez st.connection('mysql')")
+                self.conn = st.connection('mysql', type='sql')
+                logger.info("DEBUG: Połączenie MySQL utworzone przez st.connection()")
+                self._init_database()
+                logger.info("Połączono z bazą MySQL (przez st.connection)")
+            except Exception as e:
+                logger.error(f"Błąd połączenia z MySQL przez st.connection: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise
             # Jeśli nie można połączyć przez Streamlit connection, spróbuj bezpośrednio przez pymysql
             try:
                 import pymysql
