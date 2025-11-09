@@ -7,6 +7,8 @@ import os
 from typing import Optional, Dict
 from dotenv import load_dotenv
 import logging
+import pandas as pd
+import plotly.express as px
 
 logger = logging.getLogger(__name__)
 
@@ -127,9 +129,207 @@ def login_page() -> bool:
     Returns:
         True jeśli logowanie się powiodło, False w przeciwnym razie
     """
-    st.title("🔐 Logowanie do Hattrick Typer")
-    st.markdown("---")
+    # Wyświetl ranking (read-only) przed formularzem logowania
+    try:
+        from tipper_storage import TipperStorage
+        storage = TipperStorage()
+        
+        # Ranking - sekcja read-only
+        st.subheader("🏆 Ranking (tylko do odczytu)")
+        st.info("💡 Ranking jest widoczny publicznie. Zaloguj się aby wprowadzać typy.")
+        
+        # Tabs dla rankingu per kolejka i całości
+        ranking_tab1, ranking_tab2 = st.tabs(["🏆 Ranking całości", "📊 Ranking per kolejka"])
+        
+        # Ranking całości
+        with ranking_tab1:
+            st.markdown("### 🏆 Ranking całości")
+            
+            exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza", value=True, key="login_exclude_worst_overall")
+            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst)
+            
+            if leaderboard:
+                # Przygotuj dane do wyświetlenia
+                leaderboard_data = []
+                for idx, player in enumerate(leaderboard, 1):
+                    round_points = player.get('round_points', [])
+                    original_total = player.get('original_total', player['total_points'])
+                    
+                    if round_points:
+                        points_str = ' + '.join(str(p) for p in round_points)
+                        if exclude_worst and player['excluded_worst']:
+                            worst = player['worst_score']
+                            points_summary = f"{points_str} = {original_total} - {worst}"
+                        else:
+                            points_summary = f"{points_str} = {original_total}"
+                    else:
+                        points_summary = str(player['total_points'])
+                    
+                    leaderboard_data.append({
+                        'Miejsce': idx,
+                        'Gracz': player['player_name'],
+                        'Punkty': points_summary,
+                        'Suma': player['total_points'],
+                        'Rundy': player['rounds_played'],
+                        'Najlepszy': player['best_score'],
+                        'Najgorszy': player['worst_score'] if not player['excluded_worst'] else f"{player['worst_score']} (odrzucony)"
+                    })
+                
+                df_leaderboard = pd.DataFrame(leaderboard_data)
+                st.dataframe(df_leaderboard, use_container_width=True, hide_index=True)
+                
+                # Wykres rankingu całości
+                if len(leaderboard) > 0:
+                    fig = px.bar(
+                        df_leaderboard.head(10),
+                        x='Gracz',
+                        y='Suma',
+                        title="Top 10 - Ranking całości",
+                        labels={'Suma': 'Punkty', 'Gracz': 'Gracz'},
+                        color='Suma',
+                        color_continuous_scale='plasma'
+                    )
+                    fig.update_layout(xaxis_tickangle=-45, height=400)
+                    st.plotly_chart(fig, use_container_width=True, key="login_ranking_overall_chart")
+                    
+                    # Statystyki
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Liczba graczy", len(leaderboard))
+                    with col2:
+                        if leaderboard:
+                            st.metric("Najwięcej punktów", leaderboard[0]['total_points'])
+                    with col3:
+                        if leaderboard:
+                            avg_points = sum(p['total_points'] for p in leaderboard) / len(leaderboard)
+                            st.metric("Średnia punktów", f"{avg_points:.1f}")
+                    with col4:
+                        if leaderboard:
+                            total_rounds = sum(p['rounds_played'] for p in leaderboard)
+                            st.metric("Łącznie rund", total_rounds)
+            else:
+                st.info("📊 Brak danych do wyświetlenia")
+        
+        # Ranking per kolejka
+        with ranking_tab2:
+            st.markdown("### 📊 Ranking per kolejka")
+            
+            # Pobierz wszystkie rundy z storage
+            all_rounds = sorted(storage.data['rounds'].items(), key=lambda x: x[1].get('start_date', ''))
+            
+            if all_rounds:
+                # Stwórz listę opcji rund
+                round_options = []
+                for round_id, round_data in all_rounds:
+                    start_date = round_data.get('start_date', '')
+                    matches_count = len(round_data.get('matches', []))
+                    # Wyciągnij datę z round_id (format: round_2025-11-09)
+                    if start_date:
+                        try:
+                            date_str = start_date.split()[0] if ' ' in start_date else start_date
+                            round_options.append((round_id, date_str, matches_count))
+                        except:
+                            round_options.append((round_id, start_date, matches_count))
+                    else:
+                        # Spróbuj wyciągnąć datę z round_id
+                        if round_id.startswith('round_'):
+                            date_str = round_id.replace('round_', '')
+                            round_options.append((round_id, date_str, matches_count))
+                
+                if round_options:
+                    # Sortuj po dacie (najnowsza pierwsza)
+                    round_options.sort(key=lambda x: x[1], reverse=True)
+                    
+                    # Numeruj kolejki (najstarsza = 1)
+                    date_to_round_number = {}
+                    sorted_by_date = sorted(round_options, key=lambda x: x[1])
+                    for idx, (round_id, date_str, _) in enumerate(sorted_by_date, 1):
+                        date_to_round_number[round_id] = idx
+                    
+                    # Znajdź ostatnią rozegraną kolejkę (domyślnie)
+                    default_round_idx = 0
+                    for idx, (round_id, _, _) in enumerate(round_options):
+                        round_data = storage.data['rounds'].get(round_id, {})
+                        matches = round_data.get('matches', [])
+                        # Sprawdź czy kolejka ma rozegrane mecze
+                        has_played = any(
+                            m.get('home_goals') is not None and m.get('away_goals') is not None 
+                            for m in matches
+                        )
+                        if has_played:
+                            default_round_idx = idx
+                            break  # Weź pierwszą (najnowszą) rozegraną kolejkę
+                    
+                    # Wybór rundy
+                    round_display_options = [f"Kolejka {date_to_round_number.get(rid, '?')} - {date} ({matches} meczów)" 
+                                            for rid, date, matches in round_options]
+                    
+                    selected_round_idx = st.selectbox(
+                        "Wybierz rundę:",
+                        range(len(round_display_options)),
+                        index=default_round_idx,
+                        format_func=lambda x: round_display_options[x],
+                        key="login_ranking_round_select"
+                    )
+                    
+                    if selected_round_idx is not None:
+                        selected_round_id, selected_date, _ = round_options[selected_round_idx]
+                        round_number = date_to_round_number.get(selected_round_id, '?')
+                        
+                        # Ranking dla wybranej rundy
+                        round_leaderboard = storage.get_round_leaderboard(selected_round_id)
+                        
+                        if round_leaderboard:
+                            # Przygotuj dane do wyświetlenia
+                            round_leaderboard_data = []
+                            for idx, player in enumerate(round_leaderboard, 1):
+                                match_points = player.get('match_points', [])
+                                if match_points:
+                                    points_str = '+'.join(str(p) for p in match_points)
+                                    if player['total_points'] > 0:
+                                        points_summary = f"{points_str}={player['total_points']}"
+                                    else:
+                                        points_summary = "0"
+                                else:
+                                    points_summary = "0"
+                                
+                                round_leaderboard_data.append({
+                                    'Miejsce': idx,
+                                    'Gracz': player['player_name'],
+                                    'Punkty': points_summary,
+                                    'Suma': player['total_points'],
+                                    'Mecze': player['matches_count']
+                                })
+                            
+                            df_round_leaderboard = pd.DataFrame(round_leaderboard_data)
+                            st.dataframe(df_round_leaderboard, use_container_width=True, hide_index=True)
+                            
+                            # Wykres rankingu per kolejka
+                            if len(round_leaderboard) > 0:
+                                fig = px.bar(
+                                    df_round_leaderboard.head(10),
+                                    x='Gracz',
+                                    y='Suma',
+                                    title=f"Top 10 - Ranking kolejki {round_number}",
+                                    labels={'Suma': 'Punkty', 'Gracz': 'Gracz'},
+                                    color='Suma',
+                                    color_continuous_scale='viridis'
+                                )
+                                fig.update_layout(xaxis_tickangle=-45, height=400)
+                                st.plotly_chart(fig, use_container_width=True, key=f"login_ranking_round_{round_number}_chart")
+                        else:
+                            st.info("📊 Brak danych do wyświetlenia dla tej kolejki")
+                else:
+                    st.info("📊 Brak rund do wyświetlenia")
+            else:
+                st.info("📊 Brak danych do wyświetlenia")
+        
+        st.markdown("---")
+    except Exception as e:
+        logger.error(f"Błąd wyświetlania rankingu: {e}")
+        # Kontynuuj bez rankingu jeśli wystąpi błąd
     
+    # Formularz logowania
     users = load_users()
     
     if not users:
