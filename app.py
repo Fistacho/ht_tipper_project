@@ -1421,16 +1421,7 @@ def main():
             else:
                 # Wyświetl sekcję dla każdego gracza
                 for player_name in all_players_list:
-                    # Sprawdź czy trzeba przeładować dane po zapisaniu typów
-                    reload_key = f'reload_predictions_{player_name}_{round_id}'
-                    if st.session_state.get(reload_key, False):
-                        # Przeładuj dane przed pobraniem existing_predictions
-                        if hasattr(storage, 'reload_data'):
-                            storage.reload_data()
-                        # Usuń flagę
-                        st.session_state[reload_key] = False
-                    
-                    # Pobierz istniejące typy gracza dla tej rundy
+                    # Pobierz istniejące typy gracza dla tej rundy (zawsze bezpośrednio z bazy, ttl=0)
                     existing_predictions = storage.get_player_predictions(player_name, round_id)
                     
                     st.markdown(f"### Typy dla: **{player_name}**")
@@ -1569,34 +1560,9 @@ def main():
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
                                         
-                                        # Dla MySQL storage - upewnij się, że dane są zapisane przed przeładowaniem
-                                        import time
-                                        if hasattr(storage, 'conn'):
-                                            # Sprawdź, czy dane są zapisane - poczekaj maksymalnie 1 sekundę
-                                            max_attempts = 10
-                                            for attempt in range(max_attempts):
-                                                time.sleep(0.1)  # 100ms opóźnienie między próbami
-                                                # Sprawdź, czy zapisane typy są dostępne w bazie
-                                                try:
-                                                    test_predictions = storage.get_player_predictions(player_name, round_id)
-                                                    # Sprawdź, czy wszystkie zapisane typy są dostępne
-                                                    saved_match_ids = set(predictions_to_save.keys())
-                                                    available_match_ids = set(test_predictions.keys())
-                                                    if saved_match_ids.issubset(available_match_ids):
-                                                        # Wszystkie typy są dostępne - można przeładować
-                                                        logger.info(f"DEBUG: Wszystkie {len(saved_match_ids)} typów są dostępne w bazie po {attempt + 1} próbach")
-                                                        break
-                                                except Exception as e:
-                                                    logger.error(f"Błąd weryfikacji zapisanych typów: {e}")
-                                                    pass
-                                        
-                                        # Ustaw flagę, aby przeładować dane po rerun
-                                        reload_key = f'reload_predictions_{player_name}_{round_id}'
-                                        st.session_state[reload_key] = True
-                                        
                                         # Usuń klucze z session_state, aby pola tekstowe zostały ponownie zainicjalizowane z wartościami z bazy
                                         # Streamlit text_input zachowuje wartość w session_state po rerun, więc musimy je usunąć
-                                        # Po rerun() pola tekstowe będą inicjalizowane z existing_predictions, które są pobierane po przeładowaniu danych
+                                        # Po rerun() pola tekstowe będą inicjalizowane z existing_predictions, które są pobierane bezpośrednio z bazy (ttl=0)
                                         keys_to_remove = []
                                         for match in selected_matches:
                                             match_id = str(match.get('match_id', ''))
@@ -1770,34 +1736,9 @@ def main():
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
                                         
-                                        # Dla MySQL storage - upewnij się, że dane są zapisane przed przeładowaniem
-                                        import time
-                                        if hasattr(storage, 'conn'):
-                                            # Sprawdź, czy dane są zapisane - poczekaj maksymalnie 1 sekundę
-                                            max_attempts = 10
-                                            for attempt in range(max_attempts):
-                                                time.sleep(0.1)  # 100ms opóźnienie między próbami
-                                                # Sprawdź, czy zapisane typy są dostępne w bazie
-                                                try:
-                                                    test_predictions = storage.get_player_predictions(player_name, round_id)
-                                                    # Sprawdź, czy wszystkie zapisane typy są dostępne
-                                                    saved_match_ids = set(parsed.keys())
-                                                    available_match_ids = set(test_predictions.keys())
-                                                    if saved_match_ids.issubset(available_match_ids):
-                                                        # Wszystkie typy są dostępne - można przeładować
-                                                        logger.info(f"DEBUG: Wszystkie {len(saved_match_ids)} typów są dostępne w bazie po {attempt + 1} próbach")
-                                                        break
-                                                except Exception as e:
-                                                    logger.error(f"Błąd weryfikacji zapisanych typów: {e}")
-                                                    pass
-                                        
-                                        # Ustaw flagę, aby przeładować dane po rerun
-                                        reload_key = f'reload_predictions_{player_name}_{round_id}'
-                                        st.session_state[reload_key] = True
-                                        
                                         # Usuń klucze z session_state, aby pola tekstowe zostały ponownie zainicjalizowane z wartościami z bazy
                                         # Streamlit text_input zachowuje wartość w session_state po rerun, więc musimy je usunąć
-                                        # Po rerun() pola tekstowe będą inicjalizowane z existing_predictions, które są pobierane po przeładowaniu danych
+                                        # Po rerun() pola tekstowe będą inicjalizowane z existing_predictions, które są pobierane bezpośrednio z bazy (ttl=0)
                                         keys_to_remove = []
                                         for match in selected_matches:
                                             match_id = str(match.get('match_id', ''))
