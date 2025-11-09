@@ -59,6 +59,56 @@ def main():
             return
         
         st.markdown("---")
+        
+        # Sekcja logów (debug)
+        with st.expander("🔍 Logi aplikacji", expanded=False):
+            if st.button("🔄 Odśwież logi", use_container_width=True):
+                st.rerun()
+            
+            # Wyświetl ostatnie linie z pliku logów
+            log_file = "tipper.log"
+            if os.path.exists(log_file):
+                try:
+                    with open(log_file, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                        # Pokaż ostatnie 50 linii
+                        recent_lines = lines[-50:] if len(lines) > 50 else lines
+                        st.text_area(
+                            "Ostatnie logi:",
+                            value=''.join(recent_lines),
+                            height=300,
+                            disabled=True
+                        )
+                except Exception as e:
+                    st.error(f"Błąd odczytu logów: {e}")
+            else:
+                st.info("Plik logów nie istnieje")
+            
+            # Wyświetl informacje o storage
+            st.markdown("---")
+            st.subheader("💾 Informacje o storage")
+            try:
+                storage = get_storage()
+                storage_type = type(storage).__name__
+                st.info(f"Typ storage: **{storage_type}**")
+                
+                if 'MySQL' in storage_type:
+                    st.success("✅ Używam MySQL")
+                    try:
+                        # Sprawdź połączenie
+                        test_data = storage.get_leaderboard()
+                        if test_data:
+                            st.success(f"✅ Połączenie działa ({len(test_data)} graczy)")
+                        else:
+                            st.warning("⚠️ Połączenie działa, ale brak danych")
+                    except Exception as e:
+                        st.error(f"❌ Błąd połączenia: {e}")
+                else:
+                    st.info("📄 Używam JSON")
+            except Exception as e:
+                st.error(f"Błąd: {e}")
+        
+        st.markdown("---")
         st.header("⚙️ Konfiguracja")
         
         # ID lig dla typera

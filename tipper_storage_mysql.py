@@ -18,11 +18,15 @@ class TipperStorageMySQL:
         """Inicjalizuje połączenie z bazą MySQL"""
         try:
             # Użyj Streamlit connection do MySQL - automatycznie czyta z st.secrets.connections.mysql
+            logger.info("DEBUG: Próba utworzenia połączenia MySQL przez st.connection('mysql')")
             self.conn = st.connection('mysql', type='sql')
+            logger.info("DEBUG: Połączenie MySQL utworzone przez st.connection()")
             self._init_database()
             logger.info("Połączono z bazą MySQL (przez st.connection)")
         except Exception as e:
             logger.error(f"Błąd połączenia z MySQL przez st.connection: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             # Jeśli nie można połączyć przez Streamlit connection, spróbuj bezpośrednio przez pymysql
             try:
                 import pymysql
