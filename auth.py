@@ -280,7 +280,12 @@ def login_page() -> bool:
                         round_leaderboard = storage.get_round_leaderboard(selected_round_id)
                         
                         if round_leaderboard:
-                            # Przygotuj dane do wyświetlenia
+                            # Pobierz mecze z rundy dla wyświetlenia typów
+                            round_data = storage.data['rounds'].get(selected_round_id, {})
+                            matches = round_data.get('matches', [])
+                            matches_map = {str(m.get('match_id', '')): m for m in matches}
+                            
+                            # Przygotuj dane do wyświetlenia (bez kolumny Typy)
                             round_leaderboard_data = []
                             for idx, player in enumerate(round_leaderboard, 1):
                                 match_points = player.get('match_points', [])
@@ -303,6 +308,52 @@ def login_page() -> bool:
                             
                             df_round_leaderboard = pd.DataFrame(round_leaderboard_data)
                             st.dataframe(df_round_leaderboard, use_container_width=True, hide_index=True)
+                            
+                            # Dodaj expandery z typami dla każdego gracza
+                            st.markdown("### 📋 Szczegóły typów")
+                            for player in round_leaderboard:
+                                player_name = player['player_name']
+                                player_predictions = storage.get_player_predictions(player_name, selected_round_id)
+                                
+                                if player_predictions:
+                                    # Sortuj mecze według daty
+                                    sorted_match_ids = sorted(
+                                        player_predictions.keys(),
+                                        key=lambda mid: matches_map.get(mid, {}).get('match_date', '')
+                                    )
+                                    
+                                    # Przygotuj dane do tabeli
+                                    types_table_data = []
+                                    for match_id in sorted_match_ids:
+                                        match = matches_map.get(match_id, {})
+                                        pred = player_predictions[match_id]
+                                        home_team = match.get('home_team_name', '?')
+                                        away_team = match.get('away_team_name', '?')
+                                        pred_home = pred.get('home', 0)
+                                        pred_away = pred.get('away', 0)
+                                        
+                                        # Pobierz punkty dla tego meczu
+                                        match_points_dict = round_data.get('match_points', {}).get(player_name, {})
+                                        points = match_points_dict.get(match_id, 0)
+                                        
+                                        # Pobierz wynik meczu jeśli rozegrany
+                                        home_goals = match.get('home_goals')
+                                        away_goals = match.get('away_goals')
+                                        result = f"{home_goals}-{away_goals}" if home_goals is not None and away_goals is not None else "—"
+                                        
+                                        types_table_data.append({
+                                            'Mecz': f"{home_team} vs {away_team}",
+                                            'Typ': f"{pred_home}-{pred_away}",
+                                            'Wynik': result,
+                                            'Punkty': points
+                                        })
+                                    
+                                    if types_table_data:
+                                        with st.expander(f"👤 {player_name} - Typy i wyniki", expanded=False):
+                                            df_types = pd.DataFrame(types_table_data)
+                                            st.dataframe(df_types, use_container_width=True, hide_index=True)
+                                            total_points = sum(row['Punkty'] for row in types_table_data)
+                                            st.caption(f"**Suma punktów: {total_points}**")
                             
                             # Wykres rankingu per kolejka
                             if len(round_leaderboard) > 0:
