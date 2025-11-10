@@ -589,6 +589,17 @@ class TipperStorageMySQL:
                     FOREIGN KEY (round_id) REFERENCES rounds(round_id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """, ttl=0)
+            
+            # Tabela drużyn (mapowanie drużyna -> liga), aby nie pytać API przy każdym wejściu
+            self.conn.query("""
+                CREATE TABLE IF NOT EXISTS teams (
+                    team_name VARCHAR(255) PRIMARY KEY,
+                    league_id INT,
+                    league_name VARCHAR(255),
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_teams_league (league_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """, ttl=0)
             # Bezpiecznie dodaj kolumny jeśli tabela już istniała wcześniej
             try:
                 cols_df = self.conn.query(
@@ -601,8 +612,20 @@ class TipperStorageMySQL:
                     self.conn.query("ALTER TABLE matches ADD COLUMN is_finished TINYINT(1) NOT NULL DEFAULT 0", ttl=0)
                 if 'api_checked_at' not in existing:
                     self.conn.query("ALTER TABLE matches ADD COLUMN api_checked_at DATETIME NULL", ttl=0)
-                # Indeks pomocniczy pod zapytania o nieukończone mecze
-                self.conn.query("CREATE INDEX IF NOT EXISTS idx_matches_round_finished ON matches (round_id, is_finished)", ttl=0)
+                # Indeks pomocniczy pod zapytania o nieukończone mecze (kompatybilnie ze starszym MySQL bez IF NOT EXISTS)
+                try:
+                    idx_df = self.conn.query("SHOW INDEX FROM matches WHERE Key_name = 'idx_matches_round_finished'", ttl=0)
+                    need_create = True
+                    if idx_df is not None:
+                        try:
+                            need_create = idx_df.empty
+                        except Exception:
+                            # Jeśli struktura nie ma .empty, sprawdź długość
+                            need_create = (len(idx_df) == 0)
+                    if need_create:
+                        self.conn.query("CREATE INDEX idx_matches_round_finished ON matches (round_id, is_finished)", ttl=0)
+                except Exception:
+                    pass
             except Exception:
                 pass
             
@@ -652,6 +675,36 @@ class TipperStorageMySQL:
                     setting_key VARCHAR(255) PRIMARY KEY,
                     setting_value TEXT,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """, ttl=0)
+            
+            # Tabela lig per sezon
+            self.conn.query("""
+                CREATE TABLE IF NOT EXISTS season_leagues (
+                    season_id VARCHAR(255),
+                    league_id INT,
+                    league_name VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (season_id, league_id),
+                    FOREIGN KEY (season_id) REFERENCES seasons(season_id) ON DELETE CASCADE,
+                    INDEX idx_season_leagues_season (season_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """, ttl=0)
+            
+            # Tabela zespołów per sezon
+            self.conn.query("""
+                CREATE TABLE IF NOT EXISTS season_teams (
+                    season_id VARCHAR(255),
+                    team_name VARCHAR(255),
+                    league_id INT,
+                    league_name VARCHAR(255),
+                    is_selected TINYINT(1) NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    PRIMARY KEY (season_id, team_name),
+                    FOREIGN KEY (season_id) REFERENCES seasons(season_id) ON DELETE CASCADE,
+                    INDEX idx_season_teams_season (season_id),
+                    INDEX idx_season_teams_selected (season_id, is_selected)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """, ttl=0)
             
@@ -1078,7 +1131,8 @@ class TipperStorageMySQL:
                 match_date = match.get('match_date', '').replace("'", "''")
                 home_goals = match.get('home_goals') if match.get('home_goals') is not None else 'NULL'
                 away_goals = match.get('away_goals') if match.get('away_goals') is not None else 'NULL'
-                league_id = match.get('league_id', 'NULL')
+                league_id = match.get('league_id', None)
+                league_id = 'NULL' if league_id is None else int(league_id)
                 # Preferuj flagę zakończenia z API (is_finished/finished/status), fallback: po bramkach
                 api_flag = None
                 if 'is_finished' in match:
@@ -1104,6 +1158,14 @@ class TipperStorageMySQL:
                     f"match_date = '{match_date}', home_goals = {home_goals}, away_goals = {away_goals}, league_id = {league_id}, is_finished = {is_finished}",
                     ttl=0
                 )
+                
+                # Zaktualizuj mapowanie drużyna -> liga (jeśli znamy league_id)
+                try:
+                    if league_id != 'NULL':
+                        self._upsert_team(home_team, int(league_id))
+                        self._upsert_team(away_team, int(league_id))
+                except Exception:
+                    pass
             
             # Jeżeli choć jeden mecz bez wyniku → runda bieżąca; jeśli wszystkie mają wynik → archiwalna
             try:
@@ -1130,6 +1192,53 @@ class TipperStorageMySQL:
     def add_prediction(self, round_id: str, player_name: str, match_id: str, prediction: tuple):
         """Dodaje lub aktualizuje typ gracza dla meczu (pojedynczy typ)"""
         return self.add_predictions_batch(round_id, player_name, {match_id: prediction})
+    
+    def _upsert_team(self, team_name: str, league_id: int):
+        """Aktualizuje lub dodaje drużynę z przypisaną ligą (liga z tabeli leagues, jeśli dostępna)."""
+        try:
+            if not team_name:
+                return
+            # Spróbuj pobrać nazwę ligi z tabeli leagues
+            league_name = None
+            try:
+                df = self.conn.query(f"SELECT league_name FROM leagues WHERE league_id = '{league_id}'", ttl=300)
+                if not df.empty:
+                    league_name = df.iloc[0]['league_name']
+            except Exception:
+                pass
+            league_name = (league_name or f"Liga {league_id}").replace("'", "''")
+            team_name_esc = team_name.replace("'", "''")
+            self.conn.query(
+                f"INSERT INTO teams (team_name, league_id, league_name) VALUES ('{team_name_esc}', {league_id}, '{league_name}') "
+                f"ON DUPLICATE KEY UPDATE league_id = {league_id}, league_name = '{league_name}'",
+                ttl=0
+            )
+        except Exception as e:
+            logger.error(f"Błąd upsertu drużyny {team_name}: {e}")
+    
+    def get_team_leagues(self) -> Dict[str, Dict[str, str]]:
+        """Zwraca mapę team_name -> {'league_id': int, 'league_name': str}."""
+        try:
+            df = self.conn.query("SELECT team_name, league_id, league_name FROM teams", ttl=120)
+            result: Dict[str, Dict[str, str]] = {}
+            if not df.empty:
+                for _, row in df.iterrows():
+                    result[str(row['team_name'])] = {
+                        'league_id': row.get('league_id'),
+                        'league_name': row.get('league_name') or (f"Liga {row.get('league_id')}" if row.get('league_id') else None)
+                    }
+            return result
+        except Exception as e:
+            logger.error(f"Błąd pobierania mapy drużyna->liga: {e}")
+            return {}
+    
+    def bulk_upsert_team_leagues(self, team_to_league: Dict[str, int]):
+        """Masowe przypisanie lig do drużyn."""
+        try:
+            for team_name, league_id in team_to_league.items():
+                self._upsert_team(team_name, int(league_id))
+        except Exception as e:
+            logger.error(f"Błąd masowego upsertu drużyn: {e}")
     
     def add_predictions_batch(self, round_id: str, player_name: str, predictions: Dict[str, tuple], recalculate_points: bool = True):
         """Dodaje lub aktualizuje wiele typów gracza naraz (batch insert - szybsze)"""
@@ -1550,18 +1659,92 @@ class TipperStorageMySQL:
     def get_round_leaderboard(self, round_id: str) -> List[Dict]:
         """Zwraca ranking dla rundy - wszyscy gracze, nawet ci bez typów (z 0 punktami) - zoptymalizowane"""
         try:
-            # Jeżeli runda nie jest zakończona, zwróć pusty ranking (liczymy tylko dla zakończonych kolejek)
+            # Najpierw zaktualizuj is_finished dla meczów, które mają wyniki (home_goals i away_goals)
+            # ale nie mają ustawionego is_finished=1
             try:
-                finished_df = self.conn.query(
-                    f"SELECT is_finished, is_archival FROM rounds WHERE round_id = '{round_id}'",
+                self.conn.query(
+                    f"""
+                    UPDATE matches 
+                    SET is_finished = 1 
+                    WHERE round_id = '{round_id}' 
+                    AND is_finished = 0 
+                    AND home_goals IS NOT NULL 
+                    AND away_goals IS NOT NULL
+                    """,
+                    ttl=0
+                )
+                
+                # Sprawdź czy wszystkie mecze w rundzie są zakończone i zaktualizuj is_finished dla rundy
+                matches_status_df = self.conn.query(
+                    f"""
+                    SELECT 
+                        COUNT(*) as total_matches,
+                        SUM(CASE WHEN is_finished = 1 THEN 1 ELSE 0 END) as finished_matches
+                    FROM matches 
+                    WHERE round_id = '{round_id}'
+                    """,
+                    ttl=0
+                )
+                
+                if not matches_status_df.empty:
+                    total_matches = int(matches_status_df.iloc[0].get('total_matches', 0))
+                    finished_matches = int(matches_status_df.iloc[0].get('finished_matches', 0))
+                    
+                    # Jeśli wszystkie mecze są zakończone, ustaw is_finished=1 dla rundy
+                    if total_matches > 0 and finished_matches == total_matches:
+                        self.conn.query(
+                            f"UPDATE rounds SET is_finished = 1, is_archival = 1, is_current = 0 WHERE round_id = '{round_id}'",
+                            ttl=0
+                        )
+            except Exception as e:
+                logger.warning(f"Błąd aktualizacji is_finished dla meczów z wynikami: {e}")
+            
+            # Sprawdź czy wszystkie mecze w rundzie są zakończone (is_finished=1 w tabeli matches)
+            # Jeśli wszystkie mecze są zakończone, kolejka jest zakończona i pokazujemy ranking
+            try:
+                # Sprawdź ile jest meczów w rundzie i ile z nich jest zakończonych
+                matches_status_df = self.conn.query(
+                    f"""
+                    SELECT 
+                        COUNT(*) as total_matches,
+                        SUM(CASE WHEN is_finished = 1 THEN 1 ELSE 0 END) as finished_matches
+                    FROM matches 
+                    WHERE round_id = '{round_id}'
+                    """,
                     ttl=60
                 )
-                if not finished_df.empty:
-                    is_finished = int(finished_df.iloc[0].get('is_finished', 0)) if 'is_finished' in finished_df.columns else int(finished_df.iloc[0].get('is_archival', 0))
-                    if is_finished == 0:
-                        return []
-            except Exception:
-                pass
+                
+                if not matches_status_df.empty:
+                    total_matches = int(matches_status_df.iloc[0].get('total_matches', 0))
+                    finished_matches = int(matches_status_df.iloc[0].get('finished_matches', 0))
+                    
+                    # Jeśli są mecze w rundzie, sprawdź czy wszystkie są zakończone
+                    if total_matches > 0:
+                        if finished_matches < total_matches:
+                            # Nie wszystkie mecze są zakończone - sprawdź czy runda jest oznaczona jako zakończona w tabeli rounds
+                            finished_df = self.conn.query(
+                                f"SELECT is_finished, is_archival FROM rounds WHERE round_id = '{round_id}'",
+                                ttl=60
+                            )
+                            if not finished_df.empty:
+                                is_finished = int(finished_df.iloc[0].get('is_finished', 0)) if 'is_finished' in finished_df.columns else int(finished_df.iloc[0].get('is_archival', 0))
+                                if is_finished == 0:
+                                    # Runda nie jest zakończona (nie wszystkie mecze zakończone i is_finished=0 w rounds)
+                                    return []
+                    # Jeśli wszystkie mecze są zakończone (finished_matches == total_matches) lub total_matches == 0, kontynuuj
+            except Exception as e:
+                # Jeśli wystąpi błąd, spróbuj fallback do sprawdzenia is_finished w rounds
+                try:
+                    finished_df = self.conn.query(
+                        f"SELECT is_finished, is_archival FROM rounds WHERE round_id = '{round_id}'",
+                        ttl=60
+                    )
+                    if not finished_df.empty:
+                        is_finished = int(finished_df.iloc[0].get('is_finished', 0)) if 'is_finished' in finished_df.columns else int(finished_df.iloc[0].get('is_archival', 0))
+                        if is_finished == 0:
+                            return []
+                except Exception:
+                    pass
 
             # Pobierz wszystkich graczy - z cache
             players_df = self.conn.query("SELECT player_name FROM players", ttl=120)
@@ -1760,4 +1943,178 @@ class TipperStorageMySQL:
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
+    
+    # Metody do zarządzania ligami per sezon
+    def get_season_leagues(self, season_id: str) -> List[int]:
+        """Zwraca listę ID lig dla danego sezonu"""
+        try:
+            result = self.conn.query(
+                f"SELECT league_id FROM season_leagues WHERE season_id = '{season_id}' ORDER BY league_id",
+                ttl=120
+            )
+            if not result.empty:
+                return [int(row['league_id']) for _, row in result.iterrows()]
+            return []
+        except Exception as e:
+            logger.error(f"Błąd pobierania lig dla sezonu {season_id}: {e}")
+            return []
+    
+    def add_season_league(self, season_id: str, league_id: int, league_name: str = None):
+        """Dodaje ligę do sezonu"""
+        try:
+            league_name_val = league_name or f"Liga {league_id}"
+            league_name_escaped = league_name_val.replace("'", "''")
+            self.conn.query(
+                f"INSERT INTO season_leagues (season_id, league_id, league_name) "
+                f"VALUES ('{season_id}', {league_id}, '{league_name_escaped}') "
+                f"ON DUPLICATE KEY UPDATE league_name = '{league_name_escaped}'",
+                ttl=0
+            )
+        except Exception as e:
+            logger.error(f"Błąd dodawania ligi {league_id} do sezonu {season_id}: {e}")
+            raise
+    
+    def remove_season_league(self, season_id: str, league_id: int):
+        """Usuwa ligę z sezonu"""
+        try:
+            self.conn.query(
+                f"DELETE FROM season_leagues WHERE season_id = '{season_id}' AND league_id = {league_id}",
+                ttl=0
+            )
+        except Exception as e:
+            logger.error(f"Błąd usuwania ligi {league_id} z sezonu {season_id}: {e}")
+            raise
+    
+    def get_season_league_names(self, season_id: str) -> Dict[int, str]:
+        """Zwraca mapę league_id -> league_name dla danego sezonu"""
+        try:
+            result = self.conn.query(
+                f"SELECT league_id, league_name FROM season_leagues WHERE season_id = '{season_id}'",
+                ttl=120
+            )
+            if not result.empty:
+                return {int(row['league_id']): row.get('league_name') or f"Liga {row['league_id']}" 
+                       for _, row in result.iterrows()}
+            return {}
+        except Exception as e:
+            logger.error(f"Błąd pobierania nazw lig dla sezonu {season_id}: {e}")
+            return {}
+    
+    # Metody do zarządzania zespołami per sezon
+    def get_season_teams(self, season_id: str, only_selected: bool = False) -> List[Dict]:
+        """Zwraca listę zespołów dla danego sezonu"""
+        try:
+            where_clause = f"WHERE season_id = '{season_id}'"
+            if only_selected:
+                where_clause += " AND is_selected = 1"
+            result = self.conn.query(
+                f"SELECT team_name, league_id, league_name, is_selected "
+                f"FROM season_teams {where_clause} ORDER BY league_id, team_name",
+                ttl=120
+            )
+            if not result.empty:
+                return [{
+                    'team_name': row['team_name'],
+                    'league_id': int(row['league_id']) if row['league_id'] else None,
+                    'league_name': row.get('league_name') or f"Liga {row['league_id']}" if row['league_id'] else "?",
+                    'is_selected': bool(row['is_selected'])
+                } for _, row in result.iterrows()]
+            return []
+        except Exception as e:
+            logger.error(f"Błąd pobierania zespołów dla sezonu {season_id}: {e}")
+            return []
+    
+    def add_season_team(self, season_id: str, team_name: str, league_id: int = None, league_name: str = None, is_selected: bool = False):
+        """Dodaje zespół do sezonu"""
+        try:
+            team_name_escaped = team_name.replace("'", "''")
+            # Sprawdź czy league_id jest None lub inną wartością falsy
+            # Upewnij się, że league_id_sql jest zawsze stringiem, nigdy None
+            if league_id is None:
+                league_name_val = league_name or "?"
+                league_id_sql = "NULL"
+                league_id_update = "league_id = NULL"
+            elif isinstance(league_id, (int, float)) and league_id == 0:
+                league_name_val = league_name or "?"
+                league_id_sql = "NULL"
+                league_id_update = "league_id = NULL"
+            else:
+                league_name_val = league_name or f"Liga {league_id}"
+                league_id_sql = str(league_id)
+                league_id_update = f"league_id = {league_id}"
+            
+            # Upewnij się, że league_id_sql jest zawsze stringiem
+            if league_id_sql is None:
+                league_id_sql = "NULL"
+                league_id_update = "league_id = NULL"
+            
+            league_name_escaped = league_name_val.replace("'", "''")
+            is_selected_val = 1 if is_selected else 0
+            
+            # Buduj zapytanie SQL - używaj NULL zamiast None w f-stringu
+            # Ważne: league_id_sql musi być stringiem "NULL", nie Python None
+            # Debug: sprawdź wartości przed budowaniem SQL
+            logger.debug(f"DEBUG add_season_team: team_name={team_name}, league_id={league_id}, league_id_sql={repr(league_id_sql)}, league_id_update={repr(league_id_update)}")
+            
+            # Upewnij się, że league_id_sql i league_id_update są stringami
+            if not isinstance(league_id_sql, str):
+                logger.warning(f"WARNING: league_id_sql nie jest stringiem! league_id_sql={repr(league_id_sql)}, type={type(league_id_sql)}")
+                league_id_sql = "NULL"
+                league_id_update = "league_id = NULL"
+            
+            sql = (
+                f"INSERT INTO season_teams (season_id, team_name, league_id, league_name, is_selected) "
+                f"VALUES ('{season_id}', '{team_name_escaped}', {league_id_sql}, '{league_name_escaped}', {is_selected_val}) "
+                f"ON DUPLICATE KEY UPDATE {league_id_update}, league_name = '{league_name_escaped}', is_selected = {is_selected_val}"
+            )
+            logger.debug(f"DEBUG add_season_team: SQL={sql[:200]}...")
+            self.conn.query(sql, ttl=0)
+        except Exception as e:
+            logger.error(f"Błąd dodawania zespołu {team_name} do sezonu {season_id}: {e}")
+            logger.error(f"DEBUG: league_id={league_id}, league_id type={type(league_id)}, league_id_sql={league_id_sql}")
+            raise
+    
+    def bulk_add_season_teams(self, season_id: str, teams: List[Dict]):
+        """Dodaje wiele zespołów do sezonu na raz"""
+        try:
+            for team in teams:
+                league_id = team.get('league_id')
+                # Upewnij się, że None jest przekazywane jako None, nie jako 0 lub False
+                if league_id is None or league_id == 0 or league_id == False:
+                    league_id = None
+                # Debug: loguj wartość league_id przed wywołaniem add_season_team
+                logger.debug(f"DEBUG bulk_add_season_teams: team_name={team['team_name']}, league_id={league_id}, league_id type={type(league_id)}")
+                self.add_season_team(
+                    season_id=season_id,
+                    team_name=team['team_name'],
+                    league_id=league_id,
+                    league_name=team.get('league_name'),
+                    is_selected=team.get('is_selected', False)
+                )
+        except Exception as e:
+            logger.error(f"Błąd masowego dodawania zespołów do sezonu {season_id}: {e}")
+            raise
+    
+    def set_season_team_selected(self, season_id: str, team_name: str, is_selected: bool):
+        """Ustawia czy zespół jest wybrany do typowania"""
+        try:
+            team_name_escaped = team_name.replace("'", "''")
+            is_selected_val = 1 if is_selected else 0
+            self.conn.query(
+                f"UPDATE season_teams SET is_selected = {is_selected_val} "
+                f"WHERE season_id = '{season_id}' AND team_name = '{team_name_escaped}'",
+                ttl=0
+            )
+        except Exception as e:
+            logger.error(f"Błąd ustawiania wyboru zespołu {team_name} dla sezonu {season_id}: {e}")
+            raise
+    
+    def get_selected_season_teams(self, season_id: str) -> List[str]:
+        """Zwraca listę wybranych zespołów dla danego sezonu"""
+        try:
+            teams = self.get_season_teams(season_id, only_selected=True)
+            return [team['team_name'] for team in teams]
+        except Exception as e:
+            logger.error(f"Błąd pobierania wybranych zespołów dla sezonu {season_id}: {e}")
+            return []
 

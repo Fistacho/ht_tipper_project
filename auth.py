@@ -339,7 +339,7 @@ def login_page() -> bool:
                     })
                 
                 df_leaderboard = pd.DataFrame(leaderboard_data)
-                st.dataframe(df_leaderboard, use_container_width=True, hide_index=True)
+                st.dataframe(df_leaderboard, width="stretch", hide_index=True)
                 
                 # Wykres rankingu całości
                 if len(leaderboard) > 0:
@@ -353,7 +353,7 @@ def login_page() -> bool:
                         color_continuous_scale='plasma'
                     )
                     fig.update_layout(xaxis_tickangle=-45, height=400)
-                    st.plotly_chart(fig, use_container_width=True, key="login_ranking_overall_chart")
+                    st.plotly_chart(fig, width="stretch", config={"displayModeBar": True, "responsive": True}, key="login_ranking_overall_chart")
                     
                     # Statystyki
                     col1, col2, col3, col4 = st.columns(4)
@@ -494,7 +494,7 @@ def login_page() -> bool:
                                 })
                             
                             df_round_leaderboard = pd.DataFrame(round_leaderboard_data)
-                            st.dataframe(df_round_leaderboard, use_container_width=True, hide_index=True)
+                            st.dataframe(df_round_leaderboard, width="stretch", hide_index=True)
                             
                             # Dodaj expandery z typami dla każdego gracza
                             st.markdown("### 📋 Szczegóły typów")
@@ -538,7 +538,7 @@ def login_page() -> bool:
                                     if types_table_data:
                                         with st.expander(f"👤 {player_name} - Typy i wyniki", expanded=False):
                                             df_types = pd.DataFrame(types_table_data)
-                                            st.dataframe(df_types, use_container_width=True, hide_index=True)
+                                            st.dataframe(df_types, width="stretch", hide_index=True)
                                             total_points = sum(row['Punkty'] for row in types_table_data)
                                             st.caption(f"**Suma punktów: {total_points}**")
                             
@@ -554,7 +554,7 @@ def login_page() -> bool:
                                     color_continuous_scale='viridis'
                                 )
                                 fig.update_layout(xaxis_tickangle=-45, height=400)
-                                st.plotly_chart(fig, use_container_width=True, key=f"login_ranking_round_{round_number}_chart")
+                                st.plotly_chart(fig, width="stretch", config={"displayModeBar": True, "responsive": True}, key=f"login_ranking_round_{round_number}_chart")
                         else:
                             st.info("📊 Brak danych do wyświetlenia dla tej kolejki")
                 else:
@@ -577,7 +577,7 @@ def login_page() -> bool:
     with st.form("login_form"):
         username = st.text_input("👤 Nazwa użytkownika", key="login_username")
         password = st.text_input("🔒 Hasło", type="password", key="login_password")
-        submit_button = st.form_submit_button("🚀 Zaloguj się", use_container_width=True)
+        submit_button = st.form_submit_button("🚀 Zaloguj się", width="stretch")
         
         if submit_button:
             if not username or not password:

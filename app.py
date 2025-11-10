@@ -171,6 +171,37 @@ def cached_player_predictions(player_name: str, round_id: str, data_version: int
     return storage.get_player_predictions(player_name, round_id, use_cache=True)
 
 
+def get_league_name_for_match(storage, match: dict, round_id: str) -> str:
+    """Zwraca nazwę ligi dla meczu na podstawie danych z bazy (DB-first)."""
+    try:
+        # Najpierw spróbuj użyć mapy drużyna->liga przygotowanej dla widoku (bardziej wiarygodna dla UI)
+        teams_map = st.session_state.get('teams_with_leagues')
+        if teams_map:
+            home_team = (match.get('home_team_name') or '').strip()
+            away_team = (match.get('away_team_name') or '').strip()
+            if home_team in teams_map:
+                return teams_map[home_team]
+            if away_team in teams_map:
+                return teams_map[away_team]
+
+        league_id = match.get('league_id')
+        if not league_id or str(league_id).lower() == 'none':
+            round_data = storage.data.get('rounds', {}).get(round_id, {})
+            season_id = round_data.get('season_id')
+            if season_id:
+                season = storage.data.get('seasons', {}).get(season_id, {})
+                league_id = season.get('league_id')
+        if not league_id:
+            return "Liga ?"
+        league_names_map = st.session_state.get('league_names_map', {})
+        try:
+            lid_int = int(league_id)
+        except Exception:
+            lid_int = league_id
+        return league_names_map.get(lid_int, f"Liga {league_id}")
+    except Exception:
+        return "Liga ?"
+
 # Pomocnik: pobierz klucze OAuth z ENV lub Secrets
 def _get_oauth_keys():
     import os
@@ -451,7 +482,7 @@ def main():
         # Sekcja użytkownika
         st.header("👤 Użytkownik")
         st.info(f"Zalogowany jako: **{username}**")
-        if st.button("🚪 Wyloguj się", use_container_width=True):
+        if st.button("🚪 Wyloguj się", width="stretch"):
             logout()
             return
         
@@ -459,7 +490,7 @@ def main():
         
         # Sekcja logów (debug)
         with st.expander("🔍 Logi aplikacji", expanded=False):
-            if st.button("🔄 Odśwież logi", use_container_width=True):
+            if st.button("🔄 Odśwież logi", width="stretch"):
                 st.rerun()
             
             # Wyświetl ostatnie linie z pliku logów
@@ -510,136 +541,45 @@ def main():
         st.markdown("---")
         st.header("⚙️ Konfiguracja")
         
-        # ID lig dla typera - dynamiczne dodawanie/usuwanie
-        st.subheader("🏆 Ligi typera")
+        # Pobierz wybrany sezon
+        selected_season_id = st.session_state.get('selected_season_id', None)
+        if not selected_season_id:
+            st.warning("⚠️ Wybierz sezon, aby zarządzać ligami i zespołami.")
+            return
         
-        # Storage już zainicjalizowany wcześniej (przy filtrze sezonu)
-        
-        # Pobierz aktualne ligi (lista ID)
-        selected_league_ids = storage.get_selected_leagues()
-        
-        # Pobierz nazwy lig: najpierw z bazy, brakujące z API
-        league_names_map = {}  # {league_id: league_name}
-        
-        if selected_league_ids:
-            # Najpierw spróbuj z bazy (bez API)
-            try:
-                db_names = storage.get_league_names(selected_league_ids) if hasattr(storage, 'get_league_names') else {}
-                if db_names:
-                    league_names_map.update(db_names)
-            except Exception as e:
-                logger.warning(f"Nie udało się pobrać nazw lig z bazy: {e}")
-
-            # Sprawdź czy mamy klucze OAuth
-            consumer_key = None
-            consumer_secret = None
-            access_token = None
-            access_token_secret = None
+        # Wydzielone okno do zarządzania ligami i zespołami
+        with st.expander("🏆 Zarządzanie ligami i zespołami", expanded=True):
+            st.markdown(f"**Sezon:** {selected_season_id}")
+            st.markdown("---")
             
-            try:
-                if hasattr(st, 'secrets'):
-                    consumer_key = getattr(st.secrets, 'HATTRICK_CONSUMER_KEY', None)
-                    consumer_secret = getattr(st.secrets, 'HATTRICK_CONSUMER_SECRET', None)
-                    access_token = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN', None)
-                    access_token_secret = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN_SECRET', None)
-            except:
-                pass
+            # Sekcja zarządzania ligami
+            st.subheader("📋 Ligi")
             
-            if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
-                load_dotenv()
-                consumer_key = consumer_key or os.getenv('HATTRICK_CONSUMER_KEY')
-                consumer_secret = consumer_secret or os.getenv('HATTRICK_CONSUMER_SECRET')
-                access_token = access_token or os.getenv('HATTRICK_ACCESS_TOKEN')
-                access_token_secret = access_token_secret or os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
-            
-            # Pobierz nazwy lig z API tylko dla brakujących ID
-            missing_ids = [lid for lid in selected_league_ids if lid not in league_names_map]
-            if missing_ids and all([consumer_key, consumer_secret, access_token, access_token_secret]):
-                try:
-                    client = HattrickOAuthSimple(consumer_key, consumer_secret)
-                    client.set_access_tokens(access_token, access_token_secret)
-                    
-                    for league_id in missing_ids:
-                        try:
-                            league_details = client.get_league_details(league_id)
-                            if league_details and league_details.get('league_name'):
-                                league_names_map[league_id] = league_details['league_name']
-                                # Zapisz do bazy, by nie pytać API ponownie
-                                try:
-                                    storage.add_league(league_id, league_details['league_name'])
-                                except Exception:
-                                    pass
-                            else:
-                                league_names_map[league_id] = f"Liga {league_id}"
-                        except Exception as e:
-                            logger.error(f"Błąd pobierania nazwy ligi {league_id} z API: {e}")
-                            league_names_map[league_id] = f"Liga {league_id}"
-                except Exception as e:
-                    logger.error(f"Błąd inicjalizacji klienta OAuth: {e}")
-                    # Użyj domyślnych nazw
-                    for league_id in missing_ids:
-                        league_names_map[league_id] = f"Liga {league_id}"
+            # Pobierz aktualne ligi dla wybranego sezonu (lista ID)
+            if hasattr(storage, 'get_season_leagues'):
+                selected_league_ids = storage.get_season_leagues(selected_season_id)
             else:
-                # Użyj domyślnych nazw jeśli brak OAuth
-                for league_id in missing_ids:
-                    league_names_map[league_id] = f"Liga {league_id}"
+                # Fallback do globalnych lig (dla kompatybilności wstecznej)
+                selected_league_ids = storage.get_selected_leagues()
             
-            # Zapisz w session_state dla użycia w dalszej części aplikacji
-            st.session_state.league_names_map = league_names_map
-        
-        # Wyświetl listę lig z możliwością usunięcia
-        if selected_league_ids:
-            st.markdown("**Aktualne ligi:**")
-            for idx, league_id in enumerate(selected_league_ids, 1):
-                league_name = league_names_map.get(league_id, f"Liga {league_id}")
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.write(f"🏆 **{league_name}** (ID: {league_id})")
-                with col2:
-                    if st.button("🗑️ Usuń", key=f"delete_league_{league_id}"):
-                        selected_league_ids.remove(league_id)
-                        storage.set_selected_leagues(selected_league_ids)
-                        st.success(f"✅ Usunięto ligę {league_name}")
-                        st.rerun()
-        else:
-            st.info("📊 Brak lig. Dodaj nową ligę.")
-        
-        # Dodawanie nowej ligi
-        st.markdown("---")
-        st.markdown("**➕ Dodaj nową ligę:**")
-        new_league_id = st.number_input(
-            "ID ligi (LeagueLevelUnitID):",
-            value=32612,
-            min_value=1,
-            key="new_league_id",
-            help="Wprowadź ID ligi do dodania"
-        )
-        
-        # Sprawdź czy jest pobrana nazwa z API (z poprzedniego przebiegu)
-        fetched_league_name = st.session_state.get('fetched_league_name', '')
-        if fetched_league_name:
-            # Wyczyść po użyciu
-            del st.session_state['fetched_league_name']
-        
-        # Przycisk do pobrania nazwy z API
-        col_fetch, col_name = st.columns([1, 3])
-        with col_fetch:
-            fetch_name_clicked = st.button("🔍 Pobierz nazwę z API", key="fetch_league_name", use_container_width=True)
-        
-        with col_name:
-            # Użyj pobranej nazwy jako wartości domyślnej, jeśli jest dostępna
-            default_name = fetched_league_name if fetched_league_name else ""
-            new_league_name = st.text_input(
-                "Nazwa ligi:",
-                value=default_name,
-                key="new_league_name",
-                help="Nazwa ligi (można pobrać z API lub wprowadzić ręcznie)",
-                placeholder="Nazwa ligi (pobierz z API lub wprowadź ręcznie)"
-            )
-        
-        # Pobierz nazwę z API jeśli kliknięto przycisk
-        if fetch_name_clicked:
-            try:
+            # Pobierz nazwy lig: najpierw z bazy per sezon, brakujące z API
+            league_names_map = {}  # {league_id: league_name}
+            
+            if selected_league_ids:
+                # Najpierw spróbuj z bazy per sezon (bez API)
+                try:
+                    if hasattr(storage, 'get_season_league_names'):
+                        db_names = storage.get_season_league_names(selected_season_id)
+                        if db_names:
+                            league_names_map.update(db_names)
+                    elif hasattr(storage, 'get_league_names'):
+                        # Fallback do globalnych lig (dla kompatybilności wstecznej)
+                        db_names = storage.get_league_names(selected_league_ids)
+                        if db_names:
+                            league_names_map.update(db_names)
+                except Exception as e:
+                    logger.warning(f"Nie udało się pobrać nazw lig z bazy: {e}")
+
                 # Sprawdź czy mamy klucze OAuth
                 consumer_key = None
                 consumer_secret = None
@@ -662,100 +602,364 @@ def main():
                     access_token = access_token or os.getenv('HATTRICK_ACCESS_TOKEN')
                     access_token_secret = access_token_secret or os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
                 
-                if all([consumer_key, consumer_secret, access_token, access_token_secret]):
-                    with st.spinner("Pobieranie nazwy ligi z API..."):
+                # Pobierz nazwy lig z API tylko dla brakujących ID
+                missing_ids = [lid for lid in selected_league_ids if lid not in league_names_map]
+                if missing_ids and all([consumer_key, consumer_secret, access_token, access_token_secret]):
+                    try:
                         client = HattrickOAuthSimple(consumer_key, consumer_secret)
                         client.set_access_tokens(access_token, access_token_secret)
-                        league_details = client.get_league_details(new_league_id)
                         
-                        if league_details and league_details.get('league_name'):
-                            # Zapisz pobraną nazwę w session_state dla następnego przebiegu
-                            st.session_state.fetched_league_name = league_details['league_name']
-                            st.success(f"✅ Pobrano nazwę: {league_details['league_name']}")
-                            st.rerun()
-                        else:
-                            st.warning("⚠️ Nie udało się pobrać nazwy ligi z API")
-                else:
-                    st.warning("⚠️ Brak kluczy OAuth. Skonfiguruj OAuth aby pobrać nazwę z API.")
-            except Exception as e:
-                logger.error(f"Błąd pobierania nazwy ligi z API: {e}")
-                st.error(f"❌ Błąd pobierania nazwy ligi z API: {str(e)}")
-        
-        col_add1, col_add2 = st.columns([1, 1])
-        with col_add1:
-            if st.button("➕ Dodaj ligę", type="primary", use_container_width=True):
-                if new_league_id not in selected_league_ids:
-                    # Pobierz nazwę z API jeśli nie podano ręcznie
-                    final_league_name = new_league_name
-                    
-                    if not final_league_name:
-                        try:
-                            # Sprawdź czy mamy klucze OAuth
-                            consumer_key = None
-                            consumer_secret = None
-                            access_token = None
-                            access_token_secret = None
-                            
+                        for league_id in missing_ids:
                             try:
-                                if hasattr(st, 'secrets'):
-                                    consumer_key = getattr(st.secrets, 'HATTRICK_CONSUMER_KEY', None)
-                                    consumer_secret = getattr(st.secrets, 'HATTRICK_CONSUMER_SECRET', None)
-                                    access_token = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN', None)
-                                    access_token_secret = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN_SECRET', None)
-                            except:
-                                pass
-                            
-                            if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
-                                load_dotenv()
-                                consumer_key = consumer_key or os.getenv('HATTRICK_CONSUMER_KEY')
-                                consumer_secret = consumer_secret or os.getenv('HATTRICK_CONSUMER_SECRET')
-                                access_token = access_token or os.getenv('HATTRICK_ACCESS_TOKEN')
-                                access_token_secret = access_token_secret or os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
-                            
-                            if all([consumer_key, consumer_secret, access_token, access_token_secret]):
-                                with st.spinner("Pobieranie nazwy ligi z API..."):
-                                    client = HattrickOAuthSimple(consumer_key, consumer_secret)
-                                    client.set_access_tokens(access_token, access_token_secret)
-                                    league_details = client.get_league_details(new_league_id)
-                                    
-                                    if league_details and league_details.get('league_name'):
-                                        final_league_name = league_details['league_name']
-                                    else:
-                                        final_league_name = f"Liga {new_league_id}"
-                            else:
-                                final_league_name = f"Liga {new_league_id}"
-                        except Exception as e:
-                            logger.error(f"Błąd pobierania nazwy ligi z API: {e}")
-                            final_league_name = f"Liga {new_league_id}"
+                                league_details = client.get_league_details(league_id)
+                                if league_details and league_details.get('league_name'):
+                                    league_names_map[league_id] = league_details['league_name']
+                                    # Zapisz do bazy, by nie pytać API ponownie
+                                    try:
+                                        storage.add_league(league_id, league_details['league_name'])
+                                    except Exception:
+                                        pass
+                                else:
+                                    league_names_map[league_id] = f"Liga {league_id}"
+                            except Exception as e:
+                                logger.error(f"Błąd pobierania nazwy ligi {league_id} z API: {e}")
+                                league_names_map[league_id] = f"Liga {league_id}"
+                    except Exception as e:
+                        logger.error(f"Błąd inicjalizacji klienta OAuth: {e}")
+                        # Użyj domyślnych nazw
+                        for league_id in missing_ids:
+                            league_names_map[league_id] = f"Liga {league_id}"
+                else:
+                    # Użyj domyślnych nazw jeśli brak OAuth
+                    for league_id in missing_ids:
+                        league_names_map[league_id] = f"Liga {league_id}"
+                
+                # Zapisz w session_state dla użycia w dalszej części aplikacji
+                st.session_state.league_names_map = league_names_map
+            
+            # Wyświetl listę lig z możliwością usunięcia
+            if selected_league_ids:
+                st.markdown("**Aktualne ligi:**")
+                for idx, league_id in enumerate(selected_league_ids, 1):
+                    league_name = league_names_map.get(league_id, f"Liga {league_id}")
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.write(f"🏆 **{league_name}** (ID: {league_id})")
+                    with col2:
+                        if st.button("🗑️ Usuń", key=f"delete_league_{league_id}"):
+                            try:
+                                if hasattr(storage, 'remove_season_league'):
+                                    storage.remove_season_league(selected_season_id, league_id)
+                                else:
+                                    # Fallback do globalnych lig (dla kompatybilności wstecznej)
+                                    selected_league_ids.remove(league_id)
+                                    storage.set_selected_leagues(selected_league_ids)
+                                st.success(f"✅ Usunięto ligę {league_name} z sezonu {selected_season_id}")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Błąd usuwania ligi: {e}")
+            else:
+                st.info("📊 Brak lig. Dodaj nową ligę.")
+            
+            # Dodawanie nowej ligi
+            st.markdown("---")
+            st.markdown("**➕ Dodaj nową ligę:**")
+            new_league_id = st.number_input(
+                "ID ligi (LeagueLevelUnitID):",
+                value=32612,
+                min_value=1,
+                key="new_league_id",
+                help="Wprowadź ID ligi do dodania"
+            )
+            
+            # Sprawdź czy jest pobrana nazwa z API (z poprzedniego przebiegu)
+            fetched_league_name = st.session_state.get('fetched_league_name', '')
+            if fetched_league_name:
+                # Wyczyść po użyciu
+                del st.session_state['fetched_league_name']
+            
+            # Przycisk do pobrania nazwy z API
+            col_fetch, col_name = st.columns([1, 3])
+            with col_fetch:
+                fetch_name_clicked = st.button("🔍 Pobierz nazwę z API", key="fetch_league_name", width="stretch")
+            
+            with col_name:
+                # Użyj pobranej nazwy jako wartości domyślnej, jeśli jest dostępna
+                default_name = fetched_league_name if fetched_league_name else ""
+                new_league_name = st.text_input(
+                    "Nazwa ligi:",
+                    value=default_name,
+                    key="new_league_name",
+                    help="Nazwa ligi (można pobrać z API lub wprowadzić ręcznie)",
+                    placeholder="Nazwa ligi (pobierz z API lub wprowadź ręcznie)"
+                )
+            
+            # Pobierz nazwę z API jeśli kliknięto przycisk
+            if fetch_name_clicked:
+                try:
+                    # Sprawdź czy mamy klucze OAuth
+                    consumer_key = None
+                    consumer_secret = None
+                    access_token = None
+                    access_token_secret = None
                     
-                    # Dodaj tylko ID ligi (nie zapisujemy nazwy)
-                    selected_league_ids.append(new_league_id)
-                    storage.set_selected_leagues(selected_league_ids)
-                    st.success(f"✅ Dodano ligę: {final_league_name} (ID: {new_league_id})")
-                    st.rerun()
+                    try:
+                        if hasattr(st, 'secrets'):
+                            consumer_key = getattr(st.secrets, 'HATTRICK_CONSUMER_KEY', None)
+                            consumer_secret = getattr(st.secrets, 'HATTRICK_CONSUMER_SECRET', None)
+                            access_token = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN', None)
+                            access_token_secret = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN_SECRET', None)
+                    except:
+                        pass
+                    
+                    if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
+                        load_dotenv()
+                        consumer_key = consumer_key or os.getenv('HATTRICK_CONSUMER_KEY')
+                        consumer_secret = consumer_secret or os.getenv('HATTRICK_CONSUMER_SECRET')
+                        access_token = access_token or os.getenv('HATTRICK_ACCESS_TOKEN')
+                        access_token_secret = access_token_secret or os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
+                    
+                    if all([consumer_key, consumer_secret, access_token, access_token_secret]):
+                        with st.spinner("Pobieranie nazwy ligi z API..."):
+                            client = HattrickOAuthSimple(consumer_key, consumer_secret)
+                            client.set_access_tokens(access_token, access_token_secret)
+                            league_details = client.get_league_details(new_league_id)
+                            
+                            if league_details and league_details.get('league_name'):
+                                # Zapisz pobraną nazwę w session_state dla następnego przebiegu
+                                st.session_state.fetched_league_name = league_details['league_name']
+                                st.success(f"✅ Pobrano nazwę: {league_details['league_name']}")
+                                st.rerun()
+                            else:
+                                st.warning("⚠️ Nie udało się pobrać nazwy ligi z API")
+                    else:
+                        st.warning("⚠️ Brak kluczy OAuth. Skonfiguruj OAuth aby pobrać nazwę z API.")
+                except Exception as e:
+                    logger.error(f"Błąd pobierania nazwy ligi z API: {e}")
+                    st.error(f"❌ Błąd pobierania nazwy ligi z API: {str(e)}")
+            
+            col_add1, col_add2 = st.columns([1, 1])
+            with col_add1:
+                if st.button("➕ Dodaj ligę", type="primary", key="add_league_btn", width="stretch"):
+                    if new_league_id not in selected_league_ids:
+                        # Pobierz nazwę z API jeśli nie podano ręcznie
+                        final_league_name = new_league_name
+                        
+                        if not final_league_name:
+                            try:
+                                # Sprawdź czy mamy klucze OAuth
+                                consumer_key = None
+                                consumer_secret = None
+                                access_token = None
+                                access_token_secret = None
+                                
+                                try:
+                                    if hasattr(st, 'secrets'):
+                                        consumer_key = getattr(st.secrets, 'HATTRICK_CONSUMER_KEY', None)
+                                        consumer_secret = getattr(st.secrets, 'HATTRICK_CONSUMER_SECRET', None)
+                                        access_token = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN', None)
+                                        access_token_secret = getattr(st.secrets, 'HATTRICK_ACCESS_TOKEN_SECRET', None)
+                                except:
+                                    pass
+                                
+                                if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
+                                    load_dotenv()
+                                    consumer_key = consumer_key or os.getenv('HATTRICK_CONSUMER_KEY')
+                                    consumer_secret = consumer_secret or os.getenv('HATTRICK_CONSUMER_SECRET')
+                                    access_token = access_token or os.getenv('HATTRICK_ACCESS_TOKEN')
+                                    access_token_secret = access_token_secret or os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
+                                
+                                if all([consumer_key, consumer_secret, access_token, access_token_secret]):
+                                    with st.spinner("Pobieranie nazwy ligi z API..."):
+                                        client = HattrickOAuthSimple(consumer_key, consumer_secret)
+                                        client.set_access_tokens(access_token, access_token_secret)
+                                        league_details = client.get_league_details(new_league_id)
+                                        
+                                        if league_details and league_details.get('league_name'):
+                                            final_league_name = league_details['league_name']
+                                        else:
+                                            final_league_name = f"Liga {new_league_id}"
+                                else:
+                                    final_league_name = f"Liga {new_league_id}"
+                            except Exception as e:
+                                logger.error(f"Błąd pobierania nazwy ligi z API: {e}")
+                                final_league_name = f"Liga {new_league_id}"
+                        
+                        # Dodaj ligę do sezonu
+                        try:
+                            if hasattr(storage, 'add_season_league'):
+                                storage.add_season_league(selected_season_id, new_league_id, final_league_name)
+                                
+                                # Po dodaniu ligi, automatycznie pobierz zespoły z API i zapisz dla sezonu
+                                if all([consumer_key, consumer_secret, access_token, access_token_secret]):
+                                    with st.spinner(f"Pobieranie zespołów z ligi {final_league_name}..."):
+                                        try:
+                                            client = HattrickOAuthSimple(consumer_key, consumer_secret)
+                                            client.set_access_tokens(access_token, access_token_secret)
+                                            
+                                            # Pobierz zespoły bezpośrednio z tabeli ligowej (zamiast z meczów)
+                                            league_teams = client.get_league_table(new_league_id)
+                                            teams_to_add = []
+                                            
+                                            if league_teams and isinstance(league_teams, list):
+                                                # Zbierz zespoły z tabeli ligowej
+                                                for team_data in league_teams:
+                                                    team_name = team_data.get('team_name', '').strip()
+                                                    if team_name:
+                                                        teams_to_add.append({
+                                                            'team_name': team_name,
+                                                            'league_id': new_league_id,
+                                                            'league_name': final_league_name,
+                                                            'is_selected': False  # Domyślnie nie wybrane
+                                                        })
+                                            
+                                            # Dodaj zespoły do sezonu
+                                            if teams_to_add and hasattr(storage, 'bulk_add_season_teams'):
+                                                storage.bulk_add_season_teams(selected_season_id, teams_to_add)
+                                                st.success(f"✅ Dodano ligę: {final_league_name} (ID: {new_league_id}) i {len(teams_to_add)} zespołów")
+                                            else:
+                                                st.success(f"✅ Dodano ligę: {final_league_name} (ID: {new_league_id})")
+                                                if not teams_to_add:
+                                                    st.warning(f"⚠️ Nie znaleziono zespołów w tabeli ligowej dla ligi {new_league_id}")
+                                        except Exception as e:
+                                            logger.error(f"Błąd pobierania zespołów z ligi {new_league_id}: {e}")
+                                            st.success(f"✅ Dodano ligę: {final_league_name} (ID: {new_league_id})")
+                                            st.warning(f"⚠️ Nie udało się pobrać zespołów z API: {e}")
+                                else:
+                                    st.success(f"✅ Dodano ligę: {final_league_name} (ID: {new_league_id})")
+                                    st.info("ℹ️ Skonfiguruj OAuth aby automatycznie pobrać zespoły z API")
+                            else:
+                                # Fallback do globalnych lig (dla kompatybilności wstecznej)
+                                selected_league_ids.append(new_league_id)
+                                storage.set_selected_leagues(selected_league_ids)
+                                st.success(f"✅ Dodano ligę: {final_league_name} (ID: {new_league_id})")
+                            st.rerun()
+                        except Exception as e:
+                            logger.error(f"Błąd dodawania ligi: {e}")
+                            st.error(f"❌ Błąd dodawania ligi: {e}")
                 else:
                     st.warning(f"⚠️ Liga o ID {new_league_id} już istnieje")
         
-        with col_add2:
-            if st.button("🔄 Odśwież dane", use_container_width=True):
-                st.cache_data.clear()
-                st.rerun()
-        
-        # Użyj wybranych lig (lista ID dla API)
-        TIPPER_LEAGUES = selected_league_ids
-        
-        # Informacje
-        if TIPPER_LEAGUES:
-            league_names = [league_names_map.get(league_id, f"Liga {league_id}") for league_id in TIPPER_LEAGUES]
-            st.info(f"**Aktywne ligi ({len(TIPPER_LEAGUES)}):** {', '.join(league_names)}")
-        else:
-            st.warning("⚠️ Brak aktywnych lig. Dodaj ligi aby pobrać mecze.")
+            with col_add2:
+                if st.button("🔄 Odśwież dane", key="refresh_data_btn", width="stretch"):
+                    st.cache_data.clear()
+                    st.rerun()
+            
+            # Sekcja zarządzania zespołami
+            st.markdown("---")
+            st.subheader("👥 Zespoły")
+            
+            # Pobierz zespoły dla wybranego sezonu
+            if hasattr(storage, 'get_season_teams'):
+                season_teams = storage.get_season_teams(selected_season_id, only_selected=False)
+                
+                if season_teams:
+                    # Grupuj zespoły według lig
+                    teams_by_league = {}
+                    teams_without_league = []
+                    for team in season_teams:
+                        league_id = team.get('league_id')
+                        league_name = team.get('league_name') or f"Liga {league_id}" if league_id else "?"
+                        if league_id is None or league_id == 0:
+                            # Zespoły bez ligi - dodaj do osobnej grupy
+                            teams_without_league.append(team)
+                        else:
+                            if league_id not in teams_by_league:
+                                teams_by_league[league_id] = {
+                                    'league_name': league_name,
+                                    'teams': []
+                                }
+                            teams_by_league[league_id]['teams'].append(team)
+                    
+                    # Wyświetl zespoły pogrupowane według lig
+                    for league_id, league_data in sorted(teams_by_league.items()):
+                        league_name = league_data['league_name']
+                        teams = league_data['teams']
+                        
+                        with st.expander(f"🏆 {league_name} ({len(teams)} zespołów)", expanded=True):
+                            # Formularz do zaznaczania zespołów
+                            with st.form(f"team_selection_form_{league_id}", clear_on_submit=False):
+                                selected_teams_for_league = []
+                                
+                                for team in sorted(teams, key=lambda x: x['team_name']):
+                                    team_name = team['team_name']
+                                    is_selected = team.get('is_selected', False)
+                                    checkbox_key = f"team_select_{selected_season_id}_{league_id}_{team_name}"
+                                    
+                                    # Inicjalizuj wartość checkboxa jeśli nie istnieje w session_state
+                                    if checkbox_key not in st.session_state:
+                                        st.session_state[checkbox_key] = is_selected
+                                    
+                                    if st.checkbox(team_name, key=checkbox_key, value=st.session_state[checkbox_key]):
+                                        selected_teams_for_league.append(team_name)
+                                
+                                # Przycisk zapisu
+                                if st.form_submit_button(f"💾 Zapisz wybór dla {league_name}", type="primary", width="stretch"):
+                                    try:
+                                        # Ustaw wybór dla każdego zespołu w lidze
+                                        for team in teams:
+                                            team_name = team['team_name']
+                                            is_selected = team_name in selected_teams_for_league
+                                            storage.set_season_team_selected(selected_season_id, team_name, is_selected)
+                                        st.success(f"✅ Zapisano wybór dla {league_name}: {len(selected_teams_for_league)}/{len(teams)} zespołów")
+                                        st.rerun()
+                                    except Exception as e:
+                                        logger.error(f"Błąd zapisywania wyboru zespołów: {e}")
+                                        st.error(f"❌ Błąd zapisywania wyboru zespołów: {e}")
+                    
+                    # Wyświetl zespoły bez ligi (jeśli są)
+                    if teams_without_league:
+                        with st.expander(f"❓ Zespoły bez przypisanej ligi ({len(teams_without_league)} zespołów)", expanded=True):
+                            st.warning("⚠️ Te zespoły nie mają przypisanej ligi. Dodaj ligi w sekcji '📋 Ligi' i pobierz zespoły z API, aby przypisać ligi.")
+                            # Formularz do zaznaczania zespołów bez ligi
+                            with st.form(f"team_selection_form_no_league", clear_on_submit=False):
+                                selected_teams_no_league = []
+                                
+                                for team in sorted(teams_without_league, key=lambda x: x['team_name']):
+                                    team_name = team['team_name']
+                                    is_selected = team.get('is_selected', False)
+                                    checkbox_key = f"team_select_{selected_season_id}_no_league_{team_name}"
+                                    
+                                    # Inicjalizuj wartość checkboxa jeśli nie istnieje w session_state
+                                    if checkbox_key not in st.session_state:
+                                        st.session_state[checkbox_key] = is_selected
+                                    
+                                    if st.checkbox(team_name, key=checkbox_key, value=st.session_state[checkbox_key]):
+                                        selected_teams_no_league.append(team_name)
+                                
+                                # Przycisk zapisu
+                                if st.form_submit_button(f"💾 Zapisz wybór dla zespołów bez ligi", type="primary", width="stretch"):
+                                    try:
+                                        # Ustaw wybór dla każdego zespołu bez ligi
+                                        for team in teams_without_league:
+                                            team_name = team['team_name']
+                                            is_selected = team_name in selected_teams_no_league
+                                            storage.set_season_team_selected(selected_season_id, team_name, is_selected)
+                                        st.success(f"✅ Zapisano wybór dla zespołów bez ligi: {len(selected_teams_no_league)}/{len(teams_without_league)} zespołów")
+                                        st.rerun()
+                                    except Exception as e:
+                                        logger.error(f"Błąd zapisywania wyboru zespołów: {e}")
+                                        st.error(f"❌ Błąd zapisywania wyboru zespołów: {e}")
+                else:
+                    st.info("📊 Brak zespołów dla tego sezonu. Dodaj ligi, aby automatycznie pobrać zespoły z API.")
+            else:
+                st.warning("⚠️ Funkcja zarządzania zespołami per sezon nie jest dostępna.")
+            
+            # Użyj wybranych lig (lista ID dla API)
+            TIPPER_LEAGUES = selected_league_ids
+            
+            # Informacje
+            if TIPPER_LEAGUES:
+                league_names = [league_names_map.get(league_id, f"Liga {league_id}") for league_id in TIPPER_LEAGUES]
+                st.info(f"**Aktywne ligi ({len(TIPPER_LEAGUES)}):** {', '.join(league_names)}")
+            else:
+                st.warning("⚠️ Brak aktywnych lig. Dodaj ligi aby pobrać mecze.")
         
         st.markdown("---")
         st.subheader("💾 Import/Eksport danych")
         
         # Eksport danych
-        if st.button("📥 Pobierz backup danych", use_container_width=True, help="Pobierz aktualny plik tipper_data.json"):
+        if st.button("📥 Pobierz backup danych", width="stretch", help="Pobierz aktualny plik tipper_data.json"):
             import json
             data_str = json.dumps(storage.data, ensure_ascii=False, indent=2)
             st.download_button(
@@ -763,7 +967,7 @@ def main():
                 data=data_str,
                 file_name="tipper_data.json",
                 mime="application/json",
-                use_container_width=True
+                width="stretch"
             )
         
         # Import danych
@@ -793,7 +997,7 @@ def main():
                         st.info(f"📊 Dane w pliku:\n- Gracze: {players_count}\n- Rundy: {rounds_count}")
                         
                         # Przycisk importu
-                        if st.button("💾 Zaimportuj dane", type="primary", use_container_width=True):
+                        if st.button("💾 Zaimportuj dane", type="primary", width="stretch"):
                             try:
                                 # Zrób backup przed importem
                                 backup_data = storage.data.copy()
@@ -1155,27 +1359,172 @@ def main():
             st.warning("⚠️ Brak meczów do wyświetlenia")
             return
         
-        # Pobierz wszystkie unikalne nazwy drużyn z meczów wraz z informacją o lidze
-        # Słownik: {team_name: league_name}
-        teams_with_leagues = {}
-        for _, matches in sorted_rounds_asc:
-            for match in matches:
-                home_team = match.get('home_team_name', '').strip()
-                away_team = match.get('away_team_name', '').strip()
-                match_league_id = match.get('league_id')
-                # Pobierz nazwę ligi z league_names_map (pobrane z API)
-                league_name = league_names_map.get(match_league_id, f"Liga {match_league_id}" if match_league_id else "?")
-                
-                if home_team:
-                    teams_with_leagues[home_team] = league_name
-                if away_team:
-                    teams_with_leagues[away_team] = league_name
+        # Mapowanie drużyna->liga (DB-first per sezon)
+        # Strategia: 1) season_teams dla sezonu, 2) tabela teams, 3) matches dla sezonu, 4) mecze z API, 5) selected_teams
+        selected_season_id_for_teams = st.session_state.get('selected_season_id', season_id)
+        teams_with_leagues: Dict[str, str] = {}
+        tmp_map: Dict[str, int] = {}
         
-        all_team_names = sorted(list(teams_with_leagues.keys()))
+        # 1. Użyj drużyn z season_teams dla wybranego sezonu (najlepsze źródło per sezon)
+        if hasattr(storage, 'get_season_teams'):
+            try:
+                season_teams = storage.get_season_teams(selected_season_id_for_teams, only_selected=False)
+                if season_teams:
+                    for team in season_teams:
+                        team_name = team['team_name']
+                        league_id = team.get('league_id')
+                        league_name = team.get('league_name') or (f"Liga {league_id}" if league_id else "?")
+                        teams_with_leagues[team_name] = league_name
+                        if league_id:
+                            tmp_map[team_name] = int(league_id)
+                    logger.info(f"DEBUG: Dodano {len(teams_with_leagues)} drużyn z season_teams dla sezonu {selected_season_id_for_teams}")
+            except Exception as e:
+                logger.warning(f"Błąd pobierania season_teams z bazy: {e}")
         
-        # Pobierz zapisane ustawienia
-        selected_teams = storage.get_selected_teams()
-        logger.info(f"DEBUG: Pobrano z bazy selected_teams: {len(selected_teams) if selected_teams else 0} drużyn")
+        # 2. Fallback: użyj drużyn z tabeli teams (globalne)
+        if not teams_with_leagues:
+            teams_with_leagues_db = {}
+            try:
+                if hasattr(storage, 'get_team_leagues'):
+                    teams_with_leagues_db = storage.get_team_leagues()
+                    logger.info(f"DEBUG: Pobrano {len(teams_with_leagues_db)} drużyn z tabeli teams")
+            except Exception as e:
+                logger.warning(f"Błąd pobierania teams z bazy: {e}")
+                teams_with_leagues_db = {}
+            
+            if teams_with_leagues_db:
+                for team_name, meta in teams_with_leagues_db.items():
+                    league_name = meta.get('league_name') or (f"Liga {meta.get('league_id')}" if meta.get('league_id') else "?")
+                    teams_with_leagues[team_name] = league_name
+                    if meta.get('league_id'):
+                        tmp_map[team_name] = int(meta['league_id'])
+                logger.info(f"DEBUG: Dodano {len(teams_with_leagues)} drużyn z tabeli teams do teams_with_leagues")
+        
+        # 3. Jeśli nadal puste, spróbuj z matches dla wybranego sezonu
+        if not teams_with_leagues and hasattr(storage, 'conn'):
+            try:
+                selected_season_id = st.session_state.get('selected_season_id', season_id)
+                logger.info(f"DEBUG: Próbuję pobrać drużyny z matches dla sezonu: {selected_season_id}")
+                db_teams_df = storage.conn.query(
+                    "SELECT DISTINCT m.home_team_name AS team_name, m.league_id "
+                    "FROM matches m INNER JOIN rounds r ON r.round_id = m.round_id "
+                    f"WHERE r.season_id = '{selected_season_id}' AND m.home_team_name IS NOT NULL AND m.home_team_name != '' "
+                    "UNION "
+                    "SELECT DISTINCT m.away_team_name AS team_name, m.league_id "
+                    "FROM matches m INNER JOIN rounds r ON r.round_id = m.round_id "
+                    f"WHERE r.season_id = '{selected_season_id}' AND m.away_team_name IS NOT NULL AND m.away_team_name != ''",
+                    ttl=120
+                )
+                if not db_teams_df.empty:
+                    logger.info(f"DEBUG: Znaleziono {len(db_teams_df)} drużyn w matches dla sezonu {selected_season_id}")
+                    for _, row in db_teams_df.iterrows():
+                        tname = (str(row['team_name']) or '').strip()
+                        lid = row.get('league_id')
+                        if tname and lid is not None and tname not in tmp_map:
+                            tmp_map[tname] = int(lid)
+                            teams_with_leagues[tname] = league_names_map.get(lid, f"Liga {lid}")
+                else:
+                    logger.warning(f"DEBUG: Brak drużyn w matches dla sezonu {selected_season_id}")
+            except Exception as e:
+                logger.warning(f"DB-fallback team map failed: {e}")
+        
+        # 4. Jeśli nadal puste, spróbuj z meczów z API
+        if not teams_with_leagues:
+            logger.info(f"DEBUG: Próbuję pobrać drużyny z meczów z API (sorted_rounds_asc ma {len(sorted_rounds_asc)} rund)")
+            for _, matches in sorted_rounds_asc:
+                for match in matches:
+                    home_team = match.get('home_team_name', '').strip()
+                    away_team = match.get('away_team_name', '').strip()
+                    mid = match.get('league_id')
+                    if mid is not None:
+                        if home_team and home_team not in tmp_map:
+                            tmp_map[home_team] = int(mid)
+                            teams_with_leagues[home_team] = league_names_map.get(int(mid), f"Liga {int(mid)}")
+                        if away_team and away_team not in tmp_map:
+                            tmp_map[away_team] = int(mid)
+                            teams_with_leagues[away_team] = league_names_map.get(int(mid), f"Liga {int(mid)}")
+            if teams_with_leagues:
+                logger.info(f"DEBUG: Dodano {len(teams_with_leagues)} drużyn z meczów z API")
+        
+        # 4. ZAWSZE dodaj selected_teams (zapisane w ustawieniach) - nawet jeśli już są w teams_with_leagues
+        # Ale najpierw spróbuj znaleźć ich ligi w bazie danych
+        # Pobierz zespoły per sezon lub globalne (dla kompatybilności wstecznej)
+        selected_season_id_for_teams = st.session_state.get('selected_season_id', season_id)
+        if hasattr(storage, 'get_selected_season_teams'):
+            selected_teams_from_db = storage.get_selected_season_teams(selected_season_id_for_teams)
+        else:
+            selected_teams_from_db = storage.get_selected_teams()
+        logger.info(f"DEBUG: Pobrano {len(selected_teams_from_db) if selected_teams_from_db else 0} drużyn z selected_teams (sezon: {selected_season_id_for_teams})")
+        if selected_teams_from_db:
+            for team_name in selected_teams_from_db:
+                if team_name:
+                    # Jeśli drużyna już jest w teams_with_leagues, nie rób nic
+                    if team_name in teams_with_leagues:
+                        logger.info(f"DEBUG: Drużyna {team_name} już jest w teams_with_leagues z ligą: {teams_with_leagues[team_name]}")
+                        continue
+                    
+                    # Spróbuj znaleźć ligę dla tej drużyny
+                    league_name = "?"
+                    
+                    # 1. Sprawdź w teams_with_leagues_db (z tabeli teams) - już mamy to w pamięci
+                    if teams_with_leagues_db and team_name in teams_with_leagues_db:
+                        meta = teams_with_leagues_db[team_name]
+                        league_name = meta.get('league_name') or (f"Liga {meta.get('league_id')}" if meta.get('league_id') else "?")
+                        logger.info(f"DEBUG: Znaleziono ligę dla {team_name} w tabeli teams: {league_name}")
+                    # 2. Jeśli nie ma, sprawdź w tmp_map (z matches lub API - już przetworzone)
+                    elif team_name in tmp_map:
+                        lid = tmp_map[team_name]
+                        league_name = league_names_map.get(lid, f"Liga {lid}")
+                        logger.info(f"DEBUG: Znaleziono ligę dla {team_name} w tmp_map: {league_name}")
+                    # 3. Jeśli nadal nie ma, spróbuj znaleźć w matches dla wybranego sezonu (zapytanie do DB)
+                    elif hasattr(storage, 'conn'):
+                        try:
+                            selected_season_id = st.session_state.get('selected_season_id', season_id)
+                            # Escapowanie apostrofów dla SQL
+                            escaped_team_name = team_name.replace("'", "''")
+                            team_league_df = storage.conn.query(
+                                f"SELECT DISTINCT m.league_id FROM matches m "
+                                f"INNER JOIN rounds r ON r.round_id = m.round_id "
+                                f"WHERE r.season_id = '{selected_season_id}' "
+                                f"AND (m.home_team_name = '{escaped_team_name}' OR m.away_team_name = '{escaped_team_name}') "
+                                f"LIMIT 1",
+                                ttl=120
+                            )
+                            if not team_league_df.empty:
+                                lid = team_league_df.iloc[0].get('league_id')
+                                if lid is not None:
+                                    league_name = league_names_map.get(int(lid), f"Liga {int(lid)}")
+                                    logger.info(f"DEBUG: Znaleziono ligę dla {team_name} w matches: {league_name}")
+                                    # Dodaj do tmp_map, aby nie szukać ponownie
+                                    tmp_map[team_name] = int(lid)
+                        except Exception as e:
+                            logger.warning(f"DEBUG: Błąd szukania ligi dla {team_name} w matches: {e}")
+                    # 4. Jeśli nadal nie ma, spróbuj znaleźć w meczach z API
+                    if league_name == "?" and sorted_rounds_asc:
+                        for _, matches in sorted_rounds_asc:
+                            for match in matches:
+                                home_team = match.get('home_team_name', '').strip()
+                                away_team = match.get('away_team_name', '').strip()
+                                mid = match.get('league_id')
+                                if (home_team == team_name or away_team == team_name) and mid is not None:
+                                    league_name = league_names_map.get(int(mid), f"Liga {int(mid)}")
+                                    logger.info(f"DEBUG: Znaleziono ligę dla {team_name} w meczach z API: {league_name}")
+                                    # Dodaj do tmp_map, aby nie szukać ponownie
+                                    tmp_map[team_name] = int(mid)
+                                    break
+                            if league_name != "?":
+                                break
+                    
+                    teams_with_leagues[team_name] = league_name
+                    logger.info(f"DEBUG: Dodano drużynę {team_name} z selected_teams do teams_with_leagues z ligą: {league_name}")
+        
+        # Zapisz do DB jeśli mamy nowe dane z API
+        if tmp_map and hasattr(storage, 'bulk_upsert_team_leagues'):
+            try:
+                storage.bulk_upsert_team_leagues(tmp_map)
+                logger.info(f"DEBUG: Zapisano {len(tmp_map)} drużyn do tabeli teams")
+            except Exception:
+                pass
         
         # Sprawdź czy wybrane drużyny zawierają drużyny z meczów z API
         # Zbierz wszystkie drużyny z meczów z API
@@ -1192,76 +1541,125 @@ def main():
         logger.info(f"DEBUG: Drużyny w meczach z API: {len(teams_in_matches)} drużyn")
         logger.info(f"DEBUG: Przykładowe drużyny z API: {list(teams_in_matches)[:5]}")
         
+        # Uzupełnij teams_with_leagues o drużyny z meczów, które nie są jeszcze w mapie
+        # Również zaktualizuj tmp_map dla drużyn z meczów
+        for team_name in teams_in_matches:
+            if team_name and team_name not in teams_with_leagues:
+                # Spróbuj znaleźć ligę dla tej drużyny
+                league_name = "?"
+                lid = None
+                
+                # Najpierw sprawdź tmp_map (już przetworzone)
+                if team_name in tmp_map:
+                    lid = tmp_map[team_name]
+                    league_name = league_names_map.get(lid, f"Liga {lid}")
+                else:
+                    # Spróbuj znaleźć w meczach
+                    for _, matches in sorted_rounds_asc:
+                        for match in matches:
+                            if match.get('home_team_name', '').strip() == team_name or match.get('away_team_name', '').strip() == team_name:
+                                lid = match.get('league_id')
+                                if lid:
+                                    tmp_map[team_name] = int(lid)
+                                    league_name = league_names_map.get(int(lid), f"Liga {int(lid)}")
+                                    break
+                        if lid:
+                            break
+                
+                teams_with_leagues[team_name] = league_name
+        
+        # Zapisz do session_state, by inne sekcje mogły używać tej mapy
+        st.session_state['teams_with_leagues'] = teams_with_leagues
+        
+        all_team_names = sorted(list(teams_with_leagues.keys()))
+        logger.info(f"DEBUG: Końcowa lista all_team_names zawiera {len(all_team_names)} drużyn: {all_team_names[:5]}...")
+        
+        # Pobierz zapisane ustawienia per sezon lub globalne (dla kompatybilności wstecznej)
+        selected_season_id_for_teams = st.session_state.get('selected_season_id', season_id)
+        if hasattr(storage, 'get_selected_season_teams'):
+            selected_teams = storage.get_selected_season_teams(selected_season_id_for_teams)
+        else:
+            selected_teams = storage.get_selected_teams()
+        logger.info(f"DEBUG: Pobrano z bazy selected_teams: {len(selected_teams) if selected_teams else 0} drużyn (sezon: {selected_season_id_for_teams})")
+        
         # Jeśli nie ma zapisanych ustawień LUB wybrane drużyny nie zawierają żadnej drużyny z meczów z API
-        # wybierz wszystkie drużyny z API i zapisz je w bazie
+        # wybierz wszystkie drużyny z API i zapisz je w bazie per sezon
         if not selected_teams:
             logger.info(f"DEBUG: Brak zapisanych drużyn w bazie, wybieram wszystkie drużyny z API ({len(teams_in_matches)} drużyn)")
             selected_teams = sorted(list(teams_in_matches))
-            # Zapisz nowy wybór drużyn w bazie
-            storage.set_selected_teams(selected_teams)
-            logger.info(f"DEBUG: Zapisano {len(selected_teams)} drużyn w bazie")
+            # Najpierw dodaj zespoły do season_teams z league_id i league_name, potem ustaw is_selected
+            if hasattr(storage, 'bulk_add_season_teams'):
+                teams_to_add = []
+                for team_name in all_team_names:
+                    league_name = teams_with_leagues.get(team_name, "?")
+                    # Znajdź league_id dla tego zespołu
+                    league_id = tmp_map.get(team_name)
+                    if not league_id:
+                        # Spróbuj znaleźć w meczach
+                        for _, matches in sorted_rounds_asc:
+                            for match in matches:
+                                if match.get('home_team_name', '').strip() == team_name or match.get('away_team_name', '').strip() == team_name:
+                                    league_id = match.get('league_id')
+                                    if league_id:
+                                        break
+                            if league_id:
+                                break
+                    teams_to_add.append({
+                        'team_name': team_name,
+                        'league_id': league_id if league_id is not None else None,
+                        'league_name': league_name if league_name != "?" else (f"Liga {league_id}" if league_id else "?"),
+                        'is_selected': team_name in selected_teams
+                    })
+                if teams_to_add:
+                    storage.bulk_add_season_teams(selected_season_id_for_teams, teams_to_add)
+                    logger.info(f"DEBUG: Dodano {len(teams_to_add)} zespołów do season_teams (sezon: {selected_season_id_for_teams})")
+            elif hasattr(storage, 'set_season_team_selected'):
+                for team_name in all_team_names:
+                    is_selected = team_name in selected_teams
+                    storage.set_season_team_selected(selected_season_id_for_teams, team_name, is_selected)
+            else:
+                storage.set_selected_teams(selected_teams)
+            logger.info(f"DEBUG: Zapisano {len(selected_teams)} drużyn w bazie (sezon: {selected_season_id_for_teams})")
         elif not any(team in teams_in_matches for team in selected_teams):
             logger.warning(f"DEBUG: Wybrane drużyny ({len(selected_teams)}) nie zawierają żadnej drużyny z meczów z API ({len(teams_in_matches)}). Automatycznie wybieram wszystkie drużyny z API.")
             logger.warning(f"DEBUG: Przykładowe wybrane drużyny: {selected_teams[:5]}")
             logger.warning(f"DEBUG: Przykładowe drużyny z API: {list(teams_in_matches)[:5]}")
             selected_teams = sorted(list(teams_in_matches))
-            # Zapisz nowy wybór drużyn w bazie
-            storage.set_selected_teams(selected_teams)
-            logger.info(f"DEBUG: Zapisano {len(selected_teams)} drużyn w bazie")
-        
-        logger.info(f"DEBUG: Końcowe wybrane drużyny ({len(selected_teams)}): {selected_teams[:5]}...")
-        
-        # Wybór drużyn do typowania - w sidebarze
-        with st.sidebar:
-            st.markdown("---")
-            st.subheader("⚙️ Wybór drużyn do typowania")
-            st.markdown("*Zaznacz drużyny, które chcesz uwzględnić w typerze*")
-            
-            # Użyj formularza aby uniknąć automatycznego rerun przy zmianie checkboxów
-            with st.form("team_selection_form", clear_on_submit=False):
-                # Użyj checkboxów dla wyboru drużyn (z informacją o lidze)
-                new_selected_teams = []
-                
+            # Najpierw dodaj zespoły do season_teams z league_id i league_name, potem ustaw is_selected
+            if hasattr(storage, 'bulk_add_season_teams'):
+                teams_to_add = []
                 for team_name in all_team_names:
                     league_name = teams_with_leagues.get(team_name, "?")
-                    team_label = f"{team_name} _(Liga: {league_name})_"
-                    checkbox_key = f"team_select_{team_name}"
-                    
-                    # Inicjalizuj wartość checkboxa jeśli nie istnieje w session_state
-                    if checkbox_key not in st.session_state:
-                        st.session_state[checkbox_key] = team_name in selected_teams
-                    
-                    # Użyj checkboxa - wartość będzie automatycznie z session_state przez key
-                    # Nie ustawiaj value, bo to powoduje konflikt z session_state
-                    if st.checkbox(team_label, key=checkbox_key):
-                        new_selected_teams.append(team_name)
-                
-                # Przycisk zapisu ustawień w formularzu
-                submitted = st.form_submit_button("💾 Zapisz wybór drużyn", type="primary", use_container_width=True)
-                
-                if submitted:
-                    # Zbierz zaznaczone drużyny z checkboxów
-                    new_selected_teams = [
-                        team_name for team_name in all_team_names 
-                        if st.session_state.get(f"team_select_{team_name}", False)
-                    ]
-                    try:
-                        storage.set_selected_teams(new_selected_teams)
-                        st.success(f"✅ Zapisano wybór {len(new_selected_teams)} drużyn")
-                        st.rerun()
-                    except Exception as e:
-                        logger.error(f"Błąd zapisywania wybranych drużyn: {e}")
-                        st.error(f"❌ Błąd zapisywania wybranych drużyn: {e}")
-            
-            # Użyj aktualnie wybranych drużyn z session_state
-            new_selected_teams = [
-                team_name for team_name in all_team_names 
-                if st.session_state.get(f"team_select_{team_name}", False)
-            ]
-            # Jeśli użytkownik zaznaczył drużyny, użyj ich
-            if new_selected_teams:
-                selected_teams = new_selected_teams
-            # Jeśli new_selected_teams jest puste, zostaw selected_teams bez zmian (zapisane z bazy)
+                    # Znajdź league_id dla tego zespołu
+                    league_id = tmp_map.get(team_name)
+                    if not league_id:
+                        # Spróbuj znaleźć w meczach
+                        for _, matches in sorted_rounds_asc:
+                            for match in matches:
+                                if match.get('home_team_name', '').strip() == team_name or match.get('away_team_name', '').strip() == team_name:
+                                    league_id = match.get('league_id')
+                                    if league_id:
+                                        break
+                            if league_id:
+                                break
+                    teams_to_add.append({
+                        'team_name': team_name,
+                        'league_id': league_id if league_id is not None else None,
+                        'league_name': league_name if league_name != "?" else (f"Liga {league_id}" if league_id else "?"),
+                        'is_selected': team_name in selected_teams
+                    })
+                if teams_to_add:
+                    storage.bulk_add_season_teams(selected_season_id_for_teams, teams_to_add)
+                    logger.info(f"DEBUG: Dodano {len(teams_to_add)} zespołów do season_teams (sezon: {selected_season_id_for_teams})")
+            elif hasattr(storage, 'set_season_team_selected'):
+                for team_name in all_team_names:
+                    is_selected = team_name in selected_teams
+                    storage.set_season_team_selected(selected_season_id_for_teams, team_name, is_selected)
+            else:
+                storage.set_selected_teams(selected_teams)
+            logger.info(f"DEBUG: Zapisano {len(selected_teams)} drużyn w bazie (sezon: {selected_season_id_for_teams})")
+        
+        logger.info(f"DEBUG: Końcowe wybrane drużyny ({len(selected_teams)}): {selected_teams[:5]}...")
         
         # Filtruj mecze - tylko te, w których uczestniczą wybrane drużyny
         def filter_matches_by_teams(matches: List[Dict], team_names: List[str]) -> List[Dict]:
@@ -1414,7 +1812,7 @@ def main():
                     })
                 
                 df_leaderboard = pd.DataFrame(leaderboard_data)
-                st.dataframe(df_leaderboard, use_container_width=True, hide_index=True)
+                st.dataframe(df_leaderboard, width="stretch", hide_index=True)
                 
                 # Wykres rankingu całości
                 if len(leaderboard) > 0:
@@ -1428,7 +1826,7 @@ def main():
                         color_continuous_scale='plasma'
                     )
                     fig.update_layout(xaxis_tickangle=-45, height=400)
-                    st.plotly_chart(fig, use_container_width=True, key="ranking_overall_chart_main")
+                    st.plotly_chart(fig, width="stretch", config={"displayModeBar": True, "responsive": True}, key="ranking_overall_chart_main")
                     
                     # Statystyki
                     col1, col2, col3, col4 = st.columns(4)
@@ -1517,6 +1915,29 @@ def main():
                     selected_season_id = st.session_state.get('selected_season_id', season_id)
                     storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
                 
+                # Przed pobraniem rankingu, zaktualizuj status meczów z API (tylko te, które nie są zakończone)
+                # To zapewni, że is_finished=1 dla meczów, które mają wyniki
+                if hasattr(storage, 'conn'):
+                    try:
+                        # Pobierz mecze, które nie są zakończone (is_finished=0) ale mogą mieć wyniki
+                        unfinished_matches_df = storage.conn.query(
+                            f"""
+                            SELECT match_id, round_id, league_id 
+                            FROM matches 
+                            WHERE round_id = '{round_id}' 
+                            AND is_finished = 0
+                            """,
+                            ttl=0
+                        )
+                        
+                        if not unfinished_matches_df.empty:
+                            # Jeśli są mecze bez is_finished=1, sprawdź czy mają wyniki i zaktualizuj
+                            # Lub wywołaj refresh_unfinished_matches_from_api dla tej rundy
+                            selected_season_id_for_refresh = st.session_state.get('selected_season_id', season_id)
+                            refresh_unfinished_matches_from_api(storage, selected_season_id_for_refresh, throttle_seconds=0)
+                    except Exception as e:
+                        logger.warning(f"Błąd aktualizacji statusu meczów przed rankingiem: {e}")
+                
                 # Ranking dla wybranej rundy (cache)
                 round_leaderboard = cached_round_leaderboard(
                     round_id,
@@ -1584,7 +2005,7 @@ def main():
                         })
                     
                     df_round_leaderboard = pd.DataFrame(round_leaderboard_data)
-                    st.dataframe(df_round_leaderboard, use_container_width=True, hide_index=True)
+                    st.dataframe(df_round_leaderboard, width="stretch", hide_index=True)
                     
                     # Dodaj expandery z typami dla każdego gracza
                     st.markdown("### 📋 Szczegóły typów")
@@ -1630,7 +2051,7 @@ def main():
                             if types_table_data:
                                 with st.expander(f"👤 {player_name} - Typy i wyniki", expanded=False):
                                     df_types = pd.DataFrame(types_table_data)
-                                    st.dataframe(df_types, use_container_width=True, hide_index=True)
+                                    st.dataframe(df_types, width="stretch", hide_index=True)
                                     total_points = sum(row['Punkty'] for row in types_table_data)
                                     st.caption(f"**Suma punktów: {total_points}**")
                     
@@ -1646,7 +2067,7 @@ def main():
                             color_continuous_scale='viridis'
                         )
                         fig.update_layout(xaxis_tickangle=-45, height=400)
-                        st.plotly_chart(fig, use_container_width=True, key=f"ranking_round_{round_number}_chart")
+                        st.plotly_chart(fig, width="stretch", config={"displayModeBar": True, "responsive": True}, key=f"ranking_round_{round_number}_chart")
                 else:
                     st.info("📊 Brak danych do wyświetlenia dla tej kolejki")
         
@@ -1767,14 +2188,9 @@ def main():
                     except:
                         pass
                 
-                # Pobierz ID ligi dla meczu
-                match_league_id = match.get('league_id', '?')
-                # Pobierz nazwę ligi z league_names_map (pobrane z API)
-                if match_league_id != '?':
-                    league_name = league_names_map.get(match_league_id, f"Liga {match_league_id}")
-                    league_info = f" (Liga: {league_name})"
-                else:
-                    league_info = ""
+                # Nazwa ligi z bazy danych (DB-first)
+                league_name = get_league_name_for_match(storage, match, round_id)
+                league_info = f" (Liga: {league_name})"
                 
                 matches_table_data.append({
                     'Gospodarz': f"{home_team}{league_info}",
@@ -1786,7 +2202,7 @@ def main():
             # Wyświetl tabelę z meczami
             if matches_table_data:
                 df_matches = pd.DataFrame(matches_table_data)
-                st.dataframe(df_matches, use_container_width=True, hide_index=True)
+                st.dataframe(df_matches, width="stretch", hide_index=True)
             
             
             # Sekcja wprowadzania i korygowania typów - wszystko w jednym miejscu
@@ -1902,14 +2318,8 @@ def main():
                                 points = tipper.calculate_points((pred_home, pred_away), (safe_int(home_goals), safe_int(away_goals)))
                                 points_display = f" | **Punkty: {points}**"
                             
-                            # Pobierz ID ligi dla meczu
-                            match_league_id = match.get('league_id', '?')
-                            # Pobierz nazwę ligi z league_names_map (pobrane z API)
-                            if match_league_id != '?':
-                                league_name = league_names_map.get(match_league_id, f"Liga {match_league_id}")
-                                league_info = f" _(Liga: {league_name})_"
-                            else:
-                                league_info = ""
+                            league_name = get_league_name_for_match(storage, match, round_id)
+                            league_info = f" _(Liga: {league_name})_"
                             
                             col1, col2 = st.columns([3, 1.5])
                             with col1:
@@ -1935,10 +2345,10 @@ def main():
                         btn_col1, btn_col2 = st.columns(2)
                         
                         with btn_col1:
-                            save_clicked = st.button("💾 Zapisz typy", type="primary", key=f"tipper_save_all_{player_name}", use_container_width=True)
+                            save_clicked = st.button("💾 Zapisz typy", type="primary", key=f"tipper_save_all_{player_name}", width="stretch")
                         
                         with btn_col2:
-                            delete_clicked = st.button("🗑️ Usuń typy", key=f"tipper_delete_all_{player_name}", use_container_width=True)
+                            delete_clicked = st.button("🗑️ Usuń typy", key=f"tipper_delete_all_{player_name}", width="stretch")
                         
                         if save_clicked:
                             # Zbierz wszystkie typy z pól tekstowych
@@ -2147,7 +2557,7 @@ def main():
                         )
                         
                         # Przycisk bulk w tej samej linii co przyciski z lewej kolumny
-                        bulk_save_clicked = st.button("💾 Zapisz typy (bulk)", type="primary", key=f"tipper_bulk_save_{player_name}", use_container_width=True)
+                        bulk_save_clicked = st.button("💾 Zapisz typy (bulk)", type="primary", key=f"tipper_bulk_save_{player_name}", width="stretch")
                         
                         if bulk_save_clicked:
                             if not predictions_text:
