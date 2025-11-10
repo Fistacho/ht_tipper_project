@@ -58,6 +58,15 @@ try:
 except Exception:
     pass
 
+# Cache API Hattrick: fixtures i sezon na ligę
+@st.cache_data(ttl=300)
+def cached_get_league_fixtures(league_id: int, consumer_key: str, consumer_secret: str, access_token: str, access_token_secret: str):
+    from hattrick_oauth_simple import HattrickOAuthSimple
+    client = HattrickOAuthSimple(consumer_key, consumer_secret)
+    client.set_access_tokens(access_token, access_token_secret)
+    league_data = client.get_league_fixtures(league_id)
+    return league_data or {}
+
 # Funkcja pomocnicza do logowania bezpośrednio do pliku
 def log_to_file(message):
     """Loguje wiadomość bezpośrednio do pliku"""
@@ -680,13 +689,13 @@ def main():
         else:
             league_names_map = st.session_state.league_names_map
         
-        # Pobierz mecze z obu lig wraz z informacją o sezonie
+        # Pobierz mecze z obu lig wraz z informacją o sezonie (cache API na 5 min)
         all_fixtures = []
         current_season = None
         with st.spinner("Pobieranie meczów z lig..."):
             for league_id in TIPPER_LEAGUES:
                 try:
-                    league_data = client.get_league_fixtures(league_id)
+                    league_data = cached_get_league_fixtures(league_id, consumer_key, consumer_secret, access_token, access_token_secret)
                     if league_data and 'fixtures' in league_data:
                         fixtures = league_data['fixtures']
                         season = league_data.get('season')
@@ -710,6 +719,53 @@ def main():
         if not all_fixtures:
             st.error("❌ Nie udało się pobrać meczów z API")
             return
+        
+        # Zapisz/uzupełnij rundy i mecze w bazie (persistuj wyniki, aby nie pobierać ich za każdym razem)
+        try:
+            from collections import defaultdict
+            
+            def _parse_result_tuple(fx):
+                # Spróbuj różne pola
+                res = fx.get('result') or fx.get('score')
+                hg = fx.get('home_goals') or fx.get('homeGoals')
+                ag = fx.get('away_goals') or fx.get('awayGoals')
+                if hg is not None and ag is not None:
+                    return int(float(hg)), int(float(ag))
+                if isinstance(res, str) and '-' in res:
+                    try:
+                        a, b = res.replace(' ', '').split('-', 1)
+                        return int(a), int(b)
+                    except:
+                        return None, None
+                return None, None
+            
+            rounds_map = defaultdict(list)
+            for fx in all_fixtures:
+                match_dt = fx.get('match_date') or fx.get('date') or fx.get('matchDate')
+                if not match_dt:
+                    continue
+                round_date = str(match_dt).split(' ')[0]
+                round_id = f"round_{round_date}"
+                hg, ag = _parse_result_tuple(fx)
+                match_payload = {
+                    'match_id': str(fx.get('match_id') or fx.get('matchId') or ''),
+                    'home_team_name': fx.get('home_team_name') or fx.get('homeTeamName') or fx.get('home_team') or '',
+                    'away_team_name': fx.get('away_team_name') or fx.get('awayTeamName') or fx.get('away_team') or '',
+                    'match_date': match_dt,
+                }
+                if hg is not None and ag is not None:
+                    match_payload['home_goals'] = hg
+                    match_payload['away_goals'] = ag
+                rounds_map[round_id].append(match_payload)
+            
+            season_id = f"season_{current_season}" if current_season is not None else storage.get_current_season() or 'season_current'
+            for r_id, matches in rounds_map.items():
+                try:
+                    storage.add_round(season_id=season_id, round_id=r_id, matches=matches, start_date=r_id.replace('round_', '') + " 00:00:00")
+                except Exception as e:
+                    logger.warning(f"Nie udało się zapisać rundy {r_id}: {e}")
+        except Exception as e:
+            logger.warning(f"Persist rounds warning: {e}")
         
         # Jeśli nie znaleziono sezonu w meczach, spróbuj pobrać z get_league_details
         if current_season is None:
@@ -1645,6 +1701,8 @@ def main():
                                 total_saved = saved_count + updated_count
                                 
                                 if total_saved > 0:
+                                    # Zwiększ wersję danych, aby unieważnić cache
+                                    st.session_state['data_version'] = st.session_state.get('data_version', 0) + 1
                                     # Zapisz zmiany (dla JSON storage)
                                     if hasattr(storage, '_save_data'):
                                         storage._save_data()
@@ -1850,6 +1908,8 @@ def main():
                                     total_saved = saved_count + updated_count
                                     
                                     if total_saved > 0:
+                                        # Zwiększ wersję danych, aby unieważnić cache
+                                        st.session_state['data_version'] = st.session_state.get('data_version', 0) + 1
                                         # Zapisz zmiany (dla JSON storage)
                                         if hasattr(storage, '_save_data'):
                                             storage._save_data()
