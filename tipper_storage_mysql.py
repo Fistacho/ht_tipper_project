@@ -196,25 +196,23 @@ class TipperStorageMySQL:
                 is_aiven = 'aivencloud.com' in mysql_config['host'].lower()
                 
                 if is_aiven:
-                    # Dla Aiven używaj mysql-connector-python (obsługuje protokół MySQL 11 i SSL REQUIRED)
-                    import mysql.connector
-                    from mysql.connector import Error
-                    
-                    connection = mysql.connector.connect(
+                    # Dla Aiven użyj bezpośrednio CMySQLConnection (bez poolingu)
+                    from mysql.connector.connection_cext import CMySQLConnection
+                    connection = CMySQLConnection(
                         host=mysql_config['host'],
                         port=int(mysql_config['port']),
                         user=mysql_config['username'],
                         password=mysql_config['password'],
                         database=mysql_config['database'],
-                        charset='utf8mb4',
-                        ssl_disabled=False,  # SSL REQUIRED
-                        ssl_verify_cert=False,  # Nie weryfikuj certyfikatu
-                        ssl_verify_identity=False,  # Nie weryfikuj tożsamości
-                        use_unicode=True,
-                        allow_local_infile=True,
-                        connection_timeout=10,
-                        autocommit=True
+                        ssl_disabled=False,
+                        ssl_verify_cert=False,
+                        ssl_verify_identity=False,
                     )
+                    try:
+                        # Włącz autocommit, jeśli dostępne
+                        connection.autocommit = True
+                    except Exception:
+                        pass
                 else:
                     # Dla innych baz używaj pymysql
                     import pymysql
@@ -228,9 +226,9 @@ class TipperStorageMySQL:
                         charset='utf8mb4',
                         cursorclass=pymysql.cursors.DictCursor,
                         autocommit=True,
-                        connect_timeout=10,
-                        read_timeout=10,
-                        write_timeout=10
+                        connect_timeout=30,
+                        read_timeout=60,  # Zwiększony timeout dla długich zapytań
+                        write_timeout=60  # Zwiększony timeout dla długich zapytań
                     )
                 
                 # Użyj wrapper dla kompatybilności z st.connection
@@ -263,22 +261,22 @@ class TipperStorageMySQL:
                             
                             # Utwórz nowe połączenie (mysql-connector-python dla Aiven, pymysql dla innych)
                             if self.is_aiven:
-                                import mysql.connector
-                                new_conn = mysql.connector.connect(
+                                # Twórz połączenie bezpośrednio przez CMySQLConnection (bez poolingu)
+                                from mysql.connector.connection_cext import CMySQLConnection
+                                new_conn = CMySQLConnection(
                                     host=mysql_config['host'],
                                     port=int(mysql_config['port']),
                                     user=mysql_config['username'],
                                     password=mysql_config['password'],
                                     database=mysql_config['database'],
-                                    charset='utf8mb4',
                                     ssl_disabled=False,
                                     ssl_verify_cert=False,
                                     ssl_verify_identity=False,
-                                    use_unicode=True,
-                                    allow_local_infile=True,
-                                    connection_timeout=10,
-                                    autocommit=True
                                 )
+                                try:
+                                    new_conn.autocommit = True
+                                except Exception:
+                                    pass
                             else:
                                 import pymysql
                                 new_conn = pymysql.connect(
@@ -290,9 +288,9 @@ class TipperStorageMySQL:
                                     charset='utf8mb4',
                                     cursorclass=pymysql.cursors.DictCursor,
                                     autocommit=True,
-                                    connect_timeout=10,
-                                    read_timeout=10,
-                                    write_timeout=10
+                                    connect_timeout=30,
+                                    read_timeout=60,  # Zwiększony timeout dla długich zapytań
+                                    write_timeout=60  # Zwiększony timeout dla długich zapytań
                                 )
                             
                             self.conn = new_conn
@@ -342,8 +340,11 @@ class TipperStorageMySQL:
                             cursor = self.conn.cursor(dictionary=True) if self.is_aiven else self.conn.cursor()
                             cursor.execute(sql)
                             
-                            # Dla INSERT/UPDATE/DELETE nie ma wyników do pobrania
+                            # Dla INSERT/UPDATE/DELETE nie ma wyników do pobrania, ale trzeba commit
                             if sql.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
+                                # Commit jest potrzebny tylko jeśli autocommit=False
+                                if hasattr(self.conn, 'autocommit') and not self.conn.autocommit:
+                                    self.conn.commit()
                                 cursor.close()
                                 return pd.DataFrame()
                             
@@ -361,8 +362,11 @@ class TipperStorageMySQL:
                                     cursor = self.conn.cursor(dictionary=True) if self.is_aiven else self.conn.cursor()
                                     cursor.execute(sql)
                                     
-                                    # Dla INSERT/UPDATE/DELETE nie ma wyników do pobrania
+                                    # Dla INSERT/UPDATE/DELETE nie ma wyników do pobrania, ale trzeba commit
                                     if sql.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
+                                        # Commit jest potrzebny tylko jeśli autocommit=False
+                                        if hasattr(self.conn, 'autocommit') and not self.conn.autocommit:
+                                            self.conn.commit()
                                         cursor.close()
                                         return pd.DataFrame()
                                     
@@ -966,21 +970,26 @@ class TipperStorageMySQL:
             return True
         
         try:
+            # Escapuj wszystkie wartości dla SQL
+            player_name_escaped = player_name.replace("'", "''")
+            round_id_escaped = round_id.replace("'", "''")
+            
             # Upewnij się, że gracz istnieje (tylko raz)
             self.conn.query(
                 f"INSERT INTO players (player_name, total_points, rounds_played, best_score, worst_score) "
-                f"VALUES ('{player_name}', 0, 0, 0, 0) "
-                f"ON DUPLICATE KEY UPDATE player_name = '{player_name}'",
+                f"VALUES ('{player_name_escaped}', 0, 0, 0, 0) "
+                f"ON DUPLICATE KEY UPDATE player_name = '{player_name_escaped}'",
                 ttl=0
             )
             
             # Batch insert dla wszystkich typów
             timestamp = datetime.now().isoformat()
+            timestamp_escaped = timestamp.replace("'", "''")
             values_list = []
             for match_id, prediction in predictions.items():
                 match_id_escaped = match_id.replace("'", "''")
                 values_list.append(
-                    f"('{round_id}', '{player_name}', '{match_id_escaped}', {prediction[0]}, {prediction[1]}, '{timestamp}')"
+                    f"('{round_id_escaped}', '{player_name_escaped}', '{match_id_escaped}', {prediction[0]}, {prediction[1]}, '{timestamp_escaped}')"
                 )
             
             if values_list:
@@ -998,7 +1007,7 @@ class TipperStorageMySQL:
                 match_ids_str = "', '".join([mid.replace("'", "''") for mid in predictions.keys()])
                 matches_df = self.conn.query(
                     f"SELECT match_id, home_goals, away_goals FROM matches "
-                    f"WHERE match_id IN ('{match_ids_str}') AND round_id = '{round_id}' "
+                    f"WHERE match_id IN ('{match_ids_str}') AND round_id = '{round_id_escaped}' "
                     f"AND home_goals IS NOT NULL AND away_goals IS NOT NULL",
                     ttl=0
                 )
@@ -1016,7 +1025,7 @@ class TipperStorageMySQL:
                             points = Tipper.calculate_points(prediction, (home_goals, away_goals))
                             match_id_escaped = match_id.replace("'", "''")
                             points_values.append(
-                                f"('{round_id}', '{player_name}', '{match_id_escaped}', {points})"
+                                f"('{round_id_escaped}', '{player_name_escaped}', '{match_id_escaped}', {points})"
                             )
                     
                     if points_values:
@@ -1038,7 +1047,9 @@ class TipperStorageMySQL:
             return True
         except Exception as e:
             logger.error(f"Błąd dodawania typów: {e}")
-            return False
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise  # Rzuć wyjątek zamiast zwracać False, aby aplikacja mogła go obsłużyć
     
     def update_match_result(self, round_id: str, match_id: str, home_goals: int, away_goals: int):
         """Aktualizuje wynik meczu i przelicza punkty"""
