@@ -27,23 +27,28 @@ st.set_page_config(
 # Konfiguracja logowania
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 
-# Usuń istniejące handlery, jeśli są
+# Twarda konfiguracja logowania (wymuś handlery i rotację pliku)
 root_logger = logging.getLogger()
-for handler in root_logger.handlers[:]:
-    root_logger.removeHandler(handler)
+for h in root_logger.handlers[:]:
+    root_logger.removeHandler(h)
 
-# Konfiguruj logowanie z force=True (Python 3.8+)
+file_handler = RotatingFileHandler('tipper.log', maxBytes=1_000_000, backupCount=3, encoding='utf-8')
+stream_handler = logging.StreamHandler(sys.stdout)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('tipper.log', mode='a', encoding='utf-8'),
-        logging.StreamHandler(sys.stdout)
-    ],
+    handlers=[file_handler, stream_handler],
     force=True
 )
 logger = logging.getLogger(__name__)
+
+# Zapisz nieprzechwycone wyjątki do logów
+def _uncaught_excepthook(exc_type, exc, tb):
+    logging.getLogger("uncaught").exception("Uncaught exception", exc_info=(exc_type, exc, tb))
+sys.excepthook = _uncaught_excepthook
 
 # Funkcja pomocnicza do logowania bezpośrednio do pliku
 def log_to_file(message):

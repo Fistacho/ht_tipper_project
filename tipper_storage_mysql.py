@@ -18,7 +18,7 @@ class TipperStorageMySQL:
     # Cache w pamięci (współdzielony między instancjami)
     _memory_cache = None
     _cache_timestamp = None
-    _cache_ttl = 300  # Cache ważny przez 300 sekund (5 minut) - zwiększone dla lepszej wydajności na serwerze
+    _cache_ttl = 900  # Cache ważny przez 900 sekund (15 minut) dla mniejszej liczby odczytów do DB
     
     def __init__(self):
         """Inicjalizuje połączenie z bazą MySQL (używa współdzielonego połączenia z session_state)"""
@@ -196,9 +196,9 @@ class TipperStorageMySQL:
                 is_aiven = 'aivencloud.com' in mysql_config['host'].lower()
                 
                 if is_aiven:
-                    # Dla Aiven użyj bezpośrednio CMySQLConnection (bez poolingu)
-                    from mysql.connector.connection_cext import CMySQLConnection
-                    connection = CMySQLConnection(
+                    # Aiven: mysql-connector z krótką nazwą poola (unikamy błędu 'Pool name ... is too long')
+                    import mysql.connector
+                    connection = mysql.connector.connect(
                         host=mysql_config['host'],
                         port=int(mysql_config['port']),
                         user=mysql_config['username'],
@@ -207,12 +207,12 @@ class TipperStorageMySQL:
                         ssl_disabled=False,
                         ssl_verify_cert=False,
                         ssl_verify_identity=False,
+                        connection_timeout=30,
+                        autocommit=True,
+                        pool_name="htpool",
+                        pool_size=3,
+                        pool_reset_session=True
                     )
-                    try:
-                        # Włącz autocommit, jeśli dostępne
-                        connection.autocommit = True
-                    except Exception:
-                        pass
                 else:
                     # Dla innych baz używaj pymysql
                     import pymysql
@@ -261,9 +261,9 @@ class TipperStorageMySQL:
                             
                             # Utwórz nowe połączenie (mysql-connector-python dla Aiven, pymysql dla innych)
                             if self.is_aiven:
-                                # Twórz połączenie bezpośrednio przez CMySQLConnection (bez poolingu)
-                                from mysql.connector.connection_cext import CMySQLConnection
-                                new_conn = CMySQLConnection(
+                                # Odnów połączenie przez mysql-connector z krótkim pool_name
+                                import mysql.connector
+                                new_conn = mysql.connector.connect(
                                     host=mysql_config['host'],
                                     port=int(mysql_config['port']),
                                     user=mysql_config['username'],
@@ -272,11 +272,12 @@ class TipperStorageMySQL:
                                     ssl_disabled=False,
                                     ssl_verify_cert=False,
                                     ssl_verify_identity=False,
+                                    connection_timeout=30,
+                                    autocommit=True,
+                                    pool_name="htpool",
+                                    pool_size=3,
+                                    pool_reset_session=True
                                 )
-                                try:
-                                    new_conn.autocommit = True
-                                except Exception:
-                                    pass
                             else:
                                 import pymysql
                                 new_conn = pymysql.connect(
