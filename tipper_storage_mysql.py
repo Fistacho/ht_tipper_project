@@ -209,6 +209,7 @@ class TipperStorageMySQL:
                         ssl_verify_identity=False,
                         connection_timeout=30,
                         autocommit=True,
+                        use_pure=True,
                         pool_name="htpool",
                         pool_size=3,
                         pool_reset_session=True
@@ -274,6 +275,7 @@ class TipperStorageMySQL:
                                     ssl_verify_identity=False,
                                     connection_timeout=30,
                                     autocommit=True,
+                                    use_pure=True,
                                     pool_name="htpool",
                                     pool_size=3,
                                     pool_reset_session=True

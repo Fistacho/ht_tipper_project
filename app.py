@@ -28,6 +28,7 @@ st.set_page_config(
 import logging
 import sys
 from logging.handlers import RotatingFileHandler
+import faulthandler
 
 # Twarda konfiguracja logowania (wymuś handlery i rotację pliku)
 root_logger = logging.getLogger()
@@ -49,6 +50,13 @@ logger = logging.getLogger(__name__)
 def _uncaught_excepthook(exc_type, exc, tb):
     logging.getLogger("uncaught").exception("Uncaught exception", exc_info=(exc_type, exc, tb))
 sys.excepthook = _uncaught_excepthook
+
+# Włącz faulthandler także dla segmentacji i twardych padów
+try:
+    _fh = open('tipper_crash.log', 'a', encoding='utf-8')
+    faulthandler.enable(file=_fh, all_threads=True)
+except Exception:
+    pass
 
 # Funkcja pomocnicza do logowania bezpośrednio do pliku
 def log_to_file(message):
@@ -1618,12 +1626,21 @@ def main():
                                 
                                 # Zapisz wszystkie typy naraz (batch insert - szybsze)
                                 if valid_predictions:
-                                    if hasattr(storage, 'add_predictions_batch'):
-                                        storage.add_predictions_batch(round_id, player_name, valid_predictions)
-                                    else:
-                                        # Fallback dla JSON storage
-                                        for match_id, prediction in valid_predictions.items():
-                                            storage.add_prediction(round_id, player_name, match_id, prediction)
+                                    try:
+                                        log_to_file(f"save_clicked: start add_predictions_batch count={len(valid_predictions)} player={player_name} round={round_id}")
+                                        logger.info(f"DEBUG save: zapisuję {len(valid_predictions)} typów dla gracza {player_name} w rundzie {round_id}")
+                                        if hasattr(storage, 'add_predictions_batch'):
+                                            storage.add_predictions_batch(round_id, player_name, valid_predictions)
+                                        else:
+                                            # Fallback dla JSON storage
+                                            for match_id, prediction in valid_predictions.items():
+                                                storage.add_prediction(round_id, player_name, match_id, prediction)
+                                        log_to_file("save_clicked: add_predictions_batch done")
+                                    except Exception as e:
+                                        logger.exception(f"Błąd zapisu typów (single): {e}")
+                                        log_to_file(f"save_clicked: EXCEPTION {e}")
+                                        st.error(f"❌ Błąd zapisu typów: {e}")
+                                        return
                                 
                                 total_saved = saved_count + updated_count
                                 
@@ -1814,12 +1831,21 @@ def main():
                                     
                                     # Zapisz wszystkie typy naraz (batch insert - szybsze)
                                     if valid_predictions:
-                                        if hasattr(storage, 'add_predictions_batch'):
-                                            storage.add_predictions_batch(round_id, player_name, valid_predictions)
-                                        else:
-                                            # Fallback dla JSON storage
-                                            for match_id, prediction in valid_predictions.items():
-                                                storage.add_prediction(round_id, player_name, match_id, prediction)
+                                        try:
+                                            log_to_file(f"bulk_save: start add_predictions_batch count={len(valid_predictions)} player={player_name} round={round_id}")
+                                            logger.info(f"DEBUG bulk-save: zapisuję {len(valid_predictions)} typów dla gracza {player_name} w rundzie {round_id}")
+                                            if hasattr(storage, 'add_predictions_batch'):
+                                                storage.add_predictions_batch(round_id, player_name, valid_predictions)
+                                            else:
+                                                # Fallback dla JSON storage
+                                                for match_id, prediction in valid_predictions.items():
+                                                    storage.add_prediction(round_id, player_name, match_id, prediction)
+                                            log_to_file("bulk_save: add_predictions_batch done")
+                                        except Exception as e:
+                                            logger.exception(f"Błąd zapisu typów (bulk): {e}")
+                                            log_to_file(f"bulk_save: EXCEPTION {e}")
+                                            st.error(f"❌ Błąd zapisu typów: {e}")
+                                            return
                                     
                                     total_saved = saved_count + updated_count
                                     
