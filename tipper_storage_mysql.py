@@ -37,17 +37,25 @@ class TipperStorageMySQL:
                 if hasattr(test_conn, 'conn') and raw_conn:
                     # Sprawdź czy połączenie jest otwarte (bez wykonywania zapytania)
                     try:
-                        # Sprawdź czy połączenie jest otwarte
-                        if raw_conn.open:
+                        # Sprawdź czy połączenie jest aktywne (dla pymysql sprawdź .open, dla mysql-connector sprawdź .is_connected())
+                        is_open = False
+                        if hasattr(raw_conn, 'open'):
+                            is_open = raw_conn.open
+                        elif hasattr(raw_conn, 'is_connected'):
+                            is_open = raw_conn.is_connected()
+                        
+                        if is_open:
                             # Spróbuj wykonać proste zapytanie ping, aby sprawdzić czy połączenie działa
-                            raw_conn.ping(reconnect=False)
-                            logger.info("DEBUG: Używam istniejącego połączenia MySQL z session_state")
+                            if hasattr(raw_conn, 'ping'):
+                                raw_conn.ping(reconnect=False)
+                            elif hasattr(raw_conn, 'is_connected'):
+                                if not raw_conn.is_connected():
+                                    raise Exception("Połączenie nie jest aktywne")
                             self.conn = test_conn
                             self._init_database()
                             return
                         else:
                             # Połączenie zamknięte - zamknij i usuń z session_state
-                            logger.info("DEBUG: Istniejące połączenie MySQL jest zamknięte, zamykam i tworzę nowe")
                             try:
                                 raw_conn.close()
                             except:
@@ -58,7 +66,6 @@ class TipperStorageMySQL:
                                 del st.session_state[connection_raw_key]
                     except Exception as ping_error:
                         # Połączenie nie działa (ping nie powiódł się) - zamknij i usuń z session_state
-                        logger.info(f"DEBUG: Istniejące połączenie MySQL nie działa (ping failed: {ping_error}), zamykam i tworzę nowe")
                         try:
                             raw_conn.close()
                         except:
@@ -69,13 +76,11 @@ class TipperStorageMySQL:
                             del st.session_state[connection_raw_key]
                 else:
                     # Brak prawidłowego połączenia
-                    logger.info("DEBUG: Istniejące połączenie MySQL nie ma prawidłowej struktury, tworzę nowe")
                     if connection_key in st.session_state:
                         del st.session_state[connection_key]
                     if connection_raw_key in st.session_state:
                         del st.session_state[connection_raw_key]
             except Exception as e:
-                logger.info(f"DEBUG: Błąd sprawdzania istniejącego połączenia: {e}")
                 if connection_key in st.session_state:
                     del st.session_state[connection_key]
                 if connection_raw_key in st.session_state:
@@ -85,51 +90,35 @@ class TipperStorageMySQL:
                         pass
                     del st.session_state[connection_raw_key]
         
-        # Najpierw spróbuj odczytać z płaskich zmiennych (MYSQL_HOST, MYSQL_PORT, itd.)
+        # Kolejność odczytu konfiguracji (dla lokalnego rozwoju .env ma priorytet):
+        # 1. .env (dla lokalnego rozwoju - najwyższy priorytet)
+        # 2. .streamlit/secrets.toml (lokalny plik secrets)
+        # 3. Streamlit Secrets (dla Streamlit Cloud)
         mysql_config = None
         
+        # Metoda 1: Najpierw spróbuj z pliku .env (dla lokalnego rozwoju - najwyższy priorytet)
         try:
-            # Metoda 1: Płaskie zmienne w st.secrets (MYSQL_HOST, MYSQL_PORT, itd.)
-            if hasattr(st, 'secrets'):
-                try:
-                    mysql_host = getattr(st.secrets, 'MYSQL_HOST', None)
-                    mysql_port = getattr(st.secrets, 'MYSQL_PORT', None)
-                    mysql_database = getattr(st.secrets, 'MYSQL_DATABASE', None)
-                    mysql_username = getattr(st.secrets, 'MYSQL_USERNAME', None)
-                    mysql_password = getattr(st.secrets, 'MYSQL_PASSWORD', None)
-                    
-                    if all([mysql_host, mysql_database, mysql_username, mysql_password]):
-                        mysql_config = {
-                            'host': mysql_host,
-                            'port': int(mysql_port) if mysql_port else 3306,
-                            'database': mysql_database,
-                            'username': mysql_username,
-                            'password': mysql_password
-                        }
-                        logger.info("DEBUG: MySQL config odczytany z płaskich zmiennych w st.secrets")
-                except Exception as e:
-                    logger.info(f"DEBUG: Błąd odczytu MySQL z płaskich zmiennych: {e}")
+            from dotenv import load_dotenv
+            load_dotenv()
             
-            # Metoda 2: Sekcja [connections.mysql] (dla kompatybilności)
-            if not mysql_config or not all(mysql_config.values()):
-                try:
-                    if hasattr(st, 'secrets') and hasattr(st.secrets, 'connections'):
-                        mysql_obj = getattr(st.secrets.connections, 'mysql', None)
-                        if mysql_obj:
-                            mysql_config = {
-                                'host': getattr(mysql_obj, 'host', None),
-                                'port': getattr(mysql_obj, 'port', 3306),
-                                'database': getattr(mysql_obj, 'database', None),
-                                'username': getattr(mysql_obj, 'username', None),
-                                'password': getattr(mysql_obj, 'password', None)
-                            }
-                            logger.info("DEBUG: MySQL config odczytany z sekcji [connections.mysql]")
-                except Exception as e:
-                    logger.info(f"DEBUG: Błąd odczytu MySQL z sekcji: {e}")
+            mysql_host = os.getenv('MYSQL_HOST')
+            mysql_port = os.getenv('MYSQL_PORT')
+            mysql_database = os.getenv('MYSQL_DATABASE')
+            mysql_username = os.getenv('MYSQL_USERNAME')
+            mysql_password = os.getenv('MYSQL_PASSWORD')
+            
+            if all([mysql_host, mysql_database, mysql_username, mysql_password]):
+                mysql_config = {
+                    'host': mysql_host,
+                    'port': int(mysql_port) if mysql_port else 3306,
+                    'database': mysql_database,
+                    'username': mysql_username,
+                    'password': mysql_password
+                }
         except Exception as e:
-            logger.info(f"DEBUG: Błąd przy próbie odczytu secrets: {e}")
+            pass
         
-        # Jeśli nie ma w secrets, spróbuj z pliku secrets.toml (lokalnie)
+        # Metoda 2: Jeśli nie ma w .env, spróbuj z pliku secrets.toml (lokalnie)
         if not mysql_config or not all(mysql_config.values()):
             try:
                 import tomllib
@@ -147,55 +136,113 @@ class TipperStorageMySQL:
                             'username': secrets.get('MYSQL_USERNAME'),
                             'password': secrets.get('MYSQL_PASSWORD')
                         }
-                        logger.info("DEBUG: MySQL config odczytany z płaskich zmiennych w secrets.toml")
                     # Potem sekcja [connections.mysql]
                     elif 'connections' in secrets and 'mysql' in secrets['connections']:
                         mysql_config = secrets['connections']['mysql']
-                        logger.info("DEBUG: MySQL config odczytany z sekcji [connections.mysql] w secrets.toml")
             except Exception as e:
-                logger.info(f"DEBUG: Błąd odczytu z pliku secrets.toml: {e}")
+                pass
         
-        # Jeśli mamy konfigurację, połącz bezpośrednio przez pymysql
+        # Metoda 3: Jeśli nie ma w .env ani secrets.toml, spróbuj z Streamlit Secrets (dla Streamlit Cloud)
+        if not mysql_config or not all(mysql_config.values()):
+            try:
+                # Płaskie zmienne w st.secrets (MYSQL_HOST, MYSQL_PORT, itd.)
+                if hasattr(st, 'secrets'):
+                    try:
+                        mysql_host = getattr(st.secrets, 'MYSQL_HOST', None)
+                        mysql_port = getattr(st.secrets, 'MYSQL_PORT', None)
+                        mysql_database = getattr(st.secrets, 'MYSQL_DATABASE', None)
+                        mysql_username = getattr(st.secrets, 'MYSQL_USERNAME', None)
+                        mysql_password = getattr(st.secrets, 'MYSQL_PASSWORD', None)
+                        
+                        if all([mysql_host, mysql_database, mysql_username, mysql_password]):
+                            mysql_config = {
+                                'host': mysql_host,
+                                'port': int(mysql_port) if mysql_port else 3306,
+                                'database': mysql_database,
+                                'username': mysql_username,
+                                'password': mysql_password
+                            }
+                    except Exception as e:
+                        pass
+                
+                # Sekcja [connections.mysql] (dla kompatybilności)
+                if not mysql_config or not all(mysql_config.values()):
+                    try:
+                        if hasattr(st, 'secrets') and hasattr(st.secrets, 'connections'):
+                            mysql_obj = getattr(st.secrets.connections, 'mysql', None)
+                            if mysql_obj:
+                                mysql_config = {
+                                    'host': getattr(mysql_obj, 'host', None),
+                                    'port': getattr(mysql_obj, 'port', 3306),
+                                    'database': getattr(mysql_obj, 'database', None),
+                                    'username': getattr(mysql_obj, 'username', None),
+                                    'password': getattr(mysql_obj, 'password', None)
+                                }
+                    except Exception as e:
+                        pass
+            except Exception as e:
+                pass
+        
+        # Jeśli mamy konfigurację, połącz bezpośrednio przez mysql-connector-python (dla Aiven) lub pymysql (dla innych)
         if mysql_config and all(mysql_config.values()):
             try:
-                import pymysql
-                # Loguj konfigurację (bez hasła)
-                logger.info(f"DEBUG: Próba utworzenia nowego połączenia MySQL")
-                logger.info(f"DEBUG: Host: {mysql_config['host']}, Port: {mysql_config['port']}, Database: {mysql_config['database']}, User: {mysql_config['username']}")
-                
                 # Sprawdź czy wszystkie wymagane wartości są niepuste
                 if not mysql_config['host'] or not mysql_config['database'] or not mysql_config['username'] or not mysql_config['password']:
                     error_msg = "Brak wymaganych parametrów połączenia MySQL (host, database, username, password)"
                     logger.error(f"ERROR: {error_msg}")
                     raise ValueError(error_msg)
                 
-                # Połączenie z MySQL (pymysql z cryptography automatycznie obsługuje SSL dla Aiven)
-                # Zgodnie z instrukcją Aiven: pymysql + cryptography obsługuje protokół MySQL 11 i SSL
-                connection = pymysql.connect(
-                    host=mysql_config['host'],
-                    port=int(mysql_config['port']),
-                    user=mysql_config['username'],
-                    password=mysql_config['password'],
-                    database=mysql_config['database'],
-                    charset='utf8mb4',
-                    cursorclass=pymysql.cursors.DictCursor,
-                    autocommit=True,  # Włącz autocommit, aby uniknąć problemów z transakcjami
-                    connect_timeout=10,  # Timeout połączenia (sekundy) - zgodnie z instrukcją Aiven
-                    read_timeout=10,  # Timeout odczytu (sekundy) - zgodnie z instrukcją Aiven
-                    write_timeout=10  # Timeout zapisu (sekundy) - zgodnie z instrukcją Aiven
-                )
+                # Sprawdź czy to Aiven (host zawiera 'aivencloud.com')
+                is_aiven = 'aivencloud.com' in mysql_config['host'].lower()
+                
+                if is_aiven:
+                    # Dla Aiven używaj mysql-connector-python (obsługuje protokół MySQL 11 i SSL REQUIRED)
+                    import mysql.connector
+                    from mysql.connector import Error
+                    
+                    connection = mysql.connector.connect(
+                        host=mysql_config['host'],
+                        port=int(mysql_config['port']),
+                        user=mysql_config['username'],
+                        password=mysql_config['password'],
+                        database=mysql_config['database'],
+                        charset='utf8mb4',
+                        ssl_disabled=False,  # SSL REQUIRED
+                        ssl_verify_cert=False,  # Nie weryfikuj certyfikatu
+                        ssl_verify_identity=False,  # Nie weryfikuj tożsamości
+                        use_unicode=True,
+                        allow_local_infile=True,
+                        connection_timeout=10,
+                        autocommit=True
+                    )
+                else:
+                    # Dla innych baz używaj pymysql
+                    import pymysql
+                    
+                    connection = pymysql.connect(
+                        host=mysql_config['host'],
+                        port=int(mysql_config['port']),
+                        user=mysql_config['username'],
+                        password=mysql_config['password'],
+                        database=mysql_config['database'],
+                        charset='utf8mb4',
+                        cursorclass=pymysql.cursors.DictCursor,
+                        autocommit=True,
+                        connect_timeout=10,
+                        read_timeout=10,
+                        write_timeout=10
+                    )
                 
                 # Użyj wrapper dla kompatybilności z st.connection
                 class MySQLConnectionWrapper:
-                    def __init__(self, conn, mysql_config):
+                    def __init__(self, conn, mysql_config, is_aiven=False):
                         self.conn = conn
                         self.mysql_config = mysql_config
+                        self.is_aiven = is_aiven
                     
                     def _reconnect(self):
                         """Ponownie łączy się z bazą MySQL"""
-                        import pymysql
                         try:
-                            logger.info("DEBUG: Próba ponownego połączenia z MySQL")
                             # Zamknij stare połączenie
                             try:
                                 if self.conn and hasattr(self.conn, 'close'):
@@ -211,23 +258,42 @@ class TipperStorageMySQL:
                                     mysql_config = st.session_state[mysql_config_key]
                             
                             if not mysql_config:
-                                logger.error("DEBUG: Brak konfiguracji MySQL do ponownego połączenia")
+                                logger.error("Brak konfiguracji MySQL do ponownego połączenia")
                                 return False
                             
-                            # Utwórz nowe połączenie (pymysql z cryptography automatycznie obsługuje SSL dla Aiven)
-                            new_conn = pymysql.connect(
-                                host=mysql_config['host'],
-                                port=int(mysql_config['port']),
-                                user=mysql_config['username'],
-                                password=mysql_config['password'],
-                                database=mysql_config['database'],
-                                charset='utf8mb4',
-                                cursorclass=pymysql.cursors.DictCursor,
-                                autocommit=True,
-                                connect_timeout=10,  # Zgodnie z instrukcją Aiven
-                                read_timeout=10,  # Zgodnie z instrukcją Aiven
-                                write_timeout=10  # Zgodnie z instrukcją Aiven
-                            )
+                            # Utwórz nowe połączenie (mysql-connector-python dla Aiven, pymysql dla innych)
+                            if self.is_aiven:
+                                import mysql.connector
+                                new_conn = mysql.connector.connect(
+                                    host=mysql_config['host'],
+                                    port=int(mysql_config['port']),
+                                    user=mysql_config['username'],
+                                    password=mysql_config['password'],
+                                    database=mysql_config['database'],
+                                    charset='utf8mb4',
+                                    ssl_disabled=False,
+                                    ssl_verify_cert=False,
+                                    ssl_verify_identity=False,
+                                    use_unicode=True,
+                                    allow_local_infile=True,
+                                    connection_timeout=10,
+                                    autocommit=True
+                                )
+                            else:
+                                import pymysql
+                                new_conn = pymysql.connect(
+                                    host=mysql_config['host'],
+                                    port=int(mysql_config['port']),
+                                    user=mysql_config['username'],
+                                    password=mysql_config['password'],
+                                    database=mysql_config['database'],
+                                    charset='utf8mb4',
+                                    cursorclass=pymysql.cursors.DictCursor,
+                                    autocommit=True,
+                                    connect_timeout=10,
+                                    read_timeout=10,
+                                    write_timeout=10
+                                )
                             
                             self.conn = new_conn
                             # Zaktualizuj połączenie w session_state
@@ -235,10 +301,9 @@ class TipperStorageMySQL:
                             connection_raw_key = 'mysql_connection_raw'
                             st.session_state[connection_key] = self
                             st.session_state[connection_raw_key] = new_conn
-                            logger.info("DEBUG: Ponownie połączono z MySQL")
                             return True
                         except Exception as e:
-                            logger.error(f"DEBUG: Błąd ponownego połączenia z MySQL: {e}")
+                            logger.error(f"Błąd ponownego połączenia z MySQL: {e}")
                             import traceback
                             logger.error(f"Traceback: {traceback.format_exc()}")
                             return False
@@ -246,51 +311,54 @@ class TipperStorageMySQL:
                     def _check_connection(self):
                         """Sprawdza czy połączenie jest aktywne i ponownie łączy się jeśli potrzeba"""
                         try:
-                            # Sprawdź czy połączenie jest otwarte
-                            if not self.conn or not hasattr(self.conn, 'open') or not self.conn.open:
-                                logger.warning("DEBUG: Połączenie MySQL jest zamknięte, próba ponownego połączenia")
-                                return self._reconnect()
-                            
-                            # Sprawdź czy połączenie działa (ping)
-                            try:
-                                self.conn.ping(reconnect=False)
+                            if self.is_aiven:
+                                # Dla mysql-connector-python sprawdź czy połączenie jest aktywne
+                                if not self.conn or not self.conn.is_connected():
+                                    return self._reconnect()
                                 return True
-                            except:
-                                # Połączenie zerwane - spróbuj ponownie połączyć
-                                logger.warning("DEBUG: Połączenie MySQL nie odpowiada na ping, próba ponownego połączenia")
-                                return self._reconnect()
+                            else:
+                                # Dla pymysql sprawdź czy połączenie jest otwarte
+                                if not self.conn or not hasattr(self.conn, 'open') or not self.conn.open:
+                                    return self._reconnect()
+                                # Sprawdź czy połączenie działa (ping)
+                                try:
+                                    self.conn.ping(reconnect=False)
+                                    return True
+                                except:
+                                    return self._reconnect()
                         except Exception as e:
-                            logger.error(f"DEBUG: Błąd sprawdzania połączenia MySQL: {e}")
+                            logger.error(f"Błąd sprawdzania połączenia MySQL: {e}")
                             return self._reconnect()
                     
                     def query(self, sql, ttl=600):
                         import pandas as pd
-                        import pymysql
                         
                         # Sprawdź połączenie przed zapytaniem
                         if not self._check_connection():
-                            logger.error("DEBUG: Nie można połączyć się z MySQL, zwracam pusty DataFrame")
+                            logger.error("Nie można połączyć się z MySQL, zwracam pusty DataFrame")
                             return pd.DataFrame()
                         
                         try:
-                            with self.conn.cursor() as cursor:
-                                cursor.execute(sql)
-                                results = cursor.fetchall()
-                                if results:
-                                    return pd.DataFrame(results)
-                                return pd.DataFrame()
-                        except (pymysql.err.InterfaceError, pymysql.err.OperationalError) as e:
+                            cursor = self.conn.cursor(dictionary=True) if self.is_aiven else self.conn.cursor()
+                            cursor.execute(sql)
+                            results = cursor.fetchall()
+                            cursor.close()
+                            
+                            if results:
+                                return pd.DataFrame(results)
+                            return pd.DataFrame()
+                        except Exception as e:
                             # Połączenie zerwane - spróbuj ponownie połączyć i wykonać zapytanie
-                            logger.warning(f"DEBUG: Błąd połączenia MySQL ({type(e).__name__}): {e}, próba ponownego połączenia")
+                            logger.warning(f"Błąd połączenia MySQL ({type(e).__name__}): {e}, próba ponownego połączenia")
                             if self._reconnect():
                                 try:
-                                    # Spróbuj ponownie wykonać zapytanie
-                                    with self.conn.cursor() as cursor:
-                                        cursor.execute(sql)
-                                        results = cursor.fetchall()
-                                        if results:
-                                            return pd.DataFrame(results)
-                                        return pd.DataFrame()
+                                    cursor = self.conn.cursor(dictionary=True) if self.is_aiven else self.conn.cursor()
+                                    cursor.execute(sql)
+                                    results = cursor.fetchall()
+                                    cursor.close()
+                                    if results:
+                                        return pd.DataFrame(results)
+                                    return pd.DataFrame()
                                 except Exception as e2:
                                     logger.error(f"Błąd zapytania SQL po ponownym połączeniu: {e2}")
                                     logger.error(f"SQL: {sql[:200]}...")
@@ -299,43 +367,37 @@ class TipperStorageMySQL:
                                 logger.error(f"Błąd zapytania SQL (nie można ponownie połączyć): {e}")
                                 logger.error(f"SQL: {sql[:200]}...")
                                 return pd.DataFrame()
-                        except Exception as e:
-                            logger.error(f"Błąd zapytania SQL: {e}")
-                            logger.error(f"SQL: {sql[:200]}...")  # Loguj pierwsze 200 znaków SQL
-                            import traceback
-                            logger.error(f"Traceback: {traceback.format_exc()}")
-                            # Zwróć pusty DataFrame zamiast rzucać wyjątek
-                            return pd.DataFrame()
                 
                 # Zapisz połączenie w session_state, aby było współdzielone
-                wrapper = MySQLConnectionWrapper(connection, mysql_config)
+                wrapper = MySQLConnectionWrapper(connection, mysql_config, is_aiven=is_aiven)
                 st.session_state[connection_key] = wrapper
                 st.session_state[connection_raw_key] = connection  # Zapisz również surowe połączenie do sprawdzania
                 self.conn = wrapper
                 self._init_database()
-                logger.info(f"Połączono z bazą MySQL (bezpośrednio przez pymysql, współdzielone połączenie). Session ID: {id(st.session_state)}")
-            except pymysql.err.OperationalError as e:
-                # pymysql.err.OperationalError może mieć różne formaty
-                if len(e.args) >= 2:
-                    error_code, error_message = e.args[0], e.args[1]
-                elif len(e.args) == 1:
-                    error_code = 0
-                    error_message = str(e.args[0])
-                else:
-                    error_code = 0
-                    error_message = str(e)
-                
-                logger.error(f"Błąd operacyjny MySQL (kod: {error_code}): {error_message}")
-                logger.error(f"Host: {mysql_config.get('host', 'N/A')}, Port: {mysql_config.get('port', 'N/A')}, Database: {mysql_config.get('database', 'N/A')}, User: {mysql_config.get('username', 'N/A')}")
-                import traceback
-                logger.error(f"Traceback: {traceback.format_exc()}")
-                # Rzuć bardziej szczegółowy błąd
-                if error_code:
-                    raise pymysql.err.OperationalError(error_code, f"Błąd połączenia z MySQL: {error_message}. Sprawdź konfigurację w Streamlit Secrets.")
-                else:
-                    raise pymysql.err.OperationalError(0, f"Błąd połączenia z MySQL: {error_message}. Sprawdź konfigurację w Streamlit Secrets.")
             except Exception as e:
-                logger.error(f"Błąd połączenia z MySQL: {type(e).__name__}: {e}")
+                # Obsługa błędów dla obu bibliotek
+                if is_aiven:
+                    import mysql.connector
+                    if isinstance(e, mysql.connector.Error):
+                        error_msg = str(e)
+                    else:
+                        error_msg = f"{type(e).__name__}: {e}"
+                else:
+                    import pymysql
+                    if isinstance(e, pymysql.err.OperationalError):
+                        if len(e.args) >= 2:
+                            error_code, error_message = e.args[0], e.args[1]
+                        elif len(e.args) == 1:
+                            error_code = 0
+                            error_message = str(e.args[0])
+                        else:
+                            error_code = 0
+                            error_message = str(e)
+                        error_msg = f"Błąd operacyjny MySQL (kod: {error_code}): {error_message}"
+                    else:
+                        error_msg = f"{type(e).__name__}: {e}"
+                
+                logger.error(f"Błąd połączenia z MySQL: {error_msg}")
                 logger.error(f"Host: {mysql_config.get('host', 'N/A')}, Port: {mysql_config.get('port', 'N/A')}, Database: {mysql_config.get('database', 'N/A')}, User: {mysql_config.get('username', 'N/A')}")
                 import traceback
                 logger.error(f"Traceback: {traceback.format_exc()}")
@@ -343,14 +405,11 @@ class TipperStorageMySQL:
         else:
             # Fallback: spróbuj st.connection (ma wbudowany pooling)
             try:
-                logger.info("DEBUG: Brak konfiguracji MySQL w secrets, próba utworzenia połączenia przez st.connection('mysql')")
                 logger.warning("DEBUG: MySQL config nie znaleziony. Sprawdź Streamlit Secrets:")
                 logger.warning("DEBUG: Wymagane zmienne: MYSQL_HOST, MYSQL_PORT, MYSQL_DATABASE, MYSQL_USERNAME, MYSQL_PASSWORD")
                 logger.warning("DEBUG: LUB sekcja [connections.mysql] z polami: host, port, database, username, password")
                 self.conn = st.connection('mysql', type='sql')
-                logger.info("DEBUG: Połączenie MySQL utworzone przez st.connection()")
                 self._init_database()
-                logger.info("Połączono z bazą MySQL (przez st.connection)")
             except Exception as e:
                 error_msg = f"Błąd połączenia z MySQL przez st.connection: {e}"
                 logger.error(error_msg)
@@ -473,7 +532,6 @@ class TipperStorageMySQL:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """, ttl=0)
             
-            logger.info("Struktura bazy danych zainicjalizowana")
         except Exception as e:
             logger.error(f"Błąd inicjalizacji bazy danych: {e}")
             raise
@@ -500,7 +558,6 @@ class TipperStorageMySQL:
         if (TipperStorageMySQL._memory_cache is not None and 
             TipperStorageMySQL._cache_timestamp is not None and
             (current_time - TipperStorageMySQL._cache_timestamp) < TipperStorageMySQL._cache_ttl):
-            logger.info("DEBUG: Używam cache w pamięci (szybko)")
             # Sprawdź czy cache nie jest pusty (może być pusty po błędzie)
             if TipperStorageMySQL._memory_cache and len(TipperStorageMySQL._memory_cache.get('players', {})) > 0:
                 return TipperStorageMySQL._memory_cache
@@ -508,7 +565,6 @@ class TipperStorageMySQL:
                 logger.warning("DEBUG: Cache jest pusty lub nieprawidłowy, przeładowuję z bazy")
         
         # Cache wygasł lub nie istnieje - załaduj z bazy
-        logger.info("DEBUG: Ładuję dane z bazy MySQL (cache wygasł lub nie istnieje)")
         try:
             data = self._load_data()
             
@@ -524,7 +580,6 @@ class TipperStorageMySQL:
             if data and len(data.get('players', {})) > 0:
                 TipperStorageMySQL._memory_cache = data
                 TipperStorageMySQL._cache_timestamp = current_time
-                logger.info(f"DEBUG: Zaktualizowano cache - {len(data.get('players', {}))} graczy")
             else:
                 logger.error("DEBUG: Nie można załadować danych z bazy - zwracam pusty słownik")
                 # Jeśli cache był wcześniej wypełniony, zachowaj go (może być problem z połączeniem)
@@ -545,7 +600,6 @@ class TipperStorageMySQL:
     def _load_data(self) -> Dict:
         """Ładuje wszystkie dane z bazy MySQL do formatu JSON (bez cache) - zoptymalizowane z równoległymi zapytaniami"""
         try:
-            logger.info("DEBUG: _load_data() - rozpoczynam ładowanie danych z MySQL")
             data = {
                 'players': {},
                 'rounds': {},
@@ -557,7 +611,6 @@ class TipperStorageMySQL:
             # Równoległe ładowanie głównych tabel (players, leagues, seasons, rounds, settings)
             def load_players():
                 players_df = self.conn.query("SELECT * FROM players", ttl=0)
-                logger.info(f"DEBUG: load_players() - znaleziono {len(players_df)} graczy w bazie")
                 players_dict = {}
                 for _, row in players_df.iterrows():
                     players_dict[row['player_name']] = {
@@ -567,7 +620,6 @@ class TipperStorageMySQL:
                         'worst_score': int(row['worst_score']) if row['worst_score'] else 0,
                         'predictions': {}
                     }
-                logger.info(f"DEBUG: load_players() - zwracam {len(players_dict)} graczy")
                 return players_dict
             
             def load_leagues():
@@ -626,7 +678,6 @@ class TipperStorageMySQL:
             data['rounds'] = load_rounds()
             data['settings'] = load_settings()
             
-            logger.info(f"DEBUG: _load_data() - załadowano: {len(data['players'])} graczy, {len(data['rounds'])} rund, {len(data['leagues'])} lig, {len(data['seasons'])} sezonów")
             
             # Teraz załaduj dane dla rund (mecze, typy, punkty) - batch queries zamiast pętli + równoległe ładowanie
             if data['rounds']:
@@ -654,11 +705,9 @@ class TipperStorageMySQL:
                     return matches_dict
                 
                 def load_predictions():
-                    logger.info(f"DEBUG: load_predictions() - szukam typów dla rund: {round_ids[:5]}... (pokazuję pierwsze 5)")
                     all_predictions_df = self.conn.query(
                         f"SELECT * FROM predictions WHERE round_id IN ('{round_ids_str}')", ttl=0
                     )
-                    logger.info(f"DEBUG: load_predictions() - znaleziono {len(all_predictions_df)} typów w bazie")
                     predictions_dict = {}
                     for _, pred_row in all_predictions_df.iterrows():
                         round_id = pred_row['round_id']
@@ -674,7 +723,6 @@ class TipperStorageMySQL:
                             'away': int(pred_row['away_goals']),
                             'timestamp': pred_row['timestamp']
                         }
-                    logger.info(f"DEBUG: load_predictions() - zwracam typy dla {len(predictions_dict)} rund")
                     return predictions_dict
                 
                 def load_match_points():
@@ -700,14 +748,11 @@ class TipperStorageMySQL:
                 points_dict = load_match_points()
                 
                 # Połącz dane z rundami
-                logger.info(f"DEBUG: Łączę dane z rundami - {len(data['rounds'])} rund")
                 for round_id in data['rounds']:
                     if round_id in matches_dict:
                         data['rounds'][round_id]['matches'] = matches_dict[round_id]
-                        logger.info(f"DEBUG: Dodano {len(matches_dict[round_id])} meczów do rundy {round_id}")
                     if round_id in predictions_dict:
                         data['rounds'][round_id]['predictions'] = predictions_dict[round_id]
-                        logger.info(f"DEBUG: Dodano typy dla {len(predictions_dict[round_id])} graczy do rundy {round_id}")
                         # Dodaj typy do graczy
                         for player_name, player_predictions in predictions_dict[round_id].items():
                             if player_name in data['players']:
@@ -716,16 +761,11 @@ class TipperStorageMySQL:
                                 # player_predictions to dict {match_id: {home, away, timestamp}}
                                 for match_id, pred_data in player_predictions.items():
                                     data['players'][player_name]['predictions'][round_id][match_id] = pred_data
-                                logger.info(f"DEBUG: Dodano {len(player_predictions)} typów dla gracza {player_name} w rundzie {round_id}")
                             else:
                                 logger.warning(f"DEBUG: Gracz {player_name} nie istnieje w data['players']")
-                    else:
-                        logger.info(f"DEBUG: Brak typów dla rundy {round_id} w predictions_dict")
                     if round_id in points_dict:
                         data['rounds'][round_id]['match_points'] = points_dict[round_id]
-                        logger.info(f"DEBUG: Dodano punkty dla {len(points_dict[round_id])} graczy do rundy {round_id}")
             
-            logger.info(f"Załadowano dane z MySQL (zoptymalizowane): {len(data.get('players', {}))} graczy, {len(data.get('rounds', {}))} rund")
             return data
         except Exception as e:
             logger.error(f"Błąd ładowania danych z MySQL: {e}")
@@ -750,7 +790,6 @@ class TipperStorageMySQL:
         # Wyczyść cache, aby wymusić przeładowanie z bazy
         TipperStorageMySQL._memory_cache = None
         TipperStorageMySQL._cache_timestamp = None
-        logger.info("Przeładowano dane z MySQL (cache wyczyszczony)")
     
     def _save_data(self):
         """Zapisuje dane do bazy (dla kompatybilności - dane są zapisywane na bieżąco)"""
@@ -766,7 +805,6 @@ class TipperStorageMySQL:
     def _import_data_to_mysql(self, data: Dict):
         """Importuje dane JSON do MySQL"""
         try:
-            logger.info("Rozpoczynam import danych do MySQL...")
             
             # Import lig
             for league_id, league_data in data.get('leagues', {}).items():
@@ -834,7 +872,6 @@ class TipperStorageMySQL:
             # Przelicz całkowite punkty graczy
             self._recalculate_player_totals()
             
-            logger.info("Import danych do MySQL zakonczony pomyslnie!")
         except Exception as e:
             logger.error(f"Blad importu danych do MySQL: {e}")
             raise
@@ -850,7 +887,6 @@ class TipperStorageMySQL:
                 f"ON DUPLICATE KEY UPDATE league_name = '{final_league_name}'",
                 ttl=0
             )
-            logger.info(f"Dodano ligę: {league_id}")
         except Exception as e:
             logger.error(f"Błąd dodawania ligi: {e}")
     
@@ -866,7 +902,6 @@ class TipperStorageMySQL:
                 f"ON DUPLICATE KEY UPDATE league_id = '{league_id_str}', start_date = '{start_date or ''}', end_date = '{end_date or ''}'",
                 ttl=0
             )
-            logger.info(f"Dodano sezon: {season_id}")
         except Exception as e:
             logger.error(f"Błąd dodawania sezonu: {e}")
     
@@ -905,7 +940,6 @@ class TipperStorageMySQL:
                     ttl=0
                 )
             
-            logger.info(f"Dodano rundę: {round_id} z {len(matches)} meczami")
         except Exception as e:
             logger.error(f"Błąd dodawania rundy: {e}")
             raise
@@ -1031,7 +1065,6 @@ class TipperStorageMySQL:
             TipperStorageMySQL._memory_cache = None
             TipperStorageMySQL._cache_timestamp = None
             
-            logger.info(f"Zaktualizowano wynik meczu {match_id} w rundzie {round_id}")
         except Exception as e:
             logger.error(f"Błąd aktualizacji wyniku meczu: {e}")
     
@@ -1071,7 +1104,6 @@ class TipperStorageMySQL:
                     ttl=0
                 )
             
-            logger.info("Przeliczono całkowite punkty dla wszystkich graczy")
         except Exception as e:
             logger.error(f"Błąd przeliczania punktów: {e}")
     
@@ -1194,7 +1226,6 @@ class TipperStorageMySQL:
             # Wyczyść cache po zapisie
             TipperStorageMySQL._memory_cache = None
             TipperStorageMySQL._cache_timestamp = None
-            logger.info(f"Ustawiono aktualny sezon: {season_id}")
         except Exception as e:
             logger.error(f"Błąd ustawiania aktualnego sezonu: {e}")
     
@@ -1425,7 +1456,6 @@ class TipperStorageMySQL:
             TipperStorageMySQL._memory_cache = None
             TipperStorageMySQL._cache_timestamp = None
             
-            logger.info(f"Zapisano wybrane drużyny: {len(teams)}")
         except Exception as e:
             logger.error(f"Błąd zapisywania wybranych drużyn: {e}")
     
@@ -1477,7 +1507,6 @@ class TipperStorageMySQL:
             TipperStorageMySQL._memory_cache = None
             TipperStorageMySQL._cache_timestamp = None
             
-            logger.info(f"Zapisano wybrane ligi: {len(league_ids)}")
         except Exception as e:
             logger.error(f"Błąd zapisywania wybranych lig: {e}")
 

@@ -815,9 +815,6 @@ def main():
         
         all_team_names = sorted(list(teams_with_leagues.keys()))
         
-        # Przeładuj dane z pliku (aby mieć aktualne dane po restarcie)
-        storage.reload_data()
-        
         # Pobierz zapisane ustawienia
         selected_teams = storage.get_selected_teams()
         logger.info(f"DEBUG: Pobrano z bazy selected_teams: {len(selected_teams) if selected_teams else 0} drużyn")
@@ -1135,13 +1132,8 @@ def main():
                 
                 # Debug: sprawdź czy są gracze w bazie i czy runda istnieje
                 if not round_leaderboard:
-                    # Wymuś przeładowanie danych z bazy (wyczyść cache)
-                    if hasattr(storage, 'reload_data'):
-                        storage.reload_data()
-                    
                     # Sprawdź czy są gracze w bazie
                     all_players = list(storage.data.get('players', {}).keys())
-                    logger.info(f"DEBUG: Po przeładowaniu - graczy w storage.data: {len(all_players)}")
                     logger.info(f"DEBUG: Gracze: {all_players[:5]}...")
                     
                     if not all_players:
@@ -1661,8 +1653,22 @@ def main():
                                     if can_delete:
                                         # Usuń typ z storage
                                         try:
+                                            # Dla MySQL storage - usuń z bazy
+                                            if hasattr(storage, 'conn'):
+                                                storage.conn.query(
+                                                    f"DELETE FROM predictions WHERE round_id = '{round_id}' AND player_name = '{player_name}' AND match_id = '{match_id}'",
+                                                    ttl=0
+                                                )
+                                                storage.conn.query(
+                                                    f"DELETE FROM match_points WHERE round_id = '{round_id}' AND player_name = '{player_name}' AND match_id = '{match_id}'",
+                                                    ttl=0
+                                                )
+                                                # Przelicz całkowite punkty gracza
+                                                if hasattr(storage, '_recalculate_player_totals'):
+                                                    storage._recalculate_player_totals()
+                                                deleted_count += 1
                                             # Dla JSON storage - usuń z danych
-                                            if hasattr(storage, 'data') and isinstance(storage.data, dict):
+                                            elif hasattr(storage, 'data') and isinstance(storage.data, dict):
                                                 if round_id in storage.data.get('rounds', {}):
                                                     if 'predictions' in storage.data['rounds'][round_id]:
                                                         if player_name in storage.data['rounds'][round_id]['predictions']:
@@ -1697,10 +1703,6 @@ def main():
                                     # Zapisz zmiany
                                     if hasattr(storage, '_save_data'):
                                         storage._save_data()
-                                    # Wyczyść cache jeśli istnieje
-                                    if hasattr(storage, 'reload_data'):
-                                        storage.reload_data()
-                                    
                                     st.success(f"✅ Usunięto {deleted_count} typów")
                                     # Usuń klucze z session_state (zamiast modyfikować, co powoduje błąd)
                                     # Po rerun widgety będą miały puste wartości domyślne
