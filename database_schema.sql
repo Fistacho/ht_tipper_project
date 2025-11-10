@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS players (
     best_score INT DEFAULT 0,
     worst_score INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_players_total_points (total_points)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabela lig
@@ -36,6 +37,8 @@ CREATE TABLE IF NOT EXISTS rounds (
     start_date VARCHAR(50),
     end_date VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_rounds_season (season_id),
+    INDEX idx_rounds_season_date (season_id, start_date),
     FOREIGN KEY (season_id) REFERENCES seasons(season_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -50,6 +53,8 @@ CREATE TABLE IF NOT EXISTS matches (
     away_goals INT,
     league_id INT,
     PRIMARY KEY (match_id, round_id),
+    INDEX idx_matches_round (round_id),
+    INDEX idx_matches_round_date (round_id, match_date),
     FOREIGN KEY (round_id) REFERENCES rounds(round_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -68,6 +73,7 @@ CREATE TABLE IF NOT EXISTS predictions (
     INDEX idx_player_round (player_name, round_id),
     INDEX idx_round (round_id),
     INDEX idx_player (player_name),
+    INDEX idx_predictions_match (match_id),
     FOREIGN KEY (round_id) REFERENCES rounds(round_id) ON DELETE CASCADE,
     FOREIGN KEY (player_name) REFERENCES players(player_name) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -196,24 +196,38 @@ class TipperStorageMySQL:
                 is_aiven = 'aivencloud.com' in mysql_config['host'].lower()
                 
                 if is_aiven:
-                    # Aiven: mysql-connector z krótką nazwą poola (unikamy błędu 'Pool name ... is too long')
+                    # Aiven: preferuj pure-Python driver (bez C-extension), aby uniknąć crashy na Windows
                     import mysql.connector
-                    connection = mysql.connector.connect(
-                        host=mysql_config['host'],
-                        port=int(mysql_config['port']),
-                        user=mysql_config['username'],
-                        password=mysql_config['password'],
-                        database=mysql_config['database'],
-                        ssl_disabled=False,
-                        ssl_verify_cert=False,
-                        ssl_verify_identity=False,
-                        connection_timeout=30,
-                        autocommit=True,
-                        use_pure=True,
-                        pool_name="htpool",
-                        pool_size=3,
-                        pool_reset_session=True
-                    )
+                    try:
+                        connection = mysql.connector.connect(
+                            host=mysql_config['host'],
+                            port=int(mysql_config['port']),
+                            user=mysql_config['username'],
+                            password=mysql_config['password'],
+                            database=mysql_config['database'],
+                            use_pure=True,
+                            ssl_disabled=False,
+                            ssl_verify_cert=False,
+                            ssl_verify_identity=False,
+                            connection_timeout=30,
+                        )
+                    except Exception:
+                        # Ostateczny fallback: C-extension (może być niestabilny na Windows)
+                        from mysql.connector.connection_cext import CMySQLConnection
+                        connection = CMySQLConnection(
+                            host=mysql_config['host'],
+                            port=int(mysql_config['port']),
+                            user=mysql_config['username'],
+                            password=mysql_config['password'],
+                            database=mysql_config['database'],
+                            ssl_disabled=False,
+                            ssl_verify_cert=False,
+                            ssl_verify_identity=False,
+                        )
+                    try:
+                        connection.autocommit = True
+                    except Exception:
+                        pass
                 else:
                     # Dla innych baz używaj pymysql
                     import pymysql
@@ -238,13 +252,16 @@ class TipperStorageMySQL:
                         self.conn = conn
                         self.mysql_config = mysql_config
                         self.is_aiven = is_aiven
+                        # Prosty cache zapytań SQL (klucz: sql string) → (timestamp, pandas.DataFrame)
+                        self._sql_cache = {}
                     
                     def _reconnect(self):
                         """Ponownie łączy się z bazą MySQL"""
+                        import time
                         try:
                             # Zamknij stare połączenie
                             try:
-                                if self.conn and hasattr(self.conn, 'close'):
+                                if getattr(self, 'conn', None) and hasattr(self.conn, 'close'):
                                     self.conn.close()
                             except:
                                 pass
@@ -261,40 +278,65 @@ class TipperStorageMySQL:
                                 return False
                             
                             # Utwórz nowe połączenie (mysql-connector-python dla Aiven, pymysql dla innych)
-                            if self.is_aiven:
-                                # Odnów połączenie przez mysql-connector z krótkim pool_name
-                                import mysql.connector
-                                new_conn = mysql.connector.connect(
-                                    host=mysql_config['host'],
-                                    port=int(mysql_config['port']),
-                                    user=mysql_config['username'],
-                                    password=mysql_config['password'],
-                                    database=mysql_config['database'],
-                                    ssl_disabled=False,
-                                    ssl_verify_cert=False,
-                                    ssl_verify_identity=False,
-                                    connection_timeout=30,
-                                    autocommit=True,
-                                    use_pure=True,
-                                    pool_name="htpool",
-                                    pool_size=3,
-                                    pool_reset_session=True
-                                )
-                            else:
-                                import pymysql
-                                new_conn = pymysql.connect(
-                                    host=mysql_config['host'],
-                                    port=int(mysql_config['port']),
-                                    user=mysql_config['username'],
-                                    password=mysql_config['password'],
-                                    database=mysql_config['database'],
-                                    charset='utf8mb4',
-                                    cursorclass=pymysql.cursors.DictCursor,
-                                    autocommit=True,
-                                    connect_timeout=30,
-                                    read_timeout=60,  # Zwiększony timeout dla długich zapytań
-                                    write_timeout=60  # Zwiększony timeout dla długich zapytań
-                                )
+                            attempt = 0
+                            new_conn = None
+                            while attempt < 2 and new_conn is None:
+                                try:
+                                    if self.is_aiven:
+                                        # Reconnect: preferuj pure-Python driver
+                                        import mysql.connector
+                                        try:
+                                            new_conn = mysql.connector.connect(
+                                                host=mysql_config['host'],
+                                                port=int(mysql_config['port']),
+                                                user=mysql_config['username'],
+                                                password=mysql_config['password'],
+                                                database=mysql_config['database'],
+                                                use_pure=True,
+                                                ssl_disabled=False,
+                                                ssl_verify_cert=False,
+                                                ssl_verify_identity=False,
+                                                connection_timeout=30,
+                                            )
+                                        except Exception:
+                                            # Ostateczny fallback: C-extension (może być niestabilny na Windows)
+                                            from mysql.connector.connection_cext import CMySQLConnection
+                                            new_conn = CMySQLConnection(
+                                                host=mysql_config['host'],
+                                                port=int(mysql_config['port']),
+                                                user=mysql_config['username'],
+                                                password=mysql_config['password'],
+                                                database=mysql_config['database'],
+                                                ssl_disabled=False,
+                                                ssl_verify_cert=False,
+                                                ssl_verify_identity=False,
+                                            )
+                                        try:
+                                            new_conn.autocommit = True
+                                        except Exception:
+                                            pass
+                                    else:
+                                        import pymysql
+                                        new_conn = pymysql.connect(
+                                            host=mysql_config['host'],
+                                            port=int(mysql_config['port']),
+                                            user=mysql_config['username'],
+                                            password=mysql_config['password'],
+                                            database=mysql_config['database'],
+                                            charset='utf8mb4',
+                                            cursorclass=pymysql.cursors.DictCursor,
+                                            autocommit=True,
+                                            connect_timeout=30,
+                                            read_timeout=60,
+                                            write_timeout=60
+                                        )
+                                except Exception as e:
+                                    attempt += 1
+                                    logger.error(f"Błąd ponownego połączenia z MySQL: {e}")
+                                    time.sleep(0.4 * attempt)
+                            
+                            if new_conn is None:
+                                return False
                             
                             self.conn = new_conn
                             # Zaktualizuj połączenie w session_state
@@ -314,12 +356,12 @@ class TipperStorageMySQL:
                         try:
                             if self.is_aiven:
                                 # Dla mysql-connector-python sprawdź czy połączenie jest aktywne
-                                if not self.conn or not self.conn.is_connected():
+                                if self.conn is None or not hasattr(self.conn, 'is_connected') or not self.conn.is_connected():
                                     return self._reconnect()
                                 return True
                             else:
                                 # Dla pymysql sprawdź czy połączenie jest otwarte
-                                if not self.conn or not hasattr(self.conn, 'open') or not self.conn.open:
+                                if self.conn is None or not hasattr(self.conn, 'open') or not self.conn.open:
                                     return self._reconnect()
                                 # Sprawdź czy połączenie działa (ping)
                                 try:
@@ -333,6 +375,7 @@ class TipperStorageMySQL:
                     
                     def query(self, sql, ttl=600):
                         import pandas as pd
+                        import time
                         
                         # Sprawdź połączenie przed zapytaniem
                         if not self._check_connection():
@@ -340,11 +383,19 @@ class TipperStorageMySQL:
                             return pd.DataFrame()
                         
                         try:
+                            # Prosty cache zapytań SELECT
+                            sql_upper = sql.strip().upper()
+                            if ttl and ttl > 0 and not sql_upper.startswith(('INSERT', 'UPDATE', 'DELETE')):
+                                cached = self._sql_cache.get(sql)
+                                now = time.time()
+                                if cached and (now - cached[0] < ttl):
+                                    return cached[1]
+                            
                             cursor = self.conn.cursor(dictionary=True) if self.is_aiven else self.conn.cursor()
                             cursor.execute(sql)
                             
                             # Dla INSERT/UPDATE/DELETE nie ma wyników do pobrania, ale trzeba commit
-                            if sql.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
+                            if sql_upper.startswith(('INSERT', 'UPDATE', 'DELETE')):
                                 # Commit jest potrzebny tylko jeśli autocommit=False
                                 if hasattr(self.conn, 'autocommit') and not self.conn.autocommit:
                                     self.conn.commit()
@@ -354,9 +405,10 @@ class TipperStorageMySQL:
                             results = cursor.fetchall()
                             cursor.close()
                             
-                            if results:
-                                return pd.DataFrame(results)
-                            return pd.DataFrame()
+                            df = pd.DataFrame(results) if results else pd.DataFrame()
+                            if ttl and ttl > 0 and not sql_upper.startswith(('INSERT', 'UPDATE', 'DELETE')):
+                                self._sql_cache[sql] = (time.time(), df)
+                            return df
                         except Exception as e:
                             # Połączenie zerwane - spróbuj ponownie połączyć i wykonać zapytanie
                             logger.warning(f"Błąd połączenia MySQL ({type(e).__name__}): {e}, próba ponownego połączenia")
@@ -366,7 +418,7 @@ class TipperStorageMySQL:
                                     cursor.execute(sql)
                                     
                                     # Dla INSERT/UPDATE/DELETE nie ma wyników do pobrania, ale trzeba commit
-                                    if sql.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
+                                    if sql_upper.startswith(('INSERT', 'UPDATE', 'DELETE')):
                                         # Commit jest potrzebny tylko jeśli autocommit=False
                                         if hasattr(self.conn, 'autocommit') and not self.conn.autocommit:
                                             self.conn.commit()
@@ -375,9 +427,10 @@ class TipperStorageMySQL:
                                     
                                     results = cursor.fetchall()
                                     cursor.close()
-                                    if results:
-                                        return pd.DataFrame(results)
-                                    return pd.DataFrame()
+                                    df = pd.DataFrame(results) if results else pd.DataFrame()
+                                    if ttl and ttl > 0 and not sql_upper.startswith(('INSERT', 'UPDATE', 'DELETE')):
+                                        self._sql_cache[sql] = (time.time(), df)
+                                    return df
                                 except Exception as e2:
                                     logger.error(f"Błąd zapytania SQL po ponownym połączeniu: {e2}")
                                     logger.error(f"SQL: {sql[:200]}...")
@@ -482,9 +535,35 @@ class TipperStorageMySQL:
                     start_date VARCHAR(50),
                     end_date VARCHAR(50),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    -- Status rundy (opcjonalne kolumny; zostaną dodane przez ALTER jeśli brak)
+                    -- is_current: 1 = runda bieżąca/aktywna, 0 = nieaktywna
+                    -- is_archival: 1 = runda zamknięta/archiwalna (wszystkie mecze mają wyniki)
                     FOREIGN KEY (season_id) REFERENCES seasons(season_id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """, ttl=0)
+            
+            # Dodaj kolumny statusu, jeśli nie istnieją (kompatybilne z MySQL 5.7/8.0)
+            try:
+                cols_df = self.conn.query(
+                    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+                    "WHERE TABLE_NAME = 'rounds' AND COLUMN_NAME IN ('is_current','is_archival')",
+                    ttl=0
+                )
+                existing = set([str(row['COLUMN_NAME']) for _, row in cols_df.iterrows()]) if not cols_df.empty else set()
+                if 'is_current' not in existing:
+                    self.conn.query("ALTER TABLE rounds ADD COLUMN is_current TINYINT(1) NOT NULL DEFAULT 1", ttl=0)
+                if 'is_archival' not in existing:
+                    self.conn.query("ALTER TABLE rounds ADD COLUMN is_archival TINYINT(1) NOT NULL DEFAULT 0", ttl=0)
+            except Exception as _:
+                # Jeśli nie mamy uprawnień do information_schema, spróbuj dodać wprost i zignoruj błędy 'Duplicate column'
+                try:
+                    self.conn.query("ALTER TABLE rounds ADD COLUMN is_current TINYINT(1) NOT NULL DEFAULT 1", ttl=0)
+                except Exception:
+                    pass
+                try:
+                    self.conn.query("ALTER TABLE rounds ADD COLUMN is_archival TINYINT(1) NOT NULL DEFAULT 0", ttl=0)
+                except Exception:
+                    pass
             
             # Tabela meczów
             self.conn.query("""
@@ -935,8 +1014,8 @@ class TipperStorageMySQL:
             
             # Dodaj rundę
             self.conn.query(
-                f"INSERT INTO rounds (round_id, season_id, start_date, end_date) "
-                f"VALUES ('{round_id}', '{season_id}', '{start_date or ''}', '{start_date or ''}') "
+                f"INSERT INTO rounds (round_id, season_id, start_date, end_date, is_current, is_archival) "
+                f"VALUES ('{round_id}', '{season_id}', '{start_date or ''}', '{start_date or ''}', 1, 0) "
                 f"ON DUPLICATE KEY UPDATE season_id = '{season_id}', start_date = '{start_date or ''}', end_date = '{start_date or ''}'",
                 ttl=0
             )
@@ -958,6 +1037,24 @@ class TipperStorageMySQL:
                     f"match_date = '{match_date}', home_goals = {home_goals}, away_goals = {away_goals}, league_id = {league_id}",
                     ttl=0
                 )
+            
+            # Jeżeli choć jeden mecz bez wyniku → runda bieżąca; jeśli wszystkie mają wynik → archiwalna
+            try:
+                check_df = self.conn.query(
+                    f"SELECT COUNT(*) AS pending FROM matches WHERE round_id = '{round_id}' "
+                    f"AND (home_goals IS NULL OR away_goals IS NULL)", ttl=0
+                )
+                pending = int(check_df.iloc[0]['pending']) if not check_df.empty else 0
+                if pending > 0:
+                    self.conn.query(
+                        f"UPDATE rounds SET is_current = 1, is_archival = 0 WHERE round_id = '{round_id}'", ttl=0
+                    )
+                else:
+                    self.conn.query(
+                        f"UPDATE rounds SET is_current = 0, is_archival = 1 WHERE round_id = '{round_id}'", ttl=0
+                    )
+            except Exception:
+                pass
             
         except Exception as e:
             logger.error(f"Błąd dodawania rundy: {e}")
@@ -1086,6 +1183,24 @@ class TipperStorageMySQL:
             
             # Przelicz całkowite punkty graczy
             self._recalculate_player_totals()
+            
+            # Zaktualizuj status rundy: jeśli wszystkie mecze mają wynik → archiwalna
+            try:
+                check_df = self.conn.query(
+                    f"SELECT COUNT(*) AS pending FROM matches WHERE round_id = '{round_id}' "
+                    f"AND (home_goals IS NULL OR away_goals IS NULL)", ttl=0
+                )
+                pending = int(check_df.iloc[0]['pending']) if not check_df.empty else 0
+                if pending == 0:
+                    self.conn.query(
+                        f"UPDATE rounds SET is_current = 0, is_archival = 1 WHERE round_id = '{round_id}'", ttl=0
+                    )
+                else:
+                    self.conn.query(
+                        f"UPDATE rounds SET is_current = 1, is_archival = 0 WHERE round_id = '{round_id}'", ttl=0
+                    )
+            except Exception:
+                pass
             
             # Wyczyść cache po zapisie
             TipperStorageMySQL._memory_cache = None

@@ -117,6 +117,25 @@ def safe_int(value, default=0):
         return default
 
 
+# Cache: rankingi i typy (cache zależny od sezonu/rundy i wersji danych)
+@st.cache_data(ttl=180, show_spinner=False)
+def cached_overall_leaderboard(season_id: str, exclude_worst: bool, data_version: int):
+    storage = st.session_state.get('shared_storage')
+    return storage.get_leaderboard(exclude_worst=exclude_worst, season_id=season_id)
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def cached_round_leaderboard(round_id: str, data_version: int):
+    storage = st.session_state.get('shared_storage')
+    return storage.get_round_leaderboard(round_id)
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def cached_player_predictions(player_name: str, round_id: str, data_version: int):
+    storage = st.session_state.get('shared_storage')
+    return storage.get_player_predictions(player_name, round_id, use_cache=True)
+
+
 def main():
     """Główna funkcja aplikacji typera"""
     # Sprawdź autentykację
@@ -714,32 +733,108 @@ def main():
         else:
             league_names_map = st.session_state.league_names_map
         
-        # Pobierz mecze z obu lig wraz z informacją o sezonie (cache API na 5 min)
+        # Pobierz mecze z obu lig wraz z informacją o sezonie – najpierw DB-first, potem ewentualnie API
         all_fixtures = []
         current_season = None
-        with st.spinner("Pobieranie meczów z lig..."):
-            for league_id in TIPPER_LEAGUES:
-                try:
-                    league_data = cached_get_league_fixtures(league_id, consumer_key, consumer_secret, access_token, access_token_secret)
-                    if league_data and 'fixtures' in league_data:
-                        fixtures = league_data['fixtures']
-                        season = league_data.get('season')
+        skip_api = False
+
+        # 0) DB-first: jeśli mamy MySQL i w bazie są już mecze dla wybranego sezonu – użyj ich (bez API)
+        try:
+            if hasattr(storage, 'conn'):
+                # Ustal sezon z filtra jeśli dostępny
+                selected_season_id = st.session_state.get("selected_season_id")
+                if not selected_season_id:
+                    # Spróbuj z storage
+                    selected_season_id = storage.get_current_season()
+
+                if selected_season_id:
+                    db_df = storage.conn.query(
+                        f"""
+                        SELECT m.match_id, m.round_id, m.home_team_name, m.away_team_name,
+                               m.match_date, m.home_goals, m.away_goals, m.league_id,
+                               r.season_id
+                        FROM matches m
+                        INNER JOIN rounds r ON r.round_id = m.round_id
+                        WHERE r.season_id = '{selected_season_id}'
+                        ORDER BY m.match_date ASC
+                        """,
+                        ttl=0
+                    )
+                    if not db_df.empty:
+                        for _, row in db_df.iterrows():
+                            all_fixtures.append({
+                                'match_id': str(row['match_id']),
+                                'round_id': row['round_id'],
+                                'home_team_name': row['home_team_name'],
+                                'away_team_name': row['away_team_name'],
+                                'match_date': row['match_date'],
+                                'home_goals': row.get('home_goals'),
+                                'away_goals': row.get('away_goals'),
+                                'league_id': row.get('league_id'),
+                                'season': str(row.get('season_id')).replace('season_', '') if row.get('season_id') else None,
+                            })
+                        # Wyciągnij numer sezonu z season_id
+                        if selected_season_id and str(selected_season_id).startswith('season_'):
+                            try:
+                                current_season = int(str(selected_season_id).replace('season_', ''))
+                            except Exception:
+                                current_season = None
+                        skip_api = True
+                        st.session_state["all_fixtures_cache"] = all_fixtures
+                        if current_season is not None:
+                            st.session_state["fixtures_season"] = current_season
+                        logger.info("DEBUG: Używam fixtures z DB (DB-first) dla wybranego sezonu")
+        except Exception as e:
+            logger.warning(f"DB-first fixtures warning: {e}")
+
+        # 1) Cache sesji – jeśli mamy i pasuje do wybranego sezonu, użyj zamiast API
+        # Spróbuj użyć cache sesji (nie wołaj API przy każdym rerunie)
+        cached_fixtures = st.session_state.get("all_fixtures_cache")
+        cached_season = st.session_state.get("fixtures_season")
+        selected_season_from_filter = st.session_state.get("selected_season_id")
+        selected_season_num = None
+        if selected_season_from_filter and str(selected_season_from_filter).startswith("season_"):
+            try:
+                selected_season_num = int(str(selected_season_from_filter).replace("season_", ""))
+            except Exception:
+                selected_season_num = None
+        
+        if not skip_api and cached_fixtures and cached_season and (selected_season_num is None or cached_season == selected_season_num):
+            # Użyj danych z cache sesji
+            all_fixtures = cached_fixtures
+            current_season = cached_season
+            logger.info("DEBUG: Używam fixtures z cache sesji (bez odpytywania API)")
+        elif not skip_api:
+            # Brak w cache – jednorazowo pobierz z API i zapisz do cache sesji
+            with st.spinner("Pobieranie meczów z lig..."):
+                for league_id in TIPPER_LEAGUES:
+                    try:
+                        league_data = cached_get_league_fixtures(league_id, consumer_key, consumer_secret, access_token, access_token_secret)
+                        fixtures = []
+                        season = None
+                        if league_data and 'fixtures' in league_data:
+                            fixtures = league_data['fixtures']
+                            season = league_data.get('season')
                         
                         # Zapisz sezon (użyj pierwszego znalezionego sezonu)
                         if season and current_season is None:
                             current_season = season
                         
-                    if fixtures:
-                        # Dodaj informację o lidze i sezonie
-                        for fixture in fixtures:
-                            fixture['league_id'] = league_id
-                            if season:
-                                fixture['season'] = season
-                        all_fixtures.extend(fixtures)
-                        logger.info(f"Pobrano {len(fixtures)} meczów z ligi {league_id}, sezon: {season}")
-                except Exception as e:
-                    logger.error(f"Błąd pobierania meczów z ligi {league_id}: {e}")
-                    st.warning(f"⚠️ Nie udało się pobrać meczów z ligi {league_id}: {e}")
+                        if fixtures:
+                            # Dodaj informację o lidze i sezonie
+                            for fixture in fixtures:
+                                fixture['league_id'] = league_id
+                                if season:
+                                    fixture['season'] = season
+                            all_fixtures.extend(fixtures)
+                            logger.info(f"Pobrano {len(fixtures)} meczów z ligi {league_id}, sezon: {season}")
+                    except Exception as e:
+                        logger.error(f"Błąd pobierania meczów z ligi {league_id}: {e}")
+                        st.warning(f"⚠️ Nie udało się pobrać meczów z ligi {league_id}: {e}")
+            # Zapisz jednorazowo w cache sesji (by nie pytać API przy następnym rerunie)
+            if all_fixtures and current_season is not None:
+                st.session_state["all_fixtures_cache"] = all_fixtures
+                st.session_state["fixtures_season"] = current_season
         
         if not all_fixtures:
             st.error("❌ Nie udało się pobrać meczów z API")
@@ -1104,7 +1199,11 @@ def main():
             exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza", value=True, key="exclude_worst_overall")
             # Użyj wybranego sezonu z filtra
             selected_season_id = st.session_state.get('selected_season_id', season_id)
-            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst, season_id=selected_season_id)
+            leaderboard = cached_overall_leaderboard(
+                selected_season_id,
+                exclude_worst,
+                st.session_state.get('data_version', 0)
+            )
             
             if leaderboard:
                 # Przygotuj dane do wyświetlenia
@@ -1245,8 +1344,11 @@ def main():
                     selected_season_id = st.session_state.get('selected_season_id', season_id)
                     storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
                 
-                # Ranking dla wybranej rundy
-                round_leaderboard = storage.get_round_leaderboard(round_id)
+                # Ranking dla wybranej rundy (cache)
+                round_leaderboard = cached_round_leaderboard(
+                    round_id,
+                    st.session_state.get('data_version', 0)
+                )
                 
                 # Debug: sprawdź czy są gracze w bazie i czy runda istnieje
                 if not round_leaderboard:
@@ -1315,7 +1417,9 @@ def main():
                     st.markdown("### 📋 Szczegóły typów")
                     for player in round_leaderboard:
                         player_name = player['player_name']
-                        player_predictions = storage.get_player_predictions(player_name, round_id)
+                        player_predictions = cached_player_predictions(
+                            player_name, round_id, st.session_state.get('data_version', 0)
+                        )
                         
                         if player_predictions:
                             # Sortuj mecze według daty
@@ -1431,6 +1535,15 @@ def main():
         
         if selected_round_idx is not None:
             selected_round_date, selected_matches = filtered_rounds[selected_round_idx]
+            # Posortuj mecze: najpierw liga 32612, potem 9399, następnie reszta
+            try:
+                _prio = {32612: 0, 9399: 1}
+                selected_matches = sorted(
+                    selected_matches,
+                    key=lambda m: (_prio.get(m.get('league_id'), 2), m.get('match_date', ''))
+                )
+            except Exception:
+                pass
             round_number = date_to_round_number[selected_round_date]  # Numer kolejki według daty asc (1 = najstarsza)
             round_id = f"round_{selected_round_date}"
             
@@ -1474,11 +1587,6 @@ def main():
                 status = "⏳ Oczekuje"
                 if home_goals is not None and away_goals is not None:
                     status = f"✅ {safe_int(home_goals)}-{safe_int(away_goals)}"
-                    # Aktualizuj wynik w storage
-                    try:
-                        storage.update_match_result(round_id, match_id, safe_int(home_goals), safe_int(away_goals))
-                    except:
-                        pass
                 else:
                     try:
                         match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
@@ -1549,8 +1657,9 @@ def main():
             if not all_players_list:
                 st.info("📊 Brak graczy. Dodaj nowego gracza.")
             else:
-                # Wyświetl sekcję dla każdego gracza
-                for player_name in all_players_list:
+                # Szybki wybór jednego gracza do edycji (ogranicza liczbę widgetów i przyspiesza render)
+                player_name = st.selectbox("Wybierz gracza do edycji", all_players_list, key="tipper_player_select", index=0)
+                if player_name:
                     # Pobierz istniejące typy gracza dla tej rundy (zawsze bezpośrednio z bazy, ttl=0)
                     existing_predictions = storage.get_player_predictions(player_name, round_id)
                     
