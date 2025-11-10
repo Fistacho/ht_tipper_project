@@ -859,24 +859,47 @@ def main():
             st.subheader("⚙️ Wybór drużyn do typowania")
             st.markdown("*Zaznacz drużyny, które chcesz uwzględnić w typerze*")
             
-            # Użyj checkboxów dla wyboru drużyn (z informacją o lidze)
-            new_selected_teams = []
+            # Użyj formularza aby uniknąć automatycznego rerun przy zmianie checkboxów
+            with st.form("team_selection_form", clear_on_submit=False):
+                # Użyj checkboxów dla wyboru drużyn (z informacją o lidze)
+                new_selected_teams = []
+                
+                for team_name in all_team_names:
+                    league_name = teams_with_leagues.get(team_name, "?")
+                    team_label = f"{team_name} _(Liga: {league_name})_"
+                    checkbox_key = f"team_select_{team_name}"
+                    
+                    # Inicjalizuj wartość checkboxa jeśli nie istnieje w session_state
+                    if checkbox_key not in st.session_state:
+                        st.session_state[checkbox_key] = team_name in selected_teams
+                    
+                    # Użyj checkboxa z wartością z session_state
+                    if st.checkbox(team_label, value=st.session_state[checkbox_key], key=checkbox_key):
+                        new_selected_teams.append(team_name)
+                
+                # Przycisk zapisu ustawień w formularzu
+                submitted = st.form_submit_button("💾 Zapisz wybór drużyn", type="primary", use_container_width=True)
+                
+                if submitted:
+                    # Zbierz zaznaczone drużyny z checkboxów
+                    new_selected_teams = [
+                        team_name for team_name in all_team_names 
+                        if st.session_state.get(f"team_select_{team_name}", False)
+                    ]
+                    try:
+                        storage.set_selected_teams(new_selected_teams)
+                        st.success(f"✅ Zapisano wybór {len(new_selected_teams)} drużyn")
+                        st.rerun()
+                    except Exception as e:
+                        logger.error(f"Błąd zapisywania wybranych drużyn: {e}")
+                        st.error(f"❌ Błąd zapisywania wybranych drużyn: {e}")
             
-            for team_name in all_team_names:
-                league_name = teams_with_leagues.get(team_name, "?")
-                team_label = f"{team_name} _(Liga: {league_name})_"
-                if st.checkbox(team_label, value=team_name in selected_teams, key=f"team_select_{team_name}"):
-                    new_selected_teams.append(team_name)
-            
-            # Przycisk zapisu ustawień
-            if st.button("💾 Zapisz wybór drużyn", type="primary", use_container_width=True):
-                storage.set_selected_teams(new_selected_teams)
-                st.success(f"✅ Zapisano wybór {len(new_selected_teams)} drużyn")
-                st.rerun()
-            
-            # Użyj aktualnie wybranych drużyn
-            # Jeśli użytkownik nie zaznaczył żadnych drużyn, użyj zapisanych z bazy
-            # (nie nadpisuj pustą listą, bo wtedy wszystkie mecze będą wyświetlane)
+            # Użyj aktualnie wybranych drużyn z session_state
+            new_selected_teams = [
+                team_name for team_name in all_team_names 
+                if st.session_state.get(f"team_select_{team_name}", False)
+            ]
+            # Jeśli użytkownik zaznaczył drużyny, użyj ich
             if new_selected_teams:
                 selected_teams = new_selected_teams
             # Jeśli new_selected_teams jest puste, zostaw selected_teams bez zmian (zapisane z bazy)
