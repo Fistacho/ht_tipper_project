@@ -1447,17 +1447,29 @@ class TipperStorageMySQL:
         """Zapisuje listę wybranych drużyn"""
         try:
             value = json.dumps(teams)
-            self.conn.query(
-                f"INSERT INTO settings (setting_key, setting_value) VALUES ('selected_teams', '{value}') "
-                f"ON DUPLICATE KEY UPDATE setting_value = '{value}'",
-                ttl=0
-            )
+            # Escapuj pojedyncze cudzysłowy dla SQL
+            value_escaped = value.replace("'", "''")
+            
+            # Sprawdź połączenie przed zapytaniem
+            if not self.conn._check_connection():
+                logger.error("Nie można połączyć się z MySQL podczas zapisywania wybranych drużyn")
+                raise Exception("MySQL Connection not available.")
+            
+            # Użyj bezpośredniego wykonania zapytania z escapowaniem
+            cursor = self.conn.conn.cursor(dictionary=True) if self.conn.is_aiven else self.conn.conn.cursor()
+            sql = f"INSERT INTO settings (setting_key, setting_value) VALUES ('selected_teams', '{value_escaped}') " \
+                  f"ON DUPLICATE KEY UPDATE setting_value = '{value_escaped}'"
+            cursor.execute(sql)
+            self.conn.conn.commit()
+            cursor.close()
+            
             # Wyczyść cache po zapisie
             TipperStorageMySQL._memory_cache = None
             TipperStorageMySQL._cache_timestamp = None
             
         except Exception as e:
             logger.error(f"Błąd zapisywania wybranych drużyn: {e}")
+            raise
     
     def get_selected_leagues(self) -> List[int]:
         """Zwraca listę ID wybranych lig - używa cache dla lepszej wydajności"""
@@ -1498,15 +1510,27 @@ class TipperStorageMySQL:
         """Zapisuje listę ID wybranych lig"""
         try:
             value = json.dumps(league_ids)
-            self.conn.query(
-                f"INSERT INTO settings (setting_key, setting_value) VALUES ('selected_leagues', '{value}') "
-                f"ON DUPLICATE KEY UPDATE setting_value = '{value}'",
-                ttl=0
-            )
+            # Escapuj pojedyncze cudzysłowy dla SQL
+            value_escaped = value.replace("'", "''")
+            
+            # Sprawdź połączenie przed zapytaniem
+            if not self.conn._check_connection():
+                logger.error("Nie można połączyć się z MySQL podczas zapisywania wybranych lig")
+                raise Exception("MySQL Connection not available.")
+            
+            # Użyj bezpośredniego wykonania zapytania z escapowaniem
+            cursor = self.conn.conn.cursor(dictionary=True) if self.conn.is_aiven else self.conn.conn.cursor()
+            sql = f"INSERT INTO settings (setting_key, setting_value) VALUES ('selected_leagues', '{value_escaped}') " \
+                  f"ON DUPLICATE KEY UPDATE setting_value = '{value_escaped}'"
+            cursor.execute(sql)
+            self.conn.conn.commit()
+            cursor.close()
+            
             # Wyczyść cache po zapisie
             TipperStorageMySQL._memory_cache = None
             TipperStorageMySQL._cache_timestamp = None
             
         except Exception as e:
             logger.error(f"Błąd zapisywania wybranych lig: {e}")
+            raise
 
