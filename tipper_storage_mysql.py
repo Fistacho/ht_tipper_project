@@ -169,6 +169,8 @@ class TipperStorageMySQL:
                     logger.error(f"ERROR: {error_msg}")
                     raise ValueError(error_msg)
                 
+                # Połączenie z MySQL (pymysql z cryptography automatycznie obsługuje SSL dla Aiven)
+                # Zgodnie z instrukcją Aiven: pymysql + cryptography obsługuje protokół MySQL 11 i SSL
                 connection = pymysql.connect(
                     host=mysql_config['host'],
                     port=int(mysql_config['port']),
@@ -178,9 +180,9 @@ class TipperStorageMySQL:
                     charset='utf8mb4',
                     cursorclass=pymysql.cursors.DictCursor,
                     autocommit=True,  # Włącz autocommit, aby uniknąć problemów z transakcjami
-                    connect_timeout=10,  # Timeout połączenia (sekundy)
-                    read_timeout=30,  # Timeout odczytu (sekundy)
-                    write_timeout=30  # Timeout zapisu (sekundy)
+                    connect_timeout=10,  # Timeout połączenia (sekundy) - zgodnie z instrukcją Aiven
+                    read_timeout=10,  # Timeout odczytu (sekundy) - zgodnie z instrukcją Aiven
+                    write_timeout=10  # Timeout zapisu (sekundy) - zgodnie z instrukcją Aiven
                 )
                 
                 # Użyj wrapper dla kompatybilności z st.connection
@@ -212,7 +214,7 @@ class TipperStorageMySQL:
                                 logger.error("DEBUG: Brak konfiguracji MySQL do ponownego połączenia")
                                 return False
                             
-                            # Utwórz nowe połączenie
+                            # Utwórz nowe połączenie (pymysql z cryptography automatycznie obsługuje SSL dla Aiven)
                             new_conn = pymysql.connect(
                                 host=mysql_config['host'],
                                 port=int(mysql_config['port']),
@@ -222,9 +224,9 @@ class TipperStorageMySQL:
                                 charset='utf8mb4',
                                 cursorclass=pymysql.cursors.DictCursor,
                                 autocommit=True,
-                                connect_timeout=10,
-                                read_timeout=30,
-                                write_timeout=30
+                                connect_timeout=10,  # Zgodnie z instrukcją Aiven
+                                read_timeout=10,  # Zgodnie z instrukcją Aiven
+                                write_timeout=10  # Zgodnie z instrukcją Aiven
                             )
                             
                             self.conn = new_conn

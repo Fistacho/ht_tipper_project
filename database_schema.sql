@@ -65,6 +65,9 @@ CREATE TABLE IF NOT EXISTS predictions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY unique_prediction (round_id, player_name, match_id),
+    INDEX idx_player_round (player_name, round_id),
+    INDEX idx_round (round_id),
+    INDEX idx_player (player_name),
     FOREIGN KEY (round_id) REFERENCES rounds(round_id) ON DELETE CASCADE,
     FOREIGN KEY (player_name) REFERENCES players(player_name) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -79,6 +82,9 @@ CREATE TABLE IF NOT EXISTS match_points (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY unique_match_points (round_id, player_name, match_id),
+    INDEX idx_player_round (player_name, round_id),
+    INDEX idx_round (round_id),
+    INDEX idx_player (player_name),
     FOREIGN KEY (round_id) REFERENCES rounds(round_id) ON DELETE CASCADE,
     FOREIGN KEY (player_name) REFERENCES players(player_name) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
