@@ -35,11 +35,36 @@ root_logger = logging.getLogger()
 for h in root_logger.handlers[:]:
     root_logger.removeHandler(h)
 
+# Poziom logowania z konfiguracji
+def _resolve_log_level() -> int:
+    try:
+        # 1) .env
+        env_level = os.getenv('LOG_LEVEL')
+        # 2) secrets (jeśli dostępne)
+        secrets_level = None
+        try:
+            if hasattr(st, 'secrets'):
+                secrets_level = getattr(st.secrets, 'LOG_LEVEL', None)
+        except Exception:
+            pass
+        level_name = (env_level or secrets_level)
+        if not level_name:
+            # Jeśli środowisko prod – loguj tylko ERROR
+            app_env = (os.getenv('APP_ENV') or os.getenv('ENV') or '').lower()
+            level_name = 'ERROR' if app_env in ('prod', 'production') else 'INFO'
+        return getattr(logging, str(level_name).upper(), logging.INFO)
+    except Exception:
+        return logging.INFO
+
+_LOG_LEVEL = _resolve_log_level()
+
 file_handler = RotatingFileHandler('tipper.log', maxBytes=1_000_000, backupCount=3, encoding='utf-8')
+file_handler.setLevel(_LOG_LEVEL)
 stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setLevel(_LOG_LEVEL)
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=_LOG_LEVEL,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[file_handler, stream_handler],
     force=True
