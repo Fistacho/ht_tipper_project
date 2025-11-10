@@ -17,61 +17,62 @@ TIPPER_DATA_FILE = "tipper_data.json"
 def get_storage():
     """
     Factory function - zwraca odpowiedni storage w zależności od konfiguracji
-    Sprawdza czy MySQL jest dostępne (przez Streamlit secrets lub .env), jeśli nie - używa JSON
+    Sprawdza czy MySQL jest dostępne (przez .env lub Streamlit secrets), jeśli nie - używa JSON
+    Kolejność: najpierw .env (dla lokalnego rozwoju), potem st.secrets (dla Streamlit Cloud)
     """
     mysql_found = False
     
-    # Metoda 1: Sprawdź Streamlit secrets (dla Streamlit Cloud)
+    # Metoda 1: Sprawdź .env (dla lokalnego rozwoju - najwyższy priorytet)
     try:
-        import streamlit as st
-        if hasattr(st, 'secrets'):
-            try:
-                # Sprawdź płaskie zmienne (MYSQL_HOST, MYSQL_PORT, itd.)
-                mysql_host = getattr(st.secrets, 'MYSQL_HOST', None)
-                mysql_database = getattr(st.secrets, 'MYSQL_DATABASE', None)
-                mysql_username = getattr(st.secrets, 'MYSQL_USERNAME', None)
-                mysql_password = getattr(st.secrets, 'MYSQL_PASSWORD', None)
-                
-                if all([mysql_host, mysql_database, mysql_username, mysql_password]):
-                    mysql_found = True
-                    logger.info("DEBUG: MySQL wykryty przez płaskie zmienne w st.secrets (MYSQL_HOST, itd.)")
-                else:
-                    logger.info("DEBUG: Płaskie zmienne MySQL nie są kompletne w st.secrets")
-                    logger.info(f"DEBUG: MYSQL_HOST={bool(mysql_host)}, MYSQL_DATABASE={bool(mysql_database)}, MYSQL_USERNAME={bool(mysql_username)}, MYSQL_PASSWORD={bool(mysql_password)}")
-                
-                # Sprawdź sekcję [connections.mysql] (dla kompatybilności)
-                if not mysql_found:
-                    try:
-                        if hasattr(st.secrets, 'connections'):
-                            if hasattr(st.secrets.connections, 'mysql'):
-                                mysql_found = True
-                                logger.info("DEBUG: MySQL wykryty przez sekcję [connections.mysql] w st.secrets")
-                    except AttributeError:
-                        pass
-            except (AttributeError, KeyError) as e:
-                logger.info(f"DEBUG: Błąd przy odczycie secrets: {e}")
+        from dotenv import load_dotenv
+        load_dotenv()
+        
+        mysql_host = os.getenv('MYSQL_HOST')
+        mysql_database = os.getenv('MYSQL_DATABASE')
+        mysql_username = os.getenv('MYSQL_USERNAME')
+        mysql_password = os.getenv('MYSQL_PASSWORD')
+        
+        if all([mysql_host, mysql_database, mysql_username, mysql_password]):
+            mysql_found = True
+            logger.info("DEBUG: MySQL wykryty przez zmienne w .env (MYSQL_HOST, itd.)")
+        else:
+            logger.info("DEBUG: Zmienne MySQL nie są kompletne w .env")
+            logger.info(f"DEBUG: MYSQL_HOST={bool(mysql_host)}, MYSQL_DATABASE={bool(mysql_database)}, MYSQL_USERNAME={bool(mysql_username)}, MYSQL_PASSWORD={bool(mysql_password)}")
     except Exception as e:
-        logger.info(f"DEBUG: Błąd przy próbie odczytu st.secrets: {e}")
+        logger.info(f"DEBUG: Błąd przy odczycie .env: {e}")
     
-    # Metoda 2: Sprawdź .env (dla lokalnego rozwoju)
+    # Metoda 2: Sprawdź Streamlit secrets (dla Streamlit Cloud)
     if not mysql_found:
         try:
-            from dotenv import load_dotenv
-            load_dotenv()
-            
-            mysql_host = os.getenv('MYSQL_HOST')
-            mysql_database = os.getenv('MYSQL_DATABASE')
-            mysql_username = os.getenv('MYSQL_USERNAME')
-            mysql_password = os.getenv('MYSQL_PASSWORD')
-            
-            if all([mysql_host, mysql_database, mysql_username, mysql_password]):
-                mysql_found = True
-                logger.info("DEBUG: MySQL wykryty przez zmienne w .env (MYSQL_HOST, itd.)")
-            else:
-                logger.info("DEBUG: Zmienne MySQL nie są kompletne w .env")
-                logger.info(f"DEBUG: MYSQL_HOST={bool(mysql_host)}, MYSQL_DATABASE={bool(mysql_database)}, MYSQL_USERNAME={bool(mysql_username)}, MYSQL_PASSWORD={bool(mysql_password)}")
+            import streamlit as st
+            if hasattr(st, 'secrets'):
+                try:
+                    # Sprawdź płaskie zmienne (MYSQL_HOST, MYSQL_PORT, itd.)
+                    mysql_host = getattr(st.secrets, 'MYSQL_HOST', None)
+                    mysql_database = getattr(st.secrets, 'MYSQL_DATABASE', None)
+                    mysql_username = getattr(st.secrets, 'MYSQL_USERNAME', None)
+                    mysql_password = getattr(st.secrets, 'MYSQL_PASSWORD', None)
+                    
+                    if all([mysql_host, mysql_database, mysql_username, mysql_password]):
+                        mysql_found = True
+                        logger.info("DEBUG: MySQL wykryty przez płaskie zmienne w st.secrets (MYSQL_HOST, itd.)")
+                    else:
+                        logger.info("DEBUG: Płaskie zmienne MySQL nie są kompletne w st.secrets")
+                        logger.info(f"DEBUG: MYSQL_HOST={bool(mysql_host)}, MYSQL_DATABASE={bool(mysql_database)}, MYSQL_USERNAME={bool(mysql_username)}, MYSQL_PASSWORD={bool(mysql_password)}")
+                    
+                    # Sprawdź sekcję [connections.mysql] (dla kompatybilności)
+                    if not mysql_found:
+                        try:
+                            if hasattr(st.secrets, 'connections'):
+                                if hasattr(st.secrets.connections, 'mysql'):
+                                    mysql_found = True
+                                    logger.info("DEBUG: MySQL wykryty przez sekcję [connections.mysql] w st.secrets")
+                        except AttributeError:
+                            pass
+                except (AttributeError, KeyError) as e:
+                    logger.info(f"DEBUG: Błąd przy odczycie secrets: {e}")
         except Exception as e:
-            logger.info(f"DEBUG: Błąd przy odczycie .env: {e}")
+            logger.info(f"DEBUG: Błąd przy próbie odczytu st.secrets: {e}")
     
     # Jeśli znaleziono konfigurację MySQL, użyj MySQL storage
     if mysql_found:
