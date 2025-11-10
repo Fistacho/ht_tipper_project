@@ -911,9 +911,16 @@ class TipperStorageMySQL:
             raise
     
     def add_prediction(self, round_id: str, player_name: str, match_id: str, prediction: tuple):
-        """Dodaje lub aktualizuje typ gracza dla meczu"""
+        """Dodaje lub aktualizuje typ gracza dla meczu (pojedynczy typ)"""
+        return self.add_predictions_batch(round_id, player_name, {match_id: prediction})
+    
+    def add_predictions_batch(self, round_id: str, player_name: str, predictions: Dict[str, tuple], recalculate_points: bool = True):
+        """Dodaje lub aktualizuje wiele typów gracza naraz (batch insert - szybsze)"""
+        if not predictions:
+            return True
+        
         try:
-            # Upewnij się, że gracz istnieje
+            # Upewnij się, że gracz istnieje (tylko raz)
             self.conn.query(
                 f"INSERT INTO players (player_name, total_points, rounds_played, best_score, worst_score) "
                 f"VALUES ('{player_name}', 0, 0, 0, 0) "
@@ -921,45 +928,70 @@ class TipperStorageMySQL:
                 ttl=0
             )
             
-            # Dodaj lub zaktualizuj typ
+            # Batch insert dla wszystkich typów
             timestamp = datetime.now().isoformat()
-            self.conn.query(
-                f"INSERT INTO predictions (round_id, player_name, match_id, home_goals, away_goals, timestamp) "
-                f"VALUES ('{round_id}', '{player_name}', '{match_id}', {prediction[0]}, {prediction[1]}, '{timestamp}') "
-                f"ON DUPLICATE KEY UPDATE home_goals = {prediction[0]}, away_goals = {prediction[1]}, timestamp = '{timestamp}'",
-                ttl=0
-            )
+            values_list = []
+            for match_id, prediction in predictions.items():
+                match_id_escaped = match_id.replace("'", "''")
+                values_list.append(
+                    f"('{round_id}', '{player_name}', '{match_id_escaped}', {prediction[0]}, {prediction[1]}, '{timestamp}')"
+                )
             
-            # Jeśli mecz jest rozegrany, przelicz punkty
-            match_result = self.conn.query(
-                f"SELECT home_goals, away_goals FROM matches WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
-                ttl=0
-            )
-            if not match_result.empty and match_result.iloc[0]['home_goals'] is not None and match_result.iloc[0]['away_goals'] is not None:
-                from tipper import Tipper
-                home_goals = int(match_result.iloc[0]['home_goals'])
-                away_goals = int(match_result.iloc[0]['away_goals'])
-                points = Tipper.calculate_points(prediction, (home_goals, away_goals))
-                
-                # Zapisz punkty
+            if values_list:
+                values_str = ', '.join(values_list)
                 self.conn.query(
-                    f"INSERT INTO match_points (round_id, player_name, match_id, points) "
-                    f"VALUES ('{round_id}', '{player_name}', '{match_id}', {points}) "
-                    f"ON DUPLICATE KEY UPDATE points = {points}",
+                    f"INSERT INTO predictions (round_id, player_name, match_id, home_goals, away_goals, timestamp) "
+                    f"VALUES {values_str} "
+                    f"ON DUPLICATE KEY UPDATE home_goals = VALUES(home_goals), away_goals = VALUES(away_goals), timestamp = VALUES(timestamp)",
+                    ttl=0
+                )
+            
+            # Jeśli mecze są rozegrane, przelicz punkty (tylko raz na końcu)
+            if recalculate_points:
+                # Pobierz wyniki meczów dla wszystkich typów
+                match_ids_str = "', '".join([mid.replace("'", "''") for mid in predictions.keys()])
+                matches_df = self.conn.query(
+                    f"SELECT match_id, home_goals, away_goals FROM matches "
+                    f"WHERE match_id IN ('{match_ids_str}') AND round_id = '{round_id}' "
+                    f"AND home_goals IS NOT NULL AND away_goals IS NOT NULL",
                     ttl=0
                 )
                 
-                # Przelicz całkowite punkty gracza
-                self._recalculate_player_totals()
+                if not matches_df.empty:
+                    from tipper import Tipper
+                    points_values = []
+                    
+                    for _, match_row in matches_df.iterrows():
+                        match_id = match_row['match_id']
+                        if match_id in predictions:
+                            home_goals = int(match_row['home_goals'])
+                            away_goals = int(match_row['away_goals'])
+                            prediction = predictions[match_id]
+                            points = Tipper.calculate_points(prediction, (home_goals, away_goals))
+                            match_id_escaped = match_id.replace("'", "''")
+                            points_values.append(
+                                f"('{round_id}', '{player_name}', '{match_id_escaped}', {points})"
+                            )
+                    
+                    if points_values:
+                        points_str = ', '.join(points_values)
+                        self.conn.query(
+                            f"INSERT INTO match_points (round_id, player_name, match_id, points) "
+                            f"VALUES {points_str} "
+                            f"ON DUPLICATE KEY UPDATE points = VALUES(points)",
+                            ttl=0
+                        )
+                    
+                    # Przelicz całkowite punkty gracza (tylko raz na końcu)
+                    self._recalculate_player_totals()
             
             # Wyczyść cache po zapisie
             TipperStorageMySQL._memory_cache = None
             TipperStorageMySQL._cache_timestamp = None
             
-            logger.info(f"Dodano typ: {player_name} dla meczu {match_id} w rundzie {round_id}")
             return True
         except Exception as e:
-            logger.error(f"Błąd dodawania typu: {e}")
+            logger.error(f"Błąd dodawania typów: {e}")
             return False
     
     def update_match_result(self, round_id: str, match_id: str, home_goals: int, away_goals: int):
