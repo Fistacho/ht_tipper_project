@@ -117,6 +117,41 @@ def safe_int(value, default=0):
         return default
 
 
+def is_match_finished(match: dict) -> bool:
+    """
+    Preferuj flagę z API/DB: match['is_finished'] (lub podobną), a dopiero
+    w ostateczności heurystykę po wyniku/dacie.
+    """
+    try:
+        # 1) Najpierw bezpośredni sygnał z API/DB
+        for key in ('is_finished', 'finished'):
+            if key in match and match[key] is not None:
+                try:
+                    return bool(int(match[key]))
+                except Exception:
+                    return bool(match[key])
+        status = str(match.get('status', '')).lower()
+        if status in ('finished', 'played', 'completed', 'ended'):
+            return True
+
+        # 2) Fallback: jeśli mamy wynik z API (obie bramki != None) i mecz po czasie
+        from datetime import datetime, timedelta
+        match_date_str = match.get('match_date', '')
+        if not match_date_str:
+            return False
+        match_dt = datetime.strptime(match_date_str, "%Y-%m-%d %H:%M:%S")
+        if datetime.now() < match_dt:
+            return False
+        home_goals = match.get('home_goals')
+        away_goals = match.get('away_goals')
+        if home_goals is None or away_goals is None:
+            return False
+        if int(home_goals) == 0 and int(away_goals) == 0:
+            return datetime.now() >= (match_dt + timedelta(hours=2))
+        return True
+    except Exception:
+        return False
+
 # Cache: rankingi i typy (cache zależny od sezonu/rundy i wersji danych)
 @st.cache_data(ttl=180, show_spinner=False)
 def cached_overall_leaderboard(season_id: str, exclude_worst: bool, data_version: int):
@@ -135,6 +170,113 @@ def cached_player_predictions(player_name: str, round_id: str, data_version: int
     storage = st.session_state.get('shared_storage')
     return storage.get_player_predictions(player_name, round_id, use_cache=True)
 
+
+# Pomocnik: pobierz klucze OAuth z ENV lub Secrets
+def _get_oauth_keys():
+    import os
+    ck = os.getenv('HATTRICK_CONSUMER_KEY') or st.secrets.get('HATTRICK_CONSUMER_KEY', '')
+    cs = os.getenv('HATTRICK_CONSUMER_SECRET') or st.secrets.get('HATTRICK_CONSUMER_SECRET', '')
+    at = os.getenv('HATTRICK_ACCESS_TOKEN') or st.secrets.get('HATTRICK_ACCESS_TOKEN', '')
+    ats = os.getenv('HATTRICK_ACCESS_TOKEN_SECRET') or st.secrets.get('HATTRICK_ACCESS_TOKEN_SECRET', '')
+    return ck, cs, at, ats
+
+
+def refresh_unfinished_matches_from_api(storage, season_id: str, throttle_seconds: int = 120):
+    """Uzupełnia w bazie wyniki tylko dla meczów nieukończonych; ogranicza liczbę zapytań do API.
+    - pyta API tylko dla lig, w których są nieukończone mecze
+    - aktualizuje tylko mecze, które mają już wynik w API
+    """
+    import time
+    try:
+        last_sync = st.session_state.get('last_api_sync_ts', 0)
+        if last_sync and (time.time() - last_sync) < throttle_seconds:
+            return
+
+        # Znajdź nieukończone mecze w bieżącym sezonie
+        unfinished_df = storage.conn.query(
+            f"""
+            SELECT m.match_id, m.round_id, m.league_id
+            FROM matches m
+            INNER JOIN rounds r ON r.round_id = m.round_id
+            WHERE r.season_id = '{season_id}'
+              AND (m.is_finished = 0 OR m.home_goals IS NULL OR m.away_goals IS NULL)
+            """,
+            ttl=0
+        ) if hasattr(storage, 'conn') else None
+
+        if unfinished_df is None or unfinished_df.empty:
+            st.session_state['last_api_sync_ts'] = time.time()
+            return
+
+        # Grupuj po lidze, aby ograniczyć liczbę zapytań do API
+        leagues = sorted(set(int(row['league_id']) for _, row in unfinished_df.iterrows() if row.get('league_id') is not None))
+        if not leagues:
+            st.session_state['last_api_sync_ts'] = time.time()
+            return
+
+        ck, cs, at, ats = _get_oauth_keys()
+        if not ck or not cs:
+            # Brak kluczy do API – nie odświeżamy (ale aplikacja działa na danych z bazy)
+            st.session_state['last_api_sync_ts'] = time.time()
+            return
+
+        for league_id in leagues:
+            try:
+                api_league = cached_get_league_fixtures(league_id, ck, cs, at, ats) or {}
+                # Wyciągnij listę meczów
+                if isinstance(api_league, dict) and 'matches' in api_league:
+                    api_matches = api_league['matches']
+                else:
+                    api_matches = api_league if isinstance(api_league, list) else []
+
+                api_map = {str(m.get('match_id')): m for m in api_matches if m}
+                league_rows = unfinished_df[unfinished_df['league_id'] == league_id]
+
+                updated_any = False
+                for _, row in league_rows.iterrows():
+                    mid = str(row['match_id'])
+                    rid = str(row['round_id'])
+                    api_m = api_map.get(mid)
+                    if not api_m:
+                        continue
+                    finished_flag = None
+                    if 'is_finished' in api_m:
+                        finished_flag = api_m.get('is_finished')
+                    elif 'finished' in api_m:
+                        finished_flag = api_m.get('finished')
+                    else:
+                        st_str = str(api_m.get('status', '')).lower()
+                        if st_str in ('finished', 'played', 'completed'):
+                            finished_flag = True
+                    hg = api_m.get('home_goals')
+                    ag = api_m.get('away_goals')
+
+                    # Aktualizuj wynik jeśli mamy bramki; w każdym przypadku, gdy API mówi 'finished', ustaw flagę is_finished=1
+                    try:
+                        if hg is not None and ag is not None:
+                            storage.update_match_result(rid, mid, safe_int(hg), safe_int(ag))
+                            updated_any = True
+                        if finished_flag is not None:
+                            if hasattr(storage, 'conn'):
+                                storage.conn.query(
+                                    f"UPDATE matches SET api_checked_at = NOW(), is_finished = {1 if bool(finished_flag) else 0} WHERE match_id = '{mid}' AND round_id = '{rid}'",
+                                    ttl=0
+                                )
+                            updated_any = True
+                    except Exception as e:
+                        logger.error(f"Błąd aktualizacji meczu {mid}: {e}")
+
+                if updated_any:
+                    # Unieważnij cache rankingów/typów
+                    st.session_state['data_version'] = st.session_state.get('data_version', 0) + 1
+            except Exception as e:
+                logger.error(f"Błąd odświeżania z API dla ligi {league_id}: {e}")
+                continue
+
+        st.session_state['last_api_sync_ts'] = time.time()
+    except Exception as e:
+        logger.error(f"Błąd refresh_unfinished_matches_from_api: {e}")
+        st.session_state['last_api_sync_ts'] = time.time()
 
 def main():
     """Główna funkcja aplikacji typera"""
@@ -376,10 +518,18 @@ def main():
         # Pobierz aktualne ligi (lista ID)
         selected_league_ids = storage.get_selected_leagues()
         
-        # Pobierz nazwy lig z API (jeśli są klucze OAuth)
+        # Pobierz nazwy lig: najpierw z bazy, brakujące z API
         league_names_map = {}  # {league_id: league_name}
         
         if selected_league_ids:
+            # Najpierw spróbuj z bazy (bez API)
+            try:
+                db_names = storage.get_league_names(selected_league_ids) if hasattr(storage, 'get_league_names') else {}
+                if db_names:
+                    league_names_map.update(db_names)
+            except Exception as e:
+                logger.warning(f"Nie udało się pobrać nazw lig z bazy: {e}")
+
             # Sprawdź czy mamy klucze OAuth
             consumer_key = None
             consumer_secret = None
@@ -402,17 +552,23 @@ def main():
                 access_token = access_token or os.getenv('HATTRICK_ACCESS_TOKEN')
                 access_token_secret = access_token_secret or os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
             
-            # Pobierz nazwy lig z API
-            if all([consumer_key, consumer_secret, access_token, access_token_secret]):
+            # Pobierz nazwy lig z API tylko dla brakujących ID
+            missing_ids = [lid for lid in selected_league_ids if lid not in league_names_map]
+            if missing_ids and all([consumer_key, consumer_secret, access_token, access_token_secret]):
                 try:
                     client = HattrickOAuthSimple(consumer_key, consumer_secret)
                     client.set_access_tokens(access_token, access_token_secret)
                     
-                    for league_id in selected_league_ids:
+                    for league_id in missing_ids:
                         try:
                             league_details = client.get_league_details(league_id)
                             if league_details and league_details.get('league_name'):
                                 league_names_map[league_id] = league_details['league_name']
+                                # Zapisz do bazy, by nie pytać API ponownie
+                                try:
+                                    storage.add_league(league_id, league_details['league_name'])
+                                except Exception:
+                                    pass
                             else:
                                 league_names_map[league_id] = f"Liga {league_id}"
                         except Exception as e:
@@ -421,11 +577,11 @@ def main():
                 except Exception as e:
                     logger.error(f"Błąd inicjalizacji klienta OAuth: {e}")
                     # Użyj domyślnych nazw
-                    for league_id in selected_league_ids:
+                    for league_id in missing_ids:
                         league_names_map[league_id] = f"Liga {league_id}"
             else:
                 # Użyj domyślnych nazw jeśli brak OAuth
-                for league_id in selected_league_ids:
+                for league_id in missing_ids:
                     league_names_map[league_id] = f"Liga {league_id}"
             
             # Zapisz w session_state dla użycia w dalszej części aplikacji
@@ -715,15 +871,28 @@ def main():
         client = HattrickOAuthSimple(consumer_key, consumer_secret)
         client.set_access_tokens(access_token, access_token_secret)
         
-        # Pobierz nazwy lig z API dla wszystkich zapisanych ID (jeśli jeszcze nie pobrano w sekcji konfiguracji)
-        # league_names_map powinna być już wypełniona z sekcji konfiguracji, ale uzupełnij jeśli brakuje
+        # league_names_map: najpierw DB, brakujące z API
         if 'league_names_map' not in st.session_state or not st.session_state.get('league_names_map'):
             league_names_map = {}
-            for league_id in TIPPER_LEAGUES:
+            # DB-first
+            try:
+                if hasattr(storage, 'get_league_names'):
+                    db_names = storage.get_league_names(TIPPER_LEAGUES)
+                    if db_names:
+                        league_names_map.update(db_names)
+            except Exception:
+                pass
+            # API for missing
+            missing_ids = [lid for lid in TIPPER_LEAGUES if lid not in league_names_map]
+            for league_id in missing_ids:
                 try:
                     league_details = client.get_league_details(league_id)
                     if league_details and league_details.get('league_name'):
                         league_names_map[league_id] = league_details['league_name']
+                        try:
+                            storage.add_league(league_id, league_details['league_name'])
+                        except Exception:
+                            pass
                     else:
                         league_names_map[league_id] = f"Liga {league_id}"
                 except Exception as e:
@@ -751,7 +920,7 @@ def main():
                     db_df = storage.conn.query(
                         f"""
                         SELECT m.match_id, m.round_id, m.home_team_name, m.away_team_name,
-                               m.match_date, m.home_goals, m.away_goals, m.league_id,
+                               m.match_date, m.home_goals, m.away_goals, m.league_id, m.is_finished,
                                r.season_id
                         FROM matches m
                         INNER JOIN rounds r ON r.round_id = m.round_id
@@ -1122,6 +1291,12 @@ def main():
             st.session_state.selected_season_id = season_id
             logger.info(f"DEBUG filtrowanie rund: selected_season_id był None, ustawiono na {season_id}")
         logger.info(f"DEBUG filtrowanie rund: selected_season_id={selected_season_id}, season_id={season_id}, liczba rund z API={len(sorted_rounds_asc)}")
+
+        # Uzupełnij wyniki z API tylko dla nieukończonych meczów w wybranym sezonie
+        try:
+            refresh_unfinished_matches_from_api(storage, selected_season_id, throttle_seconds=180)
+        except Exception as e:
+            logger.warning(f"Nie udało się odświeżyć wyników z API: {e}")
         
         for date, matches in sorted_rounds_asc:
             # Sprawdź czy runda jest przypisana do wybranego sezonu
@@ -1165,6 +1340,8 @@ def main():
                 logger.warning(f"DEBUG filtrowanie rund: ❌ Pomijam rundę {round_id} - brak meczów po filtrowaniu drużyn (było {len(matches)} meczów)")
         
         logger.info(f"DEBUG filtrowanie rund: Końcowa liczba rund po filtrowaniu: {len(filtered_rounds_asc)}")
+        
+        # Domyślnie wyświetlamy wszystkie kolejki (bez filtrowania archiwum)
         
         if not filtered_rounds_asc:
             st.warning(f"⚠️ Brak meczów dla wybranych drużyn ({len(selected_teams)} drużyn)")
@@ -1287,15 +1464,11 @@ def main():
             logger.info(f"DEBUG ranking: Sprawdzam {len(filtered_rounds)} kolejek (posortowane DESC)")
             # Przejdź przez wszystkie kolejki i zapamiętaj najstarszą bez wyników
             for idx, (date, matches) in enumerate(filtered_rounds):
-                # Sprawdź czy kolejka ma wyniki z API (czyli czy mecze mają home_goals i away_goals)
-                # Kolejka ma wyniki z API jeśli PRZYNAJMNIEJ JEDEN mecz ma wyniki
-                matches_with_results = [
-                    m for m in matches 
-                    if m.get('home_goals') is not None and m.get('away_goals') is not None
-                ]
-                has_api_results = len(matches_with_results) > 0
+                # Kolejka zakończona tylko jeśli wszystkie mecze mają wyniki z API
+                finished_count = sum(1 for m in matches if is_match_finished(m))
+                has_api_results = (len(matches) > 0 and finished_count == len(matches))
                 round_number = date_to_round_number.get(date, '?')
-                logger.info(f"DEBUG ranking: idx={idx}, date={date}, round_number={round_number}, has_api_results={has_api_results}, matches_count={len(matches)}, matches_with_results={len(matches_with_results)}")
+                logger.info(f"DEBUG ranking: idx={idx}, date={date}, round_number={round_number}, has_api_results={has_api_results}, matches_count={len(matches)}, finished_count={finished_count}")
                 if not has_api_results:
                     # Zapamiętaj najstarszą kolejkę bez wyników (ostatnią w liście DESC)
                     default_round_idx = idx
@@ -1489,15 +1662,11 @@ def main():
         logger.info(f"DEBUG input: Sprawdzam {len(filtered_rounds)} kolejek (posortowane DESC)")
         # Przejdź przez wszystkie kolejki i zapamiętaj najstarszą bez wyników
         for idx, (date, matches) in enumerate(filtered_rounds):
-            # Sprawdź czy kolejka ma wyniki z API (czyli czy mecze mają home_goals i away_goals)
-            # Kolejka ma wyniki z API jeśli PRZYNAJMNIEJ JEDEN mecz ma wyniki
-            matches_with_results = [
-                m for m in matches 
-                if m.get('home_goals') is not None and m.get('away_goals') is not None
-            ]
-            has_api_results = len(matches_with_results) > 0
+            # Kolejka zakończona tylko jeśli wszystkie mecze mają wyniki z API
+            finished_count = sum(1 for m in matches if is_match_finished(m))
+            has_api_results = (len(matches) > 0 and finished_count == len(matches))
             round_number = date_to_round_number.get(date, '?')
-            logger.info(f"DEBUG input: idx={idx}, date={date}, round_number={round_number}, has_api_results={has_api_results}, matches_count={len(matches)}, matches_with_results={len(matches_with_results)}")
+            logger.info(f"DEBUG input: idx={idx}, date={date}, round_number={round_number}, has_api_results={has_api_results}, matches_count={len(matches)}, finished_count={finished_count}")
             if not has_api_results:
                 # Zapamiętaj najstarszą kolejkę bez wyników (ostatnią w liście DESC)
                 default_round_idx = idx
@@ -1585,8 +1754,11 @@ def main():
                 
                 # Status meczu
                 status = "⏳ Oczekuje"
-                if home_goals is not None and away_goals is not None:
-                    status = f"✅ {safe_int(home_goals)}-{safe_int(away_goals)}"
+                if is_match_finished(match):
+                    if home_goals is not None and away_goals is not None:
+                        status = f"✅ {safe_int(home_goals)}-{safe_int(away_goals)}"
+                    else:
+                        status = "✅ Po czasie (brak wyniku)"
                 else:
                     try:
                         match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")

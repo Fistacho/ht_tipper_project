@@ -538,6 +538,7 @@ class TipperStorageMySQL:
                     -- Status rundy (opcjonalne kolumny; zostaną dodane przez ALTER jeśli brak)
                     -- is_current: 1 = runda bieżąca/aktywna, 0 = nieaktywna
                     -- is_archival: 1 = runda zamknięta/archiwalna (wszystkie mecze mają wyniki)
+                    -- is_finished: 1 = wszystkie mecze mają wynik z API
                     FOREIGN KEY (season_id) REFERENCES seasons(season_id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """, ttl=0)
@@ -546,7 +547,7 @@ class TipperStorageMySQL:
             try:
                 cols_df = self.conn.query(
                     "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
-                    "WHERE TABLE_NAME = 'rounds' AND COLUMN_NAME IN ('is_current','is_archival')",
+                    "WHERE TABLE_NAME = 'rounds' AND COLUMN_NAME IN ('is_current','is_archival','is_finished')",
                     ttl=0
                 )
                 existing = set([str(row['COLUMN_NAME']) for _, row in cols_df.iterrows()]) if not cols_df.empty else set()
@@ -554,6 +555,8 @@ class TipperStorageMySQL:
                     self.conn.query("ALTER TABLE rounds ADD COLUMN is_current TINYINT(1) NOT NULL DEFAULT 1", ttl=0)
                 if 'is_archival' not in existing:
                     self.conn.query("ALTER TABLE rounds ADD COLUMN is_archival TINYINT(1) NOT NULL DEFAULT 0", ttl=0)
+                if 'is_finished' not in existing:
+                    self.conn.query("ALTER TABLE rounds ADD COLUMN is_finished TINYINT(1) NOT NULL DEFAULT 0", ttl=0)
             except Exception as _:
                 # Jeśli nie mamy uprawnień do information_schema, spróbuj dodać wprost i zignoruj błędy 'Duplicate column'
                 try:
@@ -562,6 +565,10 @@ class TipperStorageMySQL:
                     pass
                 try:
                     self.conn.query("ALTER TABLE rounds ADD COLUMN is_archival TINYINT(1) NOT NULL DEFAULT 0", ttl=0)
+                except Exception:
+                    pass
+                try:
+                    self.conn.query("ALTER TABLE rounds ADD COLUMN is_finished TINYINT(1) NOT NULL DEFAULT 0", ttl=0)
                 except Exception:
                     pass
             
@@ -576,10 +583,28 @@ class TipperStorageMySQL:
                     home_goals INT,
                     away_goals INT,
                     league_id INT,
+                    is_finished TINYINT(1) NOT NULL DEFAULT 0,
+                    api_checked_at DATETIME NULL,
                     PRIMARY KEY (match_id, round_id),
                     FOREIGN KEY (round_id) REFERENCES rounds(round_id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """, ttl=0)
+            # Bezpiecznie dodaj kolumny jeśli tabela już istniała wcześniej
+            try:
+                cols_df = self.conn.query(
+                    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+                    "WHERE TABLE_NAME = 'matches' AND COLUMN_NAME IN ('is_finished','api_checked_at')",
+                    ttl=0
+                )
+                existing = set([str(row['COLUMN_NAME']) for _, row in cols_df.iterrows()]) if not cols_df.empty else set()
+                if 'is_finished' not in existing:
+                    self.conn.query("ALTER TABLE matches ADD COLUMN is_finished TINYINT(1) NOT NULL DEFAULT 0", ttl=0)
+                if 'api_checked_at' not in existing:
+                    self.conn.query("ALTER TABLE matches ADD COLUMN api_checked_at DATETIME NULL", ttl=0)
+                # Indeks pomocniczy pod zapytania o nieukończone mecze
+                self.conn.query("CREATE INDEX IF NOT EXISTS idx_matches_round_finished ON matches (round_id, is_finished)", ttl=0)
+            except Exception:
+                pass
             
             # Tabela typów (predictions)
             self.conn.query("""
@@ -988,6 +1013,31 @@ class TipperStorageMySQL:
         except Exception as e:
             logger.error(f"Błąd dodawania ligi: {e}")
     
+    def get_league_names(self, league_ids: List[int]) -> Dict[int, str]:
+        """Zwraca mapę league_id -> league_name dla podanych ID (z bazy), bez API."""
+        try:
+            if not league_ids:
+                return {}
+            ids_str = "', '".join(str(i) for i in league_ids)
+            df = self.conn.query(
+                f"SELECT league_id, league_name FROM leagues WHERE league_id IN ('{ids_str}')",
+                ttl=300
+            )
+            result: Dict[int, str] = {}
+            if not df.empty:
+                for _, row in df.iterrows():
+                    try:
+                        lid = int(row['league_id'])
+                        name = str(row.get('league_name')) if row.get('league_name') is not None else None
+                        if name:
+                            result[lid] = name
+                    except Exception:
+                        continue
+            return result
+        except Exception as e:
+            logger.error(f"Błąd pobierania nazw lig: {e}")
+            return {}
+    
     def add_season(self, league_id: int, season_id: str, start_date: str = None, end_date: str = None):
         """Dodaje sezon do ligi"""
         try:
@@ -1014,8 +1064,8 @@ class TipperStorageMySQL:
             
             # Dodaj rundę
             self.conn.query(
-                f"INSERT INTO rounds (round_id, season_id, start_date, end_date, is_current, is_archival) "
-                f"VALUES ('{round_id}', '{season_id}', '{start_date or ''}', '{start_date or ''}', 1, 0) "
+                f"INSERT INTO rounds (round_id, season_id, start_date, end_date, is_current, is_archival, is_finished) "
+                f"VALUES ('{round_id}', '{season_id}', '{start_date or ''}', '{start_date or ''}', 1, 0, 0) "
                 f"ON DUPLICATE KEY UPDATE season_id = '{season_id}', start_date = '{start_date or ''}', end_date = '{start_date or ''}'",
                 ttl=0
             )
@@ -1029,12 +1079,29 @@ class TipperStorageMySQL:
                 home_goals = match.get('home_goals') if match.get('home_goals') is not None else 'NULL'
                 away_goals = match.get('away_goals') if match.get('away_goals') is not None else 'NULL'
                 league_id = match.get('league_id', 'NULL')
+                # Preferuj flagę zakończenia z API (is_finished/finished/status), fallback: po bramkach
+                api_flag = None
+                if 'is_finished' in match:
+                    api_flag = match.get('is_finished')
+                elif 'finished' in match:
+                    api_flag = match.get('finished')
+                else:
+                    st_str = str(match.get('status', '')).lower()
+                    if st_str in ('finished', 'played', 'completed'):
+                        api_flag = True
+                if api_flag is not None:
+                    try:
+                        is_finished = 1 if int(api_flag) else 0
+                    except Exception:
+                        is_finished = 1 if bool(api_flag) else 0
+                else:
+                    is_finished = 1 if (match.get('home_goals') is not None and match.get('away_goals') is not None) else 0
                 
                 self.conn.query(
-                    f"INSERT INTO matches (match_id, round_id, home_team_name, away_team_name, match_date, home_goals, away_goals, league_id) "
-                    f"VALUES ('{match_id}', '{round_id}', '{home_team}', '{away_team}', '{match_date}', {home_goals}, {away_goals}, {league_id}) "
+                    f"INSERT INTO matches (match_id, round_id, home_team_name, away_team_name, match_date, home_goals, away_goals, league_id, is_finished) "
+                    f"VALUES ('{match_id}', '{round_id}', '{home_team}', '{away_team}', '{match_date}', {home_goals}, {away_goals}, {league_id}, {is_finished}) "
                     f"ON DUPLICATE KEY UPDATE home_team_name = '{home_team}', away_team_name = '{away_team}', "
-                    f"match_date = '{match_date}', home_goals = {home_goals}, away_goals = {away_goals}, league_id = {league_id}",
+                    f"match_date = '{match_date}', home_goals = {home_goals}, away_goals = {away_goals}, league_id = {league_id}, is_finished = {is_finished}",
                     ttl=0
                 )
             
@@ -1042,16 +1109,16 @@ class TipperStorageMySQL:
             try:
                 check_df = self.conn.query(
                     f"SELECT COUNT(*) AS pending FROM matches WHERE round_id = '{round_id}' "
-                    f"AND (home_goals IS NULL OR away_goals IS NULL)", ttl=0
+                    f"AND (is_finished = 0 OR home_goals IS NULL OR away_goals IS NULL)", ttl=0
                 )
                 pending = int(check_df.iloc[0]['pending']) if not check_df.empty else 0
                 if pending > 0:
                     self.conn.query(
-                        f"UPDATE rounds SET is_current = 1, is_archival = 0 WHERE round_id = '{round_id}'", ttl=0
+                        f"UPDATE rounds SET is_current = 1, is_archival = 0, is_finished = 0 WHERE round_id = '{round_id}'", ttl=0
                     )
                 else:
                     self.conn.query(
-                        f"UPDATE rounds SET is_current = 0, is_archival = 1 WHERE round_id = '{round_id}'", ttl=0
+                        f"UPDATE rounds SET is_current = 0, is_archival = 1, is_finished = 1 WHERE round_id = '{round_id}'", ttl=0
                     )
             except Exception:
                 pass
@@ -1156,7 +1223,7 @@ class TipperStorageMySQL:
         try:
             # Aktualizuj wynik meczu
             self.conn.query(
-                f"UPDATE matches SET home_goals = {home_goals}, away_goals = {away_goals} "
+                f"UPDATE matches SET home_goals = {home_goals}, away_goals = {away_goals}, is_finished = 1 "
                 f"WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
                 ttl=0
             )
@@ -1188,16 +1255,16 @@ class TipperStorageMySQL:
             try:
                 check_df = self.conn.query(
                     f"SELECT COUNT(*) AS pending FROM matches WHERE round_id = '{round_id}' "
-                    f"AND (home_goals IS NULL OR away_goals IS NULL)", ttl=0
+                    f"AND (is_finished = 0 OR home_goals IS NULL OR away_goals IS NULL)", ttl=0
                 )
                 pending = int(check_df.iloc[0]['pending']) if not check_df.empty else 0
                 if pending == 0:
                     self.conn.query(
-                        f"UPDATE rounds SET is_current = 0, is_archival = 1 WHERE round_id = '{round_id}'", ttl=0
+                        f"UPDATE rounds SET is_current = 0, is_archival = 1, is_finished = 1 WHERE round_id = '{round_id}'", ttl=0
                     )
                 else:
                     self.conn.query(
-                        f"UPDATE rounds SET is_current = 1, is_archival = 0 WHERE round_id = '{round_id}'", ttl=0
+                        f"UPDATE rounds SET is_current = 1, is_archival = 0, is_finished = 0 WHERE round_id = '{round_id}'", ttl=0
                     )
             except Exception:
                 pass
@@ -1471,6 +1538,19 @@ class TipperStorageMySQL:
     def get_round_leaderboard(self, round_id: str) -> List[Dict]:
         """Zwraca ranking dla rundy - wszyscy gracze, nawet ci bez typów (z 0 punktami) - zoptymalizowane"""
         try:
+            # Jeżeli runda nie jest zakończona, zwróć pusty ranking (liczymy tylko dla zakończonych kolejek)
+            try:
+                finished_df = self.conn.query(
+                    f"SELECT is_finished, is_archival FROM rounds WHERE round_id = '{round_id}'",
+                    ttl=60
+                )
+                if not finished_df.empty:
+                    is_finished = int(finished_df.iloc[0].get('is_finished', 0)) if 'is_finished' in finished_df.columns else int(finished_df.iloc[0].get('is_archival', 0))
+                    if is_finished == 0:
+                        return []
+            except Exception:
+                pass
+
             # Pobierz wszystkich graczy - z cache
             players_df = self.conn.query("SELECT player_name FROM players", ttl=120)
             all_players = set()
