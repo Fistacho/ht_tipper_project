@@ -1289,7 +1289,9 @@ class TipperStorageMySQL:
                 
                 # Pobierz wszystkie punkty gracza
                 points_df = self.conn.query(
-                    f"SELECT points FROM match_points WHERE player_name = '{player_name}'",
+                    "SELECT mp.points FROM match_points mp "
+                    "INNER JOIN rounds r ON r.round_id = mp.round_id "
+                    f"WHERE mp.player_name = '{player_name}' AND (r.is_finished = 1 OR r.is_archival = 1)",
                     ttl=0
                 )
                 
@@ -1297,7 +1299,11 @@ class TipperStorageMySQL:
                 
                 # Pobierz punkty per runda
                 round_points_df = self.conn.query(
-                    f"SELECT round_id, SUM(points) as round_total FROM match_points WHERE player_name = '{player_name}' GROUP BY round_id",
+                    "SELECT mp.round_id, SUM(mp.points) as round_total "
+                    "FROM match_points mp "
+                    "INNER JOIN rounds r ON r.round_id = mp.round_id "
+                    f"WHERE mp.player_name = '{player_name}' AND (r.is_finished = 1 OR r.is_archival = 1) "
+                    "GROUP BY mp.round_id",
                     ttl=0
                 )
                 
@@ -1451,11 +1457,15 @@ class TipperStorageMySQL:
                     f"SELECT r.round_id, r.start_date FROM rounds r "
                     f"INNER JOIN seasons s ON r.season_id = s.season_id "
                     f"WHERE s.season_id = '{season_id}' "
+                    f"AND (r.is_finished = 1 OR r.is_archival = 1) "
                     f"ORDER BY r.start_date ASC",
-                    ttl=120  # Użyj cache dla lepszej wydajności
+                    ttl=120
                 )
             else:
-                rounds_df = self.conn.query("SELECT round_id, start_date FROM rounds ORDER BY start_date ASC", ttl=120)
+                rounds_df = self.conn.query(
+                    "SELECT round_id, start_date FROM rounds WHERE (is_finished = 1 OR is_archival = 1) ORDER BY start_date ASC",
+                    ttl=120
+                )
             all_rounds = []
             if not rounds_df.empty:
                 for _, round_row in rounds_df.iterrows():
@@ -1469,18 +1479,20 @@ class TipperStorageMySQL:
             if season_id and all_rounds:
                 round_ids_str = "', '".join([r[0] for r in all_rounds])
                 all_round_points_df = self.conn.query(
-                    f"SELECT player_name, round_id, SUM(points) as round_total "
-                    f"FROM match_points "
-                    f"WHERE round_id IN ('{round_ids_str}') "
-                    f"GROUP BY player_name, round_id",
-                    ttl=120  # Użyj cache dla lepszej wydajności
+                    f"SELECT mp.player_name, mp.round_id, SUM(mp.points) as round_total "
+                    f"FROM match_points mp "
+                    f"INNER JOIN rounds r ON r.round_id = mp.round_id "
+                    f"WHERE mp.round_id IN ('{round_ids_str}') AND (r.is_finished = 1 OR r.is_archival = 1) "
+                    f"GROUP BY mp.player_name, mp.round_id",
+                    ttl=120
                 )
             else:
                 all_round_points_df = self.conn.query(
-                    "SELECT player_name, round_id, SUM(points) as round_total "
-                    "FROM match_points "
-                    "GROUP BY player_name, round_id",
-                    ttl=120  # Użyj cache dla lepszej wydajności
+                    "SELECT mp.player_name, mp.round_id, SUM(mp.points) as round_total "
+                    "FROM match_points mp INNER JOIN rounds r ON r.round_id = mp.round_id "
+                    "WHERE (r.is_finished = 1 OR r.is_archival = 1) "
+                    "GROUP BY mp.player_name, mp.round_id",
+                    ttl=120
                 )
             
             # Stwórz mapę player_name -> {round_id: points}
