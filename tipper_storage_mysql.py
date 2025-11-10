@@ -341,6 +341,12 @@ class TipperStorageMySQL:
                         try:
                             cursor = self.conn.cursor(dictionary=True) if self.is_aiven else self.conn.cursor()
                             cursor.execute(sql)
+                            
+                            # Dla INSERT/UPDATE/DELETE nie ma wyników do pobrania
+                            if sql.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
+                                cursor.close()
+                                return pd.DataFrame()
+                            
                             results = cursor.fetchall()
                             cursor.close()
                             
@@ -354,6 +360,12 @@ class TipperStorageMySQL:
                                 try:
                                     cursor = self.conn.cursor(dictionary=True) if self.is_aiven else self.conn.cursor()
                                     cursor.execute(sql)
+                                    
+                                    # Dla INSERT/UPDATE/DELETE nie ma wyników do pobrania
+                                    if sql.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
+                                        cursor.close()
+                                        return pd.DataFrame()
+                                    
                                     results = cursor.fetchall()
                                     cursor.close()
                                     if results:
@@ -1450,18 +1462,13 @@ class TipperStorageMySQL:
             # Escapuj pojedyncze cudzysłowy dla SQL
             value_escaped = value.replace("'", "''")
             
-            # Sprawdź połączenie przed zapytaniem
-            if not self.conn._check_connection():
-                logger.error("Nie można połączyć się z MySQL podczas zapisywania wybranych drużyn")
-                raise Exception("MySQL Connection not available.")
-            
-            # Użyj bezpośredniego wykonania zapytania z escapowaniem
-            cursor = self.conn.conn.cursor(dictionary=True) if self.conn.is_aiven else self.conn.conn.cursor()
-            sql = f"INSERT INTO settings (setting_key, setting_value) VALUES ('selected_teams', '{value_escaped}') " \
-                  f"ON DUPLICATE KEY UPDATE setting_value = '{value_escaped}'"
-            cursor.execute(sql)
-            self.conn.conn.commit()
-            cursor.close()
+            # Użyj metody query() jak w innych metodach (set_current_season)
+            # Dla INSERT query() zwróci pusty DataFrame, ale zapytanie zostanie wykonane
+            self.conn.query(
+                f"INSERT INTO settings (setting_key, setting_value) VALUES ('selected_teams', '{value_escaped}') "
+                f"ON DUPLICATE KEY UPDATE setting_value = '{value_escaped}'",
+                ttl=0
+            )
             
             # Wyczyść cache po zapisie
             TipperStorageMySQL._memory_cache = None
@@ -1469,6 +1476,8 @@ class TipperStorageMySQL:
             
         except Exception as e:
             logger.error(f"Błąd zapisywania wybranych drużyn: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     def get_selected_leagues(self) -> List[int]:
@@ -1513,18 +1522,13 @@ class TipperStorageMySQL:
             # Escapuj pojedyncze cudzysłowy dla SQL
             value_escaped = value.replace("'", "''")
             
-            # Sprawdź połączenie przed zapytaniem
-            if not self.conn._check_connection():
-                logger.error("Nie można połączyć się z MySQL podczas zapisywania wybranych lig")
-                raise Exception("MySQL Connection not available.")
-            
-            # Użyj bezpośredniego wykonania zapytania z escapowaniem
-            cursor = self.conn.conn.cursor(dictionary=True) if self.conn.is_aiven else self.conn.conn.cursor()
-            sql = f"INSERT INTO settings (setting_key, setting_value) VALUES ('selected_leagues', '{value_escaped}') " \
-                  f"ON DUPLICATE KEY UPDATE setting_value = '{value_escaped}'"
-            cursor.execute(sql)
-            self.conn.conn.commit()
-            cursor.close()
+            # Użyj metody query() jak w innych metodach (set_current_season)
+            # Dla INSERT query() zwróci pusty DataFrame, ale zapytanie zostanie wykonane
+            self.conn.query(
+                f"INSERT INTO settings (setting_key, setting_value) VALUES ('selected_leagues', '{value_escaped}') "
+                f"ON DUPLICATE KEY UPDATE setting_value = '{value_escaped}'",
+                ttl=0
+            )
             
             # Wyczyść cache po zapisie
             TipperStorageMySQL._memory_cache = None
@@ -1532,5 +1536,7 @@ class TipperStorageMySQL:
             
         except Exception as e:
             logger.error(f"Błąd zapisywania wybranych lig: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
