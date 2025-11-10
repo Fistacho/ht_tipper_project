@@ -873,8 +873,9 @@ def main():
                     if checkbox_key not in st.session_state:
                         st.session_state[checkbox_key] = team_name in selected_teams
                     
-                    # Użyj checkboxa z wartością z session_state
-                    if st.checkbox(team_label, value=st.session_state[checkbox_key], key=checkbox_key):
+                    # Użyj checkboxa - wartość będzie automatycznie z session_state przez key
+                    # Nie ustawiaj value, bo to powoduje konflikt z session_state
+                    if st.checkbox(team_label, key=checkbox_key):
                         new_selected_teams.append(team_name)
                 
                 # Przycisk zapisu ustawień w formularzu
