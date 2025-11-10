@@ -18,7 +18,7 @@ class TipperStorageMySQL:
     # Cache w pamięci (współdzielony między instancjami)
     _memory_cache = None
     _cache_timestamp = None
-    _cache_ttl = 120  # Cache ważny przez 120 sekund (2 minuty) - zwiększone dla lepszej wydajności
+    _cache_ttl = 300  # Cache ważny przez 300 sekund (5 minut) - zwiększone dla lepszej wydajności na serwerze
     
     def __init__(self):
         """Inicjalizuje połączenie z bazą MySQL (używa współdzielonego połączenia z session_state)"""
@@ -1165,13 +1165,13 @@ class TipperStorageMySQL:
             logger.error(f"Błąd ustawiania aktualnego sezonu: {e}")
     
     def get_leaderboard(self, exclude_worst: bool = True, season_id: Optional[str] = None) -> List[Dict]:
-        """Zwraca ranking graczy (z opcją odrzucenia najgorszego wyniku) dla danego sezonu"""
+        """Zwraca ranking graczy (z opcją odrzucenia najgorszego wyniku) dla danego sezonu - zoptymalizowane"""
         try:
             # Jeśli nie podano sezonu, użyj aktualnego sezonu
             if season_id is None:
                 season_id = self.get_current_season()
             
-            # Pobierz wszystkie rundy posortowane po dacie (najstarsza pierwsza)
+            # Pobierz wszystkie rundy posortowane po dacie (najstarsza pierwsza) - z cache
             # Filtruj tylko rundy z aktualnego sezonu (jeśli sezon jest ustawiony)
             if season_id:
                 rounds_df = self.conn.query(
@@ -1179,32 +1179,54 @@ class TipperStorageMySQL:
                     f"INNER JOIN seasons s ON r.season_id = s.season_id "
                     f"WHERE s.season_id = '{season_id}' "
                     f"ORDER BY r.start_date ASC",
-                    ttl=0
+                    ttl=120  # Użyj cache dla lepszej wydajności
                 )
             else:
-                rounds_df = self.conn.query("SELECT round_id, start_date FROM rounds ORDER BY start_date ASC", ttl=0)
+                rounds_df = self.conn.query("SELECT round_id, start_date FROM rounds ORDER BY start_date ASC", ttl=120)
             all_rounds = []
             if not rounds_df.empty:
                 for _, round_row in rounds_df.iterrows():
                     all_rounds.append((round_row['round_id'], round_row['start_date']))
             
-            players_df = self.conn.query("SELECT * FROM players ORDER BY total_points DESC", ttl=0)
+            # Pobierz wszystkich graczy - z cache
+            players_df = self.conn.query("SELECT * FROM players ORDER BY total_points DESC", ttl=120)
+            
+            # Zoptymalizowane: Pobierz wszystkie punkty per runda dla wszystkich graczy w jednym zapytaniu
+            # Filtruj tylko rundy z aktualnego sezonu jeśli sezon jest ustawiony
+            if season_id and all_rounds:
+                round_ids_str = "', '".join([r[0] for r in all_rounds])
+                all_round_points_df = self.conn.query(
+                    f"SELECT player_name, round_id, SUM(points) as round_total "
+                    f"FROM match_points "
+                    f"WHERE round_id IN ('{round_ids_str}') "
+                    f"GROUP BY player_name, round_id",
+                    ttl=120  # Użyj cache dla lepszej wydajności
+                )
+            else:
+                all_round_points_df = self.conn.query(
+                    "SELECT player_name, round_id, SUM(points) as round_total "
+                    "FROM match_points "
+                    "GROUP BY player_name, round_id",
+                    ttl=120  # Użyj cache dla lepszej wydajności
+                )
+            
+            # Stwórz mapę player_name -> {round_id: points}
+            player_round_points_map = {}
+            if not all_round_points_df.empty:
+                for _, row in all_round_points_df.iterrows():
+                    player_name = row['player_name']
+                    round_id = row['round_id']
+                    points = int(row['round_total'])
+                    if player_name not in player_round_points_map:
+                        player_round_points_map[player_name] = {}
+                    player_round_points_map[player_name][round_id] = points
             
             leaderboard = []
             for _, row in players_df.iterrows():
                 player_name = row['player_name']
                 
-                # Pobierz punkty per runda (tylko rundy z punktami)
-                round_points_df = self.conn.query(
-                    f"SELECT round_id, SUM(points) as round_total FROM match_points WHERE player_name = '{player_name}' GROUP BY round_id",
-                    ttl=0
-                )
-                
-                # Stwórz mapę round_id -> punkty
-                round_points_map = {}
-                if not round_points_df.empty:
-                    for _, round_row in round_points_df.iterrows():
-                        round_points_map[round_row['round_id']] = int(round_row['round_total'])
+                # Pobierz punkty per runda z mapy (zamiast osobnego zapytania dla każdego gracza)
+                round_points_map = player_round_points_map.get(player_name, {})
                 
                 # Zbierz punkty z każdej kolejki w kolejności (najstarsza pierwsza)
                 # Jeśli gracz nie typował w rundzie, dodaj 0
@@ -1241,31 +1263,24 @@ class TipperStorageMySQL:
             return []
     
     def get_round_leaderboard(self, round_id: str) -> List[Dict]:
-        """Zwraca ranking dla rundy - wszyscy gracze, nawet ci bez typów (z 0 punktami)"""
+        """Zwraca ranking dla rundy - wszyscy gracze, nawet ci bez typów (z 0 punktami) - zoptymalizowane"""
         try:
-            logger.info(f"DEBUG: get_round_leaderboard dla round_id='{round_id}'")
-            
-            # Pobierz wszystkich graczy
-            players_df = self.conn.query("SELECT player_name FROM players", ttl=0)
+            # Pobierz wszystkich graczy - z cache
+            players_df = self.conn.query("SELECT player_name FROM players", ttl=120)
             all_players = set()
             if not players_df.empty:
                 for _, row in players_df.iterrows():
                     all_players.add(row['player_name'])
             
-            logger.info(f"DEBUG: Znaleziono {len(all_players)} graczy w bazie")
-            
             # Jeśli nie ma graczy, zwróć pustą listę
             if not all_players:
-                logger.info(f"DEBUG: Brak graczy w bazie dla rundy {round_id}")
                 return []
             
-            # Sprawdź jakie round_id są w bazie (debug)
-            all_rounds_df = self.conn.query("SELECT DISTINCT round_id FROM rounds", ttl=0)
+            # Sprawdź jakie round_id są w bazie - z cache
+            all_rounds_df = self.conn.query("SELECT DISTINCT round_id FROM rounds", ttl=120)
             all_round_ids = []
             if not all_rounds_df.empty:
                 all_round_ids = [str(row['round_id']) for _, row in all_rounds_df.iterrows()]
-            logger.info(f"DEBUG: Round IDs w bazie: {all_round_ids[:10]}... (pokazuję pierwsze 10)")
-            logger.info(f"DEBUG: Szukam round_id='{round_id}' w bazie")
             
             # Jeśli nie znaleziono dokładnego round_id, spróbuj znaleźć podobny (bez prefiksu round_)
             actual_round_id = round_id
@@ -1276,24 +1291,22 @@ class TipperStorageMySQL:
                 for db_round_id in all_round_ids:
                     if round_id_without_prefix in db_round_id or db_round_id in round_id:
                         actual_round_id = db_round_id
-                        logger.info(f"DEBUG: Znaleziono podobny round_id: '{db_round_id}' zamiast '{round_id}'")
                         break
             
-            # Pobierz mecze w rundzie (aby wiedzieć ile meczów było)
+            # Pobierz mecze w rundzie (aby wiedzieć ile meczów było) - z cache
             matches_df = self.conn.query(
                 f"SELECT match_id, match_date FROM matches WHERE round_id = '{actual_round_id}' ORDER BY match_date ASC",
-                ttl=0
+                ttl=120  # Użyj cache dla lepszej wydajności
             )
-            logger.info(f"DEBUG: Znaleziono {len(matches_df)} meczów dla round_id='{actual_round_id}'")
             matches_count = len(matches_df) if not matches_df.empty else 0
             match_ids = []
             if not matches_df.empty:
                 match_ids = [str(row['match_id']) for _, row in matches_df.iterrows()]
             
-            # Pobierz punkty per gracz dla rundy
+            # Pobierz punkty per gracz dla rundy - z cache
             points_df = self.conn.query(
                 f"SELECT player_name, match_id, points FROM match_points WHERE round_id = '{actual_round_id}' ORDER BY player_name, match_id",
-                ttl=0
+                ttl=120  # Użyj cache dla lepszej wydajności
             )
             
             player_totals = {}
@@ -1336,7 +1349,6 @@ class TipperStorageMySQL:
             # Sortuj po punktach (malejąco)
             leaderboard.sort(key=lambda x: x['total_points'], reverse=True)
             
-            logger.info(f"DEBUG: Zwracam ranking dla rundy {round_id}: {len(leaderboard)} graczy")
             return leaderboard
         except Exception as e:
             logger.error(f"Błąd pobierania rankingu rundy: {e}")
