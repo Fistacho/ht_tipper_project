@@ -30,7 +30,7 @@ wheels/
 .streamlit/secrets.toml
 
 # Data files
-tipper_data.json
+#tipper_data.json
 *.log
 
 # IDE
