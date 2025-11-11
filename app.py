@@ -375,13 +375,14 @@ def refresh_round_from_api(storage, round_id: str, matches: List[dict]):
                     
                     # Aktualizuj mecz w bazie
                     if hasattr(storage, 'conn'):
-                        # Aktualizuj wyniki jeśli są dostępne
+                        # WAŻNE: Aktualizuj wyniki TYLKO jeśli są dostępne w API
+                        # update_match_result sprawdzi, czy mecz już ma wyniki w bazie i nie nadpisze ich
                         if hg is not None and ag is not None:
-                            logger.info(f"📝 Aktualizuję wynik meczu {match_id}: {hg}-{ag}")
+                            logger.info(f"📝 Aktualizuję wynik meczu {match_id}: {hg}-{ag} (update_match_result sprawdzi, czy mecz już ma wyniki)")
                             storage.update_match_result(round_id, match_id, safe_int(hg), safe_int(ag))
                             updated_count += 1
                         else:
-                            logger.info(f"⚠️ Mecz {match_id} nie ma wyników w API (hg={hg}, ag={ag})")
+                            logger.info(f"⚠️ Mecz {match_id} nie ma wyników w API (hg={hg}, ag={ag}) - NIE aktualizuję wyników")
                         
                         # Aktualizuj flagę is_finished - WAŻNE: jeśli API nie potwierdza zakończenia, ustaw is_finished=0
                         if finished_flag is not None:
@@ -2148,11 +2149,28 @@ def main():
                 round_number = date_to_round_number[selected_round_date]  # Numer kolejki według daty asc (1 = najstarsza)
                 round_id = f"round_{selected_round_date}"
                 
-                # Dodaj rundę do storage jeśli nie istnieje
-                if round_id not in storage.data['rounds']:
+                # WAŻNE: NIE wywołuj add_round tutaj, jeśli runda już istnieje w bazie
+                # add_round może nadpisać wyniki meczów, jeśli mecze z API mają home_goals=None
+                # Zamiast tego, sprawdź czy runda istnieje w bazie (dla MySQL)
+                round_exists_in_db = False
+                if hasattr(storage, 'conn'):
+                    try:
+                        rounds_df = storage.conn.query(
+                            f"SELECT round_id FROM rounds WHERE round_id = '{round_id}'",
+                            ttl=0
+                        )
+                        round_exists_in_db = not rounds_df.empty
+                    except Exception:
+                        pass
+                
+                # Dodaj rundę do storage tylko jeśli nie istnieje (ani w storage.data, ani w bazie)
+                if round_id not in storage.data['rounds'] and not round_exists_in_db:
                     # Użyj wybranego sezonu z filtra
                     selected_season_id = st.session_state.get('selected_season_id', season_id)
+                    logger.info(f"📝 Dodaję rundę {round_id} do storage (nie istnieje w storage.data ani w bazie)")
                     storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
+                elif round_exists_in_db:
+                    logger.info(f"✅ Runda {round_id} już istnieje w bazie, NIE wywołuję add_round (aby nie nadpisać wyników)")
                 
                 # Przed pobraniem rankingu, zaktualizuj status meczów z API (tylko te, które nie są zakończone)
                 # To zapewni, że is_finished=1 dla meczów, które mają wyniki
@@ -2388,11 +2406,28 @@ def main():
             round_number = date_to_round_number[selected_round_date]  # Numer kolejki według daty asc (1 = najstarsza)
             round_id = f"round_{selected_round_date}"
             
-            # Dodaj rundę do storage jeśli nie istnieje
-            if round_id not in storage.data['rounds']:
+            # WAŻNE: NIE wywołuj add_round tutaj, jeśli runda już istnieje w bazie
+            # add_round może nadpisać wyniki meczów, jeśli mecze z API mają home_goals=None
+            # Zamiast tego, sprawdź czy runda istnieje w bazie (dla MySQL)
+            round_exists_in_db = False
+            if hasattr(storage, 'conn'):
+                try:
+                    rounds_df = storage.conn.query(
+                        f"SELECT round_id FROM rounds WHERE round_id = '{round_id}'",
+                        ttl=0
+                    )
+                    round_exists_in_db = not rounds_df.empty
+                except Exception:
+                    pass
+            
+            # Dodaj rundę do storage tylko jeśli nie istnieje (ani w storage.data, ani w bazie)
+            if round_id not in storage.data['rounds'] and not round_exists_in_db:
                 # Użyj wybranego sezonu z filtra
                 selected_season_id = st.session_state.get('selected_season_id', season_id)
+                logger.info(f"📝 Dodaję rundę {round_id} do storage (nie istnieje w storage.data ani w bazie)")
                 storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
+            elif round_exists_in_db:
+                logger.info(f"✅ Runda {round_id} już istnieje w bazie, NIE wywołuję add_round (aby nie nadpisać wyników)")
             
             # Wyświetl mecze w rundzie - tabela na górze dla czytelności
             st.subheader(f"⚽ Kolejka {round_number} - {selected_round_date}")

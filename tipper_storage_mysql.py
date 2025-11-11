@@ -1169,10 +1169,11 @@ class TipperStorageMySQL:
                     existing_away = existing_match_df.iloc[0].get('away_goals')
                     has_existing_results = existing_home is not None and existing_away is not None
                     
-                    # Jeśli mecz ma wyniki w bazie, NIE nadpisuj ich (nawet jeśli nowe wyniki pochodzą z API)
+                    # WAŻNE: Jeśli mecz ma wyniki w bazie, NIE nadpisuj ich (nawet jeśli nowe wyniki pochodzą z API)
                     # Tylko jeśli nowe wyniki są dostępne I mecz nie ma wyników, można je zaktualizować
                     if has_existing_results:
                         # Nie nadpisuj wyników - aktualizuj tylko inne pola
+                        logger.info(f"🛡️ Mecz {match_id} już ma wyniki w bazie ({existing_home}-{existing_away}), nie nadpisuję - aktualizuję tylko inne pola")
                         self.conn.query(
                             f"UPDATE matches SET home_team_name = '{home_team}', away_team_name = '{away_team}', "
                             f"match_date = '{match_date}', league_id = {league_id}, is_finished = {is_finished} "
@@ -1181,6 +1182,7 @@ class TipperStorageMySQL:
                         )
                     elif has_new_results:
                         # Mecz nie ma wyników w bazie, ale nowe wyniki są dostępne z API - zaktualizuj
+                        logger.info(f"✅ Mecz {match_id} nie ma wyników w bazie, ale nowe wyniki są dostępne z API ({match.get('home_goals')}-{match.get('away_goals')}), aktualizuję")
                         self.conn.query(
                             f"UPDATE matches SET home_team_name = '{home_team}', away_team_name = '{away_team}', "
                             f"match_date = '{match_date}', home_goals = {home_goals}, away_goals = {away_goals}, "
@@ -1190,6 +1192,7 @@ class TipperStorageMySQL:
                         )
                     else:
                         # Mecz nie ma wyników w bazie i nowe wyniki też nie są dostępne - aktualizuj tylko inne pola (NIE ustawiaj wyników na NULL)
+                        logger.info(f"⚠️ Mecz {match_id} nie ma wyników w bazie i nowe wyniki też nie są dostępne, aktualizuję tylko inne pola (NIE ustawiam wyników na NULL)")
                         self.conn.query(
                             f"UPDATE matches SET home_team_name = '{home_team}', away_team_name = '{away_team}', "
                             f"match_date = '{match_date}', league_id = {league_id}, is_finished = {is_finished} "
