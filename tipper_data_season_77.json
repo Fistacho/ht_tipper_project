@@ -1,0 +1,273 @@
+{
+  "players": {
+    "Manvers": {
+      "total_points": 346,
+      "rounds_played": 14,
+      "round_scores": {
+        "round_1": 16,
+        "round_2": 29,
+        "round_3": 20,
+        "round_4": 28,
+        "round_5": 30,
+        "round_6": 36,
+        "round_7": 19,
+        "round_8": 21,
+        "round_9": 32,
+        "round_10": 29,
+        "round_11": 19,
+        "round_12": 27,
+        "round_13": 27,
+        "round_14": 13
+      },
+      "worst_score": 13
+    },
+    "Sonne": {
+      "total_points": 328,
+      "rounds_played": 14,
+      "round_scores": {
+        "round_1": 24,
+        "round_2": 20,
+        "round_3": 31,
+        "round_4": 24,
+        "round_5": 21,
+        "round_6": 30,
+        "round_7": 19,
+        "round_8": 10,
+        "round_9": 26,
+        "round_10": 29,
+        "round_11": 26,
+        "round_12": 21,
+        "round_13": 28,
+        "round_14": 19
+      },
+      "worst_score": 10
+    },
+    "Fistach": {
+      "total_points": 302,
+      "rounds_played": 14,
+      "round_scores": {
+        "round_1": 20,
+        "round_2": 20,
+        "round_3": 24,
+        "round_4": 17,
+        "round_5": 21,
+        "round_6": 26,
+        "round_7": 15,
+        "round_8": 17,
+        "round_9": 25,
+        "round_10": 35,
+        "round_11": 34,
+        "round_12": 0,
+        "round_13": 30,
+        "round_14": 18
+      },
+      "worst_score": 0
+    },
+    "Wilk": {
+      "total_points": 295,
+      "rounds_played": 14,
+      "round_scores": {
+        "round_1": 24,
+        "round_2": 0,
+        "round_3": 28,
+        "round_4": 36,
+        "round_5": 18,
+        "round_6": 19,
+        "round_7": 21,
+        "round_8": 19,
+        "round_9": 19,
+        "round_10": 24,
+        "round_11": 20,
+        "round_12": 29,
+        "round_13": 27,
+        "round_14": 11
+      },
+      "worst_score": 0
+    },
+    "Sokół": {
+      "total_points": 269,
+      "rounds_played": 14,
+      "round_scores": {
+        "round_1": 23,
+        "round_2": 13,
+        "round_3": 0,
+        "round_4": 18,
+        "round_5": 16,
+        "round_6": 12,
+        "round_7": 28,
+        "round_8": 0,
+        "round_9": 23,
+        "round_10": 36,
+        "round_11": 29,
+        "round_12": 31,
+        "round_13": 26,
+        "round_14": 14
+      },
+      "worst_score": 0
+    },
+    "Moli": {
+      "total_points": 217,
+      "rounds_played": 14,
+      "round_scores": {
+        "round_1": 28,
+        "round_2": 0,
+        "round_3": 19,
+        "round_4": 25,
+        "round_5": 27,
+        "round_6": 30,
+        "round_7": 24,
+        "round_8": 25,
+        "round_9": 22,
+        "round_10": 0,
+        "round_11": 0,
+        "round_12": 17,
+        "round_13": 0,
+        "round_14": 0
+      },
+      "worst_score": 0
+    }
+  },
+  "rounds": {},
+  "seasons": {
+    "season_77": {
+      "league_id": null,
+      "rounds": [],
+      "start_date": null,
+      "end_date": null,
+      "archived": true,
+      "players": {
+        "Manvers": {
+          "total_points": 346,
+          "rounds_played": 14,
+          "round_scores": {
+            "round_1": 16,
+            "round_2": 29,
+            "round_3": 20,
+            "round_4": 28,
+            "round_5": 30,
+            "round_6": 36,
+            "round_7": 19,
+            "round_8": 21,
+            "round_9": 32,
+            "round_10": 29,
+            "round_11": 19,
+            "round_12": 27,
+            "round_13": 27,
+            "round_14": 13
+          },
+          "worst_score": 13
+        },
+        "Sonne": {
+          "total_points": 328,
+          "rounds_played": 14,
+          "round_scores": {
+            "round_1": 24,
+            "round_2": 20,
+            "round_3": 31,
+            "round_4": 24,
+            "round_5": 21,
+            "round_6": 30,
+            "round_7": 19,
+            "round_8": 10,
+            "round_9": 26,
+            "round_10": 29,
+            "round_11": 26,
+            "round_12": 21,
+            "round_13": 28,
+            "round_14": 19
+          },
+          "worst_score": 10
+        },
+        "Fistach": {
+          "total_points": 302,
+          "rounds_played": 14,
+          "round_scores": {
+            "round_1": 20,
+            "round_2": 20,
+            "round_3": 24,
+            "round_4": 17,
+            "round_5": 21,
+            "round_6": 26,
+            "round_7": 15,
+            "round_8": 17,
+            "round_9": 25,
+            "round_10": 35,
+            "round_11": 34,
+            "round_12": 0,
+            "round_13": 30,
+            "round_14": 18
+          },
+          "worst_score": 0
+        },
+        "Wilk": {
+          "total_points": 295,
+          "rounds_played": 14,
+          "round_scores": {
+            "round_1": 24,
+            "round_2": 0,
+            "round_3": 28,
+            "round_4": 36,
+            "round_5": 18,
+            "round_6": 19,
+            "round_7": 21,
+            "round_8": 19,
+            "round_9": 19,
+            "round_10": 24,
+            "round_11": 20,
+            "round_12": 29,
+            "round_13": 27,
+            "round_14": 11
+          },
+          "worst_score": 0
+        },
+        "Sokół": {
+          "total_points": 269,
+          "rounds_played": 14,
+          "round_scores": {
+            "round_1": 23,
+            "round_2": 13,
+            "round_3": 0,
+            "round_4": 18,
+            "round_5": 16,
+            "round_6": 12,
+            "round_7": 28,
+            "round_8": 0,
+            "round_9": 23,
+            "round_10": 36,
+            "round_11": 29,
+            "round_12": 31,
+            "round_13": 26,
+            "round_14": 14
+          },
+          "worst_score": 0
+        },
+        "Moli": {
+          "total_points": 217,
+          "rounds_played": 14,
+          "round_scores": {
+            "round_1": 28,
+            "round_2": 0,
+            "round_3": 19,
+            "round_4": 25,
+            "round_5": 27,
+            "round_6": 30,
+            "round_7": 24,
+            "round_8": 25,
+            "round_9": 22,
+            "round_10": 0,
+            "round_11": 0,
+            "round_12": 17,
+            "round_13": 0,
+            "round_14": 0
+          },
+          "worst_score": 0
+        }
+      }
+    }
+  },
+  "leagues": {},
+  "settings": {
+    "selected_teams": []
+  }
+}
+
