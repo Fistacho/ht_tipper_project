@@ -1160,13 +1160,17 @@ class TipperStorageMySQL:
                     ttl=0
                 )
                 
+                # Sprawdź, czy nowe wyniki pochodzą z API (nie są None)
+                has_new_results = match.get('home_goals') is not None and match.get('away_goals') is not None
+                
                 if not existing_match_df.empty:
                     # Mecz już istnieje - sprawdź, czy ma wyniki
                     existing_home = existing_match_df.iloc[0].get('home_goals')
                     existing_away = existing_match_df.iloc[0].get('away_goals')
                     has_existing_results = existing_home is not None and existing_away is not None
                     
-                    # Jeśli mecz ma wyniki w bazie, NIE nadpisuj ich (chyba że nowe wyniki pochodzą z API i nie są NULL)
+                    # Jeśli mecz ma wyniki w bazie, NIE nadpisuj ich (nawet jeśli nowe wyniki pochodzą z API)
+                    # Tylko jeśli nowe wyniki są dostępne I mecz nie ma wyników, można je zaktualizować
                     if has_existing_results:
                         # Nie nadpisuj wyników - aktualizuj tylko inne pola
                         self.conn.query(
@@ -1175,8 +1179,8 @@ class TipperStorageMySQL:
                             f"WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
                             ttl=0
                         )
-                    else:
-                        # Mecz nie ma wyników - można zaktualizować (nawet jeśli nowe to NULL)
+                    elif has_new_results:
+                        # Mecz nie ma wyników w bazie, ale nowe wyniki są dostępne z API - zaktualizuj
                         self.conn.query(
                             f"UPDATE matches SET home_team_name = '{home_team}', away_team_name = '{away_team}', "
                             f"match_date = '{match_date}', home_goals = {home_goals}, away_goals = {away_goals}, "
@@ -1184,8 +1188,16 @@ class TipperStorageMySQL:
                             f"WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
                             ttl=0
                         )
+                    else:
+                        # Mecz nie ma wyników w bazie i nowe wyniki też nie są dostępne - aktualizuj tylko inne pola (NIE ustawiaj wyników na NULL)
+                        self.conn.query(
+                            f"UPDATE matches SET home_team_name = '{home_team}', away_team_name = '{away_team}', "
+                            f"match_date = '{match_date}', league_id = {league_id}, is_finished = {is_finished} "
+                            f"WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
+                            ttl=0
+                        )
                 else:
-                    # Mecz nie istnieje - dodaj nowy
+                    # Mecz nie istnieje - dodaj nowy (tylko jeśli są wyniki, w przeciwnym razie NULL)
                     self.conn.query(
                         f"INSERT INTO matches (match_id, round_id, home_team_name, away_team_name, match_date, home_goals, away_goals, league_id, is_finished) "
                         f"VALUES ('{match_id}', '{round_id}', '{home_team}', '{away_team}', '{match_date}', {home_goals}, {away_goals}, {league_id}, {is_finished})",
@@ -1390,6 +1402,22 @@ class TipperStorageMySQL:
     def update_match_result(self, round_id: str, match_id: str, home_goals: int, away_goals: int):
         """Aktualizuje wynik meczu i przelicza punkty - TYLKO jeśli mecz jest zakończony (is_finished=1)"""
         try:
+            # WAŻNE: Sprawdź, czy mecz już ma wyniki w bazie - jeśli tak, NIE nadpisuj ich
+            existing_match_df = self.conn.query(
+                f"SELECT home_goals, away_goals FROM matches WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
+                ttl=0
+            )
+            
+            if not existing_match_df.empty:
+                existing_home = existing_match_df.iloc[0].get('home_goals')
+                existing_away = existing_match_df.iloc[0].get('away_goals')
+                has_existing_results = existing_home is not None and existing_away is not None
+                
+                # Jeśli mecz już ma wyniki, NIE nadpisuj ich
+                if has_existing_results:
+                    logger.info(f"⚠️ Mecz {match_id} już ma wyniki w bazie ({existing_home}-{existing_away}), nie nadpisuję")
+                    return
+            
             # Aktualizuj wynik meczu i ustaw is_finished=1 (bo mamy wynik)
             self.conn.query(
                 f"UPDATE matches SET home_goals = {home_goals}, away_goals = {away_goals}, is_finished = 1 "
