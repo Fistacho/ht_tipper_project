@@ -815,14 +815,16 @@ def main():
             st.markdown("---")
             st.subheader("📅 Wybór rundy")
             
-            # Znajdź ostatnią rozegraną kolejkę (domyślnie)
+            # Znajdź pierwszą nie rozegraną kolejkę (najstarszą nie rozegraną - domyślnie po zalogowaniu)
             default_round_idx = 0
-            for idx, (date, matches) in enumerate(filtered_rounds):
+            # Przeszukaj od końca (od najstarszej do najnowszej), aby znaleźć najstarszą nie rozegraną
+            for idx in range(len(filtered_rounds) - 1, -1, -1):
+                date, matches = filtered_rounds[idx]
                 # Sprawdź czy kolejka ma rozegrane mecze
                 has_played = any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches)
-                if has_played:
+                if not has_played:
                     default_round_idx = idx
-                    break  # Weź pierwszą (najnowszą) rozegraną kolejkę
+                    break  # Weź najstarszą nie rozegraną kolejkę
             
             # Sprawdź czy jest zapisany wybór rundy w session_state
             if 'selected_round_idx' in st.session_state:
@@ -1010,14 +1012,16 @@ def main():
         st.markdown("---")
         st.subheader("📅 Wybór rundy")
         
-        # Znajdź ostatnią rozegraną kolejkę (domyślnie)
+        # Znajdź pierwszą nie rozegraną kolejkę (najstarszą nie rozegraną - domyślnie po zalogowaniu)
         default_round_idx = 0
-        for idx, (date, matches) in enumerate(filtered_rounds):
+        # Przeszukaj od końca (od najstarszej do najnowszej), aby znaleźć najstarszą nie rozegraną
+        for idx in range(len(filtered_rounds) - 1, -1, -1):
+            date, matches = filtered_rounds[idx]
             # Sprawdź czy kolejka ma rozegrane mecze
             has_played = any(m.get('home_goals') is not None and m.get('away_goals') is not None for m in matches)
-            if has_played:
+            if not has_played:
                 default_round_idx = idx
-                break  # Weź pierwszą (najnowszą) rozegraną kolejkę
+                break  # Weź najstarszą nie rozegraną kolejkę
         
         # Sprawdź czy jest zapisany wybór rundy w session_state (synchronizacja z rankingiem)
         if 'selected_round_idx' in st.session_state:
@@ -1217,18 +1221,17 @@ def main():
                             st.write(f"{status_icon} **{home_team}** vs **{away_team}**{result_text} {points_display}")
                         with col2:
                             if can_edit:
-                                # Użyj value zamiast default_value, aby wymusić aktualizację po zapisie bulk
                                 input_key = f"tipper_pred_{selected_player}_{match_id}"
-                                # Jeśli flaga odświeżenia jest ustawiona, zaktualizuj wartość na podstawie default_value
-                                if needs_refresh:
-                                    st.session_state[input_key] = default_value
-                                # Jeśli klucz nie istnieje w session_state, użyj default_value
-                                elif input_key not in st.session_state:
-                                    st.session_state[input_key] = default_value
                                 
+                                # Jeśli flaga odświeżenia jest ustawiona, usuń klucz z session_state
+                                # aby wymusić użycie nowej wartości default_value
+                                if needs_refresh and input_key in st.session_state:
+                                    del st.session_state[input_key]
+                                
+                                # Użyj tylko default_value - Streamlit automatycznie zarządza stanem przez key
                                 pred_input = st.text_input(
                                     f"Typ:",
-                                    value=st.session_state.get(input_key, default_value),
+                                    value=default_value,
                                     key=input_key,
                                     label_visibility="collapsed"
                                 )
