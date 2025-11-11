@@ -27,7 +27,7 @@ wheels/
 .env
 
 # Data files
-tipper_data.json
+#tipper_data.json
 *.log
 
 # IDE
