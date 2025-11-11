@@ -415,11 +415,12 @@
         }
       },
       "total_points": 433,
-      "rounds_played": 12,
+      "rounds_played": 13,
       "best_score": 46,
-      "worst_score": 23,
+      "worst_score": 0,
       "round_scores": {
         "round_2025-11-09": 39,
+        "round_2025-11-23": 0,
         "round_2025-08-24": 26,
         "round_2025-08-31": 37,
         "round_2025-09-07": 32,
@@ -430,7 +431,8 @@
         "round_2025-10-05": 32,
         "round_2025-10-19": 43,
         "round_2025-10-26": 46,
-        "round_2025-11-02": 23
+        "round_2025-11-02": 23,
+        "round_2025-11-16": 0
       }
     },
     "Wilk": {
@@ -818,9 +820,10 @@
       "total_points": 390,
       "rounds_played": 12,
       "best_score": 40,
-      "worst_score": 20,
+      "worst_score": 0,
       "round_scores": {
         "round_2025-11-09": 32,
+        "round_2025-11-23": 0,
         "round_2025-08-24": 20,
         "round_2025-08-31": 35,
         "round_2025-09-07": 36,
@@ -831,7 +834,8 @@
         "round_2025-10-05": 33,
         "round_2025-10-19": 36,
         "round_2025-10-26": 29,
-        "round_2025-11-02": 32
+        "round_2025-11-02": 32,
+        "round_2025-11-16": 0
       }
     },
     "Fistach": {
@@ -1219,9 +1223,10 @@
       "total_points": 426,
       "rounds_played": 12,
       "best_score": 53,
-      "worst_score": 24,
+      "worst_score": 0,
       "round_scores": {
         "round_2025-11-09": 30,
+        "round_2025-11-23": 0,
         "round_2025-08-24": 24,
         "round_2025-08-31": 43,
         "round_2025-09-07": 33,
@@ -1232,7 +1237,8 @@
         "round_2025-10-05": 32,
         "round_2025-10-19": 37,
         "round_2025-10-26": 47,
-        "round_2025-11-02": 32
+        "round_2025-11-02": 32,
+        "round_2025-11-16": 0
       }
     },
     "Adi": {
@@ -1620,9 +1626,10 @@
       "total_points": 415,
       "rounds_played": 12,
       "best_score": 54,
-      "worst_score": 16,
+      "worst_score": 0,
       "round_scores": {
         "round_2025-11-09": 34,
+        "round_2025-11-23": 0,
         "round_2025-08-24": 16,
         "round_2025-08-31": 54,
         "round_2025-09-07": 38,
@@ -1633,7 +1640,8 @@
         "round_2025-10-05": 36,
         "round_2025-10-19": 35,
         "round_2025-10-26": 37,
-        "round_2025-11-02": 22
+        "round_2025-11-02": 22,
+        "round_2025-11-16": 0
       }
     },
     "Manvers": {
@@ -2021,9 +2029,10 @@
       "total_points": 434,
       "rounds_played": 12,
       "best_score": 50,
-      "worst_score": 21,
+      "worst_score": 0,
       "round_scores": {
         "round_2025-11-09": 42,
+        "round_2025-11-23": 0,
         "round_2025-08-24": 25,
         "round_2025-08-31": 50,
         "round_2025-09-07": 21,
@@ -2034,7 +2043,8 @@
         "round_2025-10-05": 34,
         "round_2025-10-19": 45,
         "round_2025-10-26": 40,
-        "round_2025-11-02": 21
+        "round_2025-11-02": 21,
+        "round_2025-11-16": 0
       }
     },
     "Sokół": {
@@ -2358,18 +2368,22 @@
       "total_points": 317,
       "rounds_played": 10,
       "best_score": 45,
-      "worst_score": 19,
+      "worst_score": 0,
       "round_scores": {
         "round_2025-11-09": 24,
+        "round_2025-11-23": 0,
         "round_2025-08-24": 19,
         "round_2025-08-31": 35,
         "round_2025-09-07": 31,
+        "round_2025-09-14": 0,
         "round_2025-09-21": 29,
         "round_2025-09-28": 26,
+        "round_2025-10-12": 0,
         "round_2025-10-05": 27,
         "round_2025-10-19": 37,
         "round_2025-10-26": 45,
-        "round_2025-11-02": 44
+        "round_2025-11-02": 44,
+        "round_2025-11-16": 0
       }
     },
     "Moli": {
@@ -2725,9 +2739,10 @@
       "total_points": 385,
       "rounds_played": 11,
       "best_score": 42,
-      "worst_score": 25,
+      "worst_score": 0,
       "round_scores": {
         "round_2025-11-09": 33,
+        "round_2025-11-23": 0,
         "round_2025-08-24": 25,
         "round_2025-08-31": 29,
         "round_2025-09-07": 36,
@@ -2737,7 +2752,9 @@
         "round_2025-10-12": 25,
         "round_2025-10-05": 41,
         "round_2025-10-19": 39,
-        "round_2025-10-26": 41
+        "round_2025-10-26": 41,
+        "round_2025-11-02": 0,
+        "round_2025-11-16": 0
       }
     },
     "Kali": {
@@ -2933,14 +2950,22 @@
       "total_points": 197,
       "rounds_played": 6,
       "best_score": 48,
-      "worst_score": 16,
+      "worst_score": 0,
       "round_scores": {
+        "round_2025-11-09": 0,
+        "round_2025-11-23": 0,
         "round_2025-08-24": 16,
         "round_2025-08-31": 40,
+        "round_2025-09-07": 0,
+        "round_2025-09-14": 0,
         "round_2025-09-21": 31,
         "round_2025-09-28": 22,
         "round_2025-10-12": 48,
-        "round_2025-10-05": 40
+        "round_2025-10-05": 40,
+        "round_2025-10-19": 0,
+        "round_2025-10-26": 0,
+        "round_2025-11-02": 0,
+        "round_2025-11-16": 0
       }
     }
   },
