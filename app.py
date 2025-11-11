@@ -1152,15 +1152,24 @@ def main():
                     st.error("❌ Nie udało się usunąć gracza")
             
             if selected_player:
+                # Sprawdź czy trzeba odświeżyć dane
+                needs_refresh = st.session_state.get('_refresh_predictions', False)
+                if needs_refresh:
+                    storage.reload_data()
+                
+                # Przeładuj dane przed pobraniem typów (aby mieć aktualne dane)
+                storage.reload_data()
+                
                 # Pobierz istniejące typy gracza dla tej rundy
                 existing_predictions = storage.get_player_predictions(selected_player, round_id, season_id=selected_season_id)
                 
                 st.markdown(f"### Typy dla: **{selected_player}**")
                 
-                # Tryb wprowadzania: pojedyncze lub bulk
-                input_mode = st.radio("Tryb wprowadzania:", ["Pojedyncze mecze", "Wklej wszystkie (bulk)"], key="tipper_input_mode", horizontal=True)
+                # Tryb wprowadzania: pojedyncze i bulk obok siebie
+                col_single, col_bulk = st.columns(2)
                 
-                if input_mode == "Pojedyncze mecze":
+                with col_single:
+                    st.markdown("### Pojedyncze mecze")
                     # Wyświetl formularz dla każdego meczu
                     st.markdown("**Wprowadź typy dla każdego meczu:**")
                     
@@ -1208,10 +1217,19 @@ def main():
                             st.write(f"{status_icon} **{home_team}** vs **{away_team}**{result_text} {points_display}")
                         with col2:
                             if can_edit:
+                                # Użyj value zamiast default_value, aby wymusić aktualizację po zapisie bulk
+                                input_key = f"tipper_pred_{selected_player}_{match_id}"
+                                # Jeśli flaga odświeżenia jest ustawiona, zaktualizuj wartość na podstawie default_value
+                                if needs_refresh:
+                                    st.session_state[input_key] = default_value
+                                # Jeśli klucz nie istnieje w session_state, użyj default_value
+                                elif input_key not in st.session_state:
+                                    st.session_state[input_key] = default_value
+                                
                                 pred_input = st.text_input(
                                     f"Typ:",
-                                    value=default_value,
-                                    key=f"tipper_pred_{selected_player}_{match_id}",
+                                    value=st.session_state.get(input_key, default_value),
+                                    key=input_key,
                                     label_visibility="collapsed"
                                 )
                             else:
@@ -1230,9 +1248,13 @@ def main():
                             else:
                                 st.empty()
                     
+                    # Wyczyść flagę odświeżenia po zaktualizowaniu wszystkich wartości
+                    if needs_refresh:
+                        st.session_state['_refresh_predictions'] = False
+                    
                     # Przyciski zapisu i usuwania pod wszystkimi meczami
-                    col_save, col_delete = st.columns(2)
-                    with col_save:
+                    col_save_single, col_delete_single = st.columns(2)
+                    with col_save_single:
                         if st.button("💾 Zapisz typy", type="primary", key="tipper_save_all", use_container_width=True):
                             saved_count = 0
                             updated_count = 0
@@ -1286,14 +1308,18 @@ def main():
                                 if errors:
                                     st.warning(f"⚠️ {len(errors)} typów nie zostało zapisanych:\n" + "\n".join(errors[:5]))
                                 storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
+                                st.cache_data.clear()  # Wyczyść cache Streamlit
                                 st.rerun()
                             else:
                                 if errors:
                                     st.error("❌ Nie udało się zapisać typów:\n" + "\n".join(errors[:5]))
                                 else:
                                     st.warning("⚠️ Wprowadź typy przed zapisem")
+                                
+                                # Przeładuj dane po zapisie (nawet jeśli były błędy, niektóre typy mogły zostać zapisane)
+                                storage.reload_data()
                     
-                    with col_delete:
+                    with col_delete_single:
                         if st.button("🗑️ Usuń typy", key="tipper_delete_all", use_container_width=True):
                             if storage.delete_player_predictions(round_id, selected_player):
                                 storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
@@ -1302,7 +1328,8 @@ def main():
                             else:
                                 st.error("❌ Nie udało się usunąć typów")
                 
-                else:  # Bulk mode
+                with col_bulk:  # Bulk mode
+                    st.markdown("### Wklej wszystkie (bulk)")
                     st.markdown("**Wklej typy w formacie:**")
                     st.markdown("*Format: Nazwa drużyny1 - Nazwa drużyny2 Wynik*")
                     st.markdown("*Przykład: Borciuchy International - WKS BRONEK 50 7:0*")
@@ -1370,6 +1397,10 @@ def main():
                                     if errors:
                                         st.warning(f"⚠️ {len(errors)} typów nie zostało zapisanych:\n" + "\n".join(errors[:5]))
                                     storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
+                                    # Wyczyść cache i wymuś odświeżenie danych
+                                    st.cache_data.clear()
+                                    # Ustaw flagę odświeżenia w session_state
+                                    st.session_state['_refresh_predictions'] = True
                                     st.rerun()
                                 else:
                                     if errors:
