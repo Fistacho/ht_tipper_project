@@ -83,8 +83,8 @@ try:
 except Exception:
     pass
 
-# Cache API Hattrick: fixtures i sezon na ligę
-@st.cache_data(ttl=300)
+# Cache API Hattrick: fixtures i sezon na ligę - zwiększony TTL dla lepszej wydajności
+@st.cache_data(ttl=1800)  # 30 minut zamiast 5 minut - znacznie mniej wywołań API
 def cached_get_league_fixtures(league_id: int, consumer_key: str, consumer_secret: str, access_token: str, access_token_secret: str):
     from hattrick_oauth_simple import HattrickOAuthSimple
     client = HattrickOAuthSimple(consumer_key, consumer_secret)
@@ -1930,9 +1930,28 @@ def main():
             logger.info(f"DEBUG filtrowanie rund: selected_season_id był None, ustawiono na {season_id}")
         logger.info(f"DEBUG filtrowanie rund: selected_season_id={selected_season_id}, season_id={season_id}, liczba rund z API={len(sorted_rounds_asc)}")
 
-        # Uzupełnij wyniki z API tylko dla nieukończonych meczów w wybranym sezonie
+        # WAŻNE: NIE odświeżaj automatycznie z API przy każdym rerunie - to spowalnia aplikację
+        # Użytkownik może ręcznie odświeżyć dane przyciskiem "Odśwież dane z API"
+        # Automatyczne odświeżanie tylko raz na 30 minut (1800 sekund) i tylko jeśli użytkownik nie odświeżał ręcznie
         try:
-            refresh_unfinished_matches_from_api(storage, selected_season_id, throttle_seconds=180)
+            # Sprawdź, czy użytkownik ręcznie odświeżał dane (w session_state)
+            manual_refresh_timestamp = st.session_state.get('manual_refresh_timestamp', 0)
+            import time
+            current_time = time.time()
+            
+            # Automatyczne odświeżanie tylko jeśli:
+            # 1. Użytkownik nie odświeżał ręcznie w ciągu ostatnich 30 minut
+            # 2. Ostatnie automatyczne odświeżanie było więcej niż 30 minut temu
+            last_auto_refresh = st.session_state.get('last_auto_refresh_timestamp', 0)
+            time_since_manual = current_time - manual_refresh_timestamp
+            time_since_auto = current_time - last_auto_refresh
+            
+            if time_since_manual > 1800 and time_since_auto > 1800:
+                logger.info(f"🔄 Automatyczne odświeżanie wyników z API (ostatnie: {int(time_since_auto/60)} min temu)")
+                refresh_unfinished_matches_from_api(storage, selected_season_id, throttle_seconds=1800)
+                st.session_state['last_auto_refresh_timestamp'] = current_time
+            else:
+                logger.info(f"⏭️ Pomijam automatyczne odświeżanie (ręczne: {int(time_since_manual/60)} min temu, auto: {int(time_since_auto/60)} min temu)")
         except Exception as e:
             logger.warning(f"Nie udało się odświeżyć wyników z API: {e}")
         
@@ -2383,6 +2402,9 @@ def main():
                     selected_round_date, selected_matches = filtered_rounds[selected_round_idx]
                     round_id = f"round_{selected_round_date}"
                     refresh_round_from_api(storage, round_id, selected_matches)
+                    # Oznacz, że użytkownik ręcznie odświeżył dane (aby nie wywoływać automatycznego odświeżania przez 30 minut)
+                    import time
+                    st.session_state['manual_refresh_timestamp'] = time.time()
                     st.success(f"✅ Zaktualizowano dane z API dla kolejki {date_to_round_number.get(selected_round_date, '?')}")
                     st.rerun()
         
