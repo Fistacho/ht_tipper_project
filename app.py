@@ -36,6 +36,101 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
+    """
+    Oblicza ranking wszechczasów - suma punktów ze wszystkich sezonów dla każdego gracza
+    
+    Args:
+        exclude_worst: Czy odrzucić najgorszy wynik z każdego sezonu
+    
+    Returns:
+        Lista słowników z danymi graczy posortowana po sumie punktów (malejąco)
+    """
+    import glob
+    import re
+    import json
+    
+    # Znajdź wszystkie pliki sezonów
+    pattern = os.path.join(os.getcwd(), "tipper_data_season_*.json")
+    files = glob.glob(pattern)
+    
+    # Słownik do przechowywania sum punktów dla każdego gracza
+    players_total = {}  # {player_name: {'total': int, 'seasons': int, 'rounds': int, 'seasons_data': {season_id: points}}}
+    
+    # Przejdź przez wszystkie pliki sezonów
+    for file_path in files:
+        try:
+            filename = os.path.basename(file_path)
+            match = re.search(r'tipper_data_season_(\d+)\.json', filename)
+            if not match:
+                continue
+            
+            season_num = int(match.group(1))
+            season_id = f"season_{season_num}"
+            
+            # Wczytaj dane sezonu
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Pobierz graczy z sezonu (najpierw sprawdź w seasons, potem w players)
+            players_data = {}
+            if season_id in data.get('seasons', {}):
+                season_data = data['seasons'][season_id]
+                if 'players' in season_data and season_data['players']:
+                    players_data = season_data['players']
+            
+            # Jeśli nie ma w sezonie, sprawdź starą strukturę
+            if not players_data and 'players' in data and data['players']:
+                players_data = data['players']
+            
+            # Przetwarzaj graczy z tego sezonu
+            for player_name, player_data in players_data.items():
+                if player_name not in players_total:
+                    players_total[player_name] = {
+                        'total': 0,
+                        'seasons': 0,
+                        'rounds': 0,
+                        'seasons_data': {}
+                    }
+                
+                # Pobierz punkty gracza
+                total_points = player_data.get('total_points', 0)
+                worst_score = player_data.get('worst_score', 0)
+                rounds_played = player_data.get('rounds_played', 0)
+                
+                # Odrzuć najgorszy wynik jeśli exclude_worst=True
+                if exclude_worst and worst_score > 0:
+                    season_points = total_points - worst_score
+                else:
+                    season_points = total_points
+                
+                # Dodaj punkty do sumy
+                players_total[player_name]['total'] += season_points
+                players_total[player_name]['seasons'] += 1
+                players_total[player_name]['rounds'] += rounds_played
+                players_total[player_name]['seasons_data'][season_id] = season_points
+                
+        except Exception as e:
+            logger.error(f"Błąd przetwarzania pliku {file_path}: {e}")
+            continue
+    
+    # Przygotuj listę do sortowania
+    leaderboard = []
+    for player_name, data in players_total.items():
+        leaderboard.append({
+            'player_name': player_name,
+            'total_points': data['total'],
+            'seasons_played': data['seasons'],
+            'rounds_played': data['rounds'],
+            'seasons_data': data['seasons_data']
+        })
+    
+    # Sortuj po sumie punktów (malejąco)
+    leaderboard.sort(key=lambda x: x['total_points'], reverse=True)
+    
+    return leaderboard
+
+
 def main():
     """Główna funkcja aplikacji typera"""
     # Sprawdź autentykację
@@ -636,8 +731,8 @@ def main():
         st.markdown("---")
         st.subheader("🏆 Ranking")
         
-        # Tabs dla rankingu per kolejka i całości - domyślnie ranking całości (pierwszy tab)
-        ranking_tab1, ranking_tab2 = st.tabs(["🏆 Ranking całości", "📊 Ranking per kolejka"])
+        # Tabs dla rankingu per kolejka, całości i wszechczasów - domyślnie ranking całości (pierwszy tab)
+        ranking_tab1, ranking_tab2, ranking_tab3 = st.tabs(["🏆 Ranking całości", "📊 Ranking per kolejka", "🌟 Ranking wszechczasów"])
         
         # Dla rankingu całości nie potrzebujemy wyboru rundy
         with ranking_tab1:
@@ -850,6 +945,66 @@ def main():
                         st.plotly_chart(fig, use_container_width=True, key=f"ranking_round_{round_number}_chart")
                 else:
                     st.info("📊 Brak danych do wyświetlenia dla tej kolejki")
+        
+        # Ranking wszechczasów
+        with ranking_tab3:
+            st.markdown("### 🌟 Ranking wszechczasów")
+            st.info("💡 Suma punktów ze wszystkich sezonów")
+            
+            exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza z każdego sezonu", value=True, key="exclude_worst_alltime")
+            
+            all_time_leaderboard = get_all_time_leaderboard(exclude_worst=exclude_worst)
+            
+            if all_time_leaderboard:
+                # Przygotuj dane do wyświetlenia
+                leaderboard_data = []
+                for idx, player in enumerate(all_time_leaderboard, 1):
+                    # Formatuj punkty z sezonów: Sezon 77: 346, Sezon 78: 459, ...
+                    seasons_str = ", ".join([f"Sezon {sid.replace('season_', '')}: {pts}" for sid, pts in sorted(player['seasons_data'].items(), key=lambda x: int(x[0].replace('season_', '')))])
+                    
+                    leaderboard_data.append({
+                        'Miejsce': idx,
+                        'Gracz': player['player_name'],
+                        'Punkty z sezonów': seasons_str,
+                        'Suma': player['total_points'],
+                        'Sezony': player['seasons_played'],
+                        'Rundy': player['rounds_played']
+                    })
+                
+                df_leaderboard = pd.DataFrame(leaderboard_data)
+                st.dataframe(df_leaderboard, use_container_width=True, hide_index=True)
+                
+                # Wykres rankingu wszechczasów
+                if len(all_time_leaderboard) > 0:
+                    fig = px.bar(
+                        df_leaderboard.head(10),
+                        x='Gracz',
+                        y='Suma',
+                        title="Top 10 - Ranking wszechczasów",
+                        labels={'Suma': 'Punkty', 'Gracz': 'Gracz'},
+                        color='Suma',
+                        color_continuous_scale='YlOrRd'
+                    )
+                    fig.update_layout(xaxis_tickangle=-45, height=400)
+                    st.plotly_chart(fig, use_container_width=True, key="ranking_alltime_chart")
+                    
+                    # Statystyki
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Liczba graczy", len(all_time_leaderboard))
+                    with col2:
+                        if all_time_leaderboard:
+                            st.metric("Najwięcej punktów", all_time_leaderboard[0]['total_points'])
+                    with col3:
+                        if all_time_leaderboard:
+                            avg_points = sum(p['total_points'] for p in all_time_leaderboard) / len(all_time_leaderboard)
+                            st.metric("Średnia punktów", f"{avg_points:.1f}")
+                    with col4:
+                        if all_time_leaderboard:
+                            total_seasons = sum(p['seasons_played'] for p in all_time_leaderboard)
+                            st.metric("Łącznie sezonów", total_seasons)
+            else:
+                st.info("📊 Brak danych do wyświetlenia")
         
         # Wybór rundy - pod Rankingiem (dla sekcji wprowadzania typów)
         st.markdown("---")
