@@ -19,11 +19,52 @@ class TipperStorage:
     def __init__(self, data_file: str = TIPPER_DATA_FILE):
         # Użyj bezwzględnej ścieżki dla pewności (szczególnie na Streamlit Cloud)
         self.data_file = os.path.abspath(data_file)
+        self.github_config = self._get_github_config()
         self.data = self._load_data()
     
+    def _get_github_config(self) -> Optional[Dict]:
+        """Pobiera konfigurację GitHub API z .env lub Streamlit Secrets"""
+        try:
+            # Najpierw spróbuj z .env (dla lokalnego rozwoju)
+            from dotenv import load_dotenv
+            load_dotenv()
+            
+            github_token = os.getenv('GITHUB_TOKEN')
+            github_repo_owner = os.getenv('GITHUB_REPO_OWNER')
+            github_repo_name = os.getenv('GITHUB_REPO_NAME')
+            
+            # Jeśli nie ma w .env, spróbuj z Streamlit Secrets (dla Streamlit Cloud)
+            if not github_token:
+                try:
+                    import streamlit as st
+                    github_token = st.secrets.get('GITHUB_TOKEN', '')
+                    github_repo_owner = st.secrets.get('GITHUB_REPO_OWNER', '')
+                    github_repo_name = st.secrets.get('GITHUB_REPO_NAME', '')
+                except Exception:
+                    pass
+            
+            # Jeśli wszystkie wymagane wartości są dostępne, zwróć konfigurację
+            if github_token and github_repo_owner and github_repo_name:
+                return {
+                    'token': github_token,
+                    'repo_owner': github_repo_owner,
+                    'repo_name': github_repo_name
+                }
+        except Exception as e:
+            logger.debug(f"Brak konfiguracji GitHub API: {e}")
+        
+        return None
+    
     def _load_data(self) -> Dict:
-        """Ładuje dane z pliku JSON"""
-        # Sprawdź czy plik istnieje (użyj bezwzględnej ścieżki)
+        """Ładuje dane z pliku JSON - lokalnie lub z GitHub API"""
+        # Próbuj najpierw załadować z GitHub API (jeśli skonfigurowane)
+        if self.github_config:
+            github_data = self._load_from_github()
+            if github_data:
+                logger.info(f"✅ Załadowano dane z GitHub: {len(github_data.get('players', {}))} graczy, {len(github_data.get('rounds', {}))} rund")
+                return github_data
+        
+        # Fallback: załaduj lokalnie (dla lokalnego rozwoju)
         abs_path = os.path.abspath(self.data_file)
         
         if os.path.exists(abs_path):
@@ -37,10 +78,33 @@ class TipperStorage:
                 return self._get_default_data()
         else:
             logger.warning(f"Plik {abs_path} nie istnieje, używam domyślnych danych")
-            # Sprawdź czy katalog roboczy istnieje
-            cwd = os.getcwd()
-            logger.info(f"Katalog roboczy: {cwd}")
             return self._get_default_data()
+    
+    def _load_from_github(self) -> Optional[Dict]:
+        """Ładuje dane z GitHub przez API"""
+        try:
+            from github import Github
+            import base64
+            
+            # Połącz z GitHub
+            g = Github(self.github_config['token'])
+            repo = g.get_repo(f"{self.github_config['repo_owner']}/{self.github_config['repo_name']}")
+            
+            # Nazwa pliku w repozytorium
+            file_path = os.path.basename(self.data_file)
+            
+            # Pobierz plik z repozytorium
+            file = repo.get_contents(file_path)
+            
+            # Dekoduj zawartość (GitHub zwraca base64)
+            content = base64.b64decode(file.content).decode('utf-8')
+            data = json.loads(content)
+            
+            return data
+            
+        except Exception as e:
+            logger.debug(f"Nie udało się załadować z GitHub (może plik nie istnieje): {e}")
+            return None
     
     def reload_data(self):
         """Przeładowuje dane z pliku (użyteczne po zmianach zewnętrznych)"""
@@ -60,7 +124,14 @@ class TipperStorage:
         }
     
     def _save_data(self):
-        """Zapisuje dane do pliku JSON"""
+        """Zapisuje dane do pliku JSON - lokalnie lub przez GitHub API"""
+        # Próbuj najpierw zapisać przez GitHub API (jeśli skonfigurowane)
+        if self.github_config:
+            if self._save_to_github():
+                logger.info("✅ Zapisano dane do GitHub przez API")
+                return
+        
+        # Fallback: zapis lokalny (dla lokalnego rozwoju)
         try:
             # Użyj bezwzględnej ścieżki dla pewności (szczególnie na Streamlit Cloud)
             abs_path = os.path.abspath(self.data_file)
@@ -69,15 +140,6 @@ class TipperStorage:
             with open(abs_path, 'w', encoding='utf-8') as f:
                 json.dump(self.data, f, ensure_ascii=False, indent=2)
             
-            # Wymuś synchronizację danych na dysk (ważne na Streamlit Cloud)
-            try:
-                import sys
-                if hasattr(sys, 'getfilesystemencoding'):
-                    # Wymuś flush dla pewności
-                    pass
-            except:
-                pass
-            
             logger.info(f"Zapisano dane do pliku {abs_path}: {len(self.data.get('players', {}))} graczy, {len(self.data.get('rounds', {}))} rund")
             
             # Sprawdź czy plik rzeczywiście istnieje po zapisie
@@ -85,16 +147,53 @@ class TipperStorage:
                 file_size = os.path.getsize(abs_path)
                 logger.info(f"Plik zapisany poprawnie, rozmiar: {file_size} bajtów")
             else:
-                logger.error(f"BŁĄD: Plik {abs_path} nie istnieje po zapisie!")
+                logger.warning(f"Plik {abs_path} nie istnieje po zapisie (może być normalne na Streamlit Cloud)")
                 
         except IOError as e:
             logger.error(f"Błąd zapisywania danych typera: {e}")
-            # Spróbuj zapisać do alternatywnej lokalizacji (dla debugowania)
+    
+    def _save_to_github(self) -> bool:
+        """Zapisuje dane do GitHub przez API"""
+        try:
+            from github import Github
+            import base64
+            
+            # Połącz z GitHub
+            g = Github(self.github_config['token'])
+            repo = g.get_repo(f"{self.github_config['repo_owner']}/{self.github_config['repo_name']}")
+            
+            # Przygotuj zawartość JSON
+            json_content = json.dumps(self.data, ensure_ascii=False, indent=2)
+            json_bytes = json_content.encode('utf-8')
+            
+            # Nazwa pliku w repozytorium (bez ścieżki bezwzględnej)
+            file_path = os.path.basename(self.data_file)
+            
+            # Sprawdź czy plik już istnieje w repozytorium
             try:
-                alt_path = os.path.join(os.getcwd(), self.data_file)
-                logger.warning(f"Próba zapisu do alternatywnej ścieżki: {alt_path}")
-            except Exception as e2:
-                logger.error(f"Błąd zapisu do alternatywnej ścieżki: {e2}")
+                file = repo.get_contents(file_path)
+                # Plik istnieje - zaktualizuj go
+                repo.update_file(
+                    path=file_path,
+                    message=f"Auto-update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    content=json_bytes,
+                    sha=file.sha
+                )
+                logger.info(f"✅ Zaktualizowano plik {file_path} w GitHub")
+            except Exception:
+                # Plik nie istnieje - utwórz nowy
+                repo.create_file(
+                    path=file_path,
+                    message=f"Auto-create: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    content=json_bytes
+                )
+                logger.info(f"✅ Utworzono plik {file_path} w GitHub")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Błąd zapisu do GitHub: {e}")
+            return False
     
     def add_league(self, league_id: int, league_name: str = None):
         """Dodaje ligę do systemu"""
