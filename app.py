@@ -146,39 +146,70 @@ def main():
         st.markdown("---")
         st.header("⚙️ Konfiguracja")
         
-        # ID lig dla typera - per sezon
+        # ID lig dla typera - per sezon (dynamiczna lista)
         st.subheader(f"🏆 Ligi typera (Sezon {selected_season_id.replace('season_', '')})")
         
         # Pobierz zapisane ligi dla wybranego sezonu
         saved_leagues = storage.get_selected_leagues(season_id=selected_season_id)
         
-        # Domyślne wartości (zapisane lub standardowe)
-        default_league_1 = saved_leagues[0] if len(saved_leagues) > 0 else 32612
-        default_league_2 = saved_leagues[1] if len(saved_leagues) > 1 else 9399
+        # Jeśli nie ma zapisanych lig, użyj domyślnych
+        if not saved_leagues:
+            saved_leagues = [32612, 9399]
         
-        league_1 = st.number_input(
-            "Liga 1 (LeagueLevelUnitID):",
-            value=default_league_1,
-            min_value=1,
-            help="Wprowadź ID pierwszej ligi",
-            key=f"league_1_{selected_season_id}"
-        )
-        league_2 = st.number_input(
-            "Liga 2 (LeagueLevelUnitID):",
-            value=default_league_2,
-            min_value=1,
-            help="Wprowadź ID drugiej ligi",
-            key=f"league_2_{selected_season_id}"
-        )
+        # Inicjalizuj session_state dla lig (jeśli nie istnieje)
+        leagues_key = f"leagues_list_{selected_season_id}"
+        if leagues_key not in st.session_state:
+            st.session_state[leagues_key] = saved_leagues.copy()
         
-        TIPPER_LEAGUES = [league_1, league_2]
+        # Wyświetl listę lig z możliwością edycji
+        st.markdown("**Lista lig:**")
+        leagues_to_remove = []
         
-        # Przycisk zapisu lig
-        if st.button("💾 Zapisz ligi", type="primary", use_container_width=True, key=f"save_leagues_{selected_season_id}"):
-            storage.set_selected_leagues(TIPPER_LEAGUES, season_id=selected_season_id)
-            storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
-            st.success(f"✅ Zapisano ligi dla sezonu {selected_season_id.replace('season_', '')}")
+        for idx, league_id in enumerate(st.session_state[leagues_key]):
+            col_league, col_remove = st.columns([4, 1])
+            with col_league:
+                new_league_id = st.number_input(
+                    f"Liga {idx + 1} (LeagueLevelUnitID):",
+                    value=league_id,
+                    min_value=1,
+                    key=f"league_{selected_season_id}_{idx}",
+                    label_visibility="collapsed"
+                )
+                st.write(f"Liga {idx + 1}: {new_league_id}")
+                # Aktualizuj wartość w session_state
+                st.session_state[leagues_key][idx] = new_league_id
+            with col_remove:
+                if st.button("🗑️", key=f"remove_league_{selected_season_id}_{idx}", help="Usuń ligę"):
+                    leagues_to_remove.append(idx)
+        
+        # Usuń zaznaczone ligi (od końca, aby nie zmieniać indeksów)
+        for idx in sorted(leagues_to_remove, reverse=True):
+            st.session_state[leagues_key].pop(idx)
             st.rerun()
+        
+        # Przycisk dodawania nowej ligi
+        col_add, col_save = st.columns(2)
+        with col_add:
+            if st.button("➕ Dodaj ligę", key=f"add_league_{selected_season_id}", use_container_width=True):
+                # Dodaj domyślną ligę (najwyższe ID + 1 lub 1)
+                if st.session_state[leagues_key]:
+                    new_league_id = max(st.session_state[leagues_key]) + 1
+                else:
+                    new_league_id = 32612
+                st.session_state[leagues_key].append(new_league_id)
+                st.rerun()
+        
+        with col_save:
+            # Przycisk zapisu lig
+            if st.button("💾 Zapisz ligi", type="primary", key=f"save_leagues_{selected_season_id}", use_container_width=True):
+                TIPPER_LEAGUES = st.session_state[leagues_key].copy()
+                storage.set_selected_leagues(TIPPER_LEAGUES, season_id=selected_season_id)
+                storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
+                st.success(f"✅ Zapisano {len(TIPPER_LEAGUES)} lig dla sezonu {selected_season_id.replace('season_', '')}")
+                st.rerun()
+        
+        # Użyj aktualnej listy lig
+        TIPPER_LEAGUES = st.session_state[leagues_key].copy()
         
         # Informacje o zapisanych ligach
         if saved_leagues:
