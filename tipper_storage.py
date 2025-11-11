@@ -436,7 +436,8 @@ class TipperStorage:
                 'start_date': start_date,
                 'end_date': end_date,
                 'selected_teams': [],
-                'selected_leagues': []
+                'selected_leagues': [],
+                'archived': False
             }
             self.data['leagues'][league_key]['seasons'].append(season_id)
             self._save_data()
@@ -452,7 +453,8 @@ class TipperStorage:
                 'start_date': None,
                 'end_date': None,
                 'selected_teams': [],
-                'selected_leagues': []
+                'selected_leagues': [],
+                'archived': False
             }
         
         if round_id not in self.data['rounds']:
@@ -992,6 +994,39 @@ class TipperStorage:
         self.data['seasons'][season_id]['selected_leagues'] = league_ids
         self._save_data()
     
+    def is_season_archived(self, season_id: str = None) -> bool:
+        """Sprawdza czy sezon jest oznaczony jako archiwalny"""
+        if season_id is None:
+            season_id = self.season_id
+        
+        # Upewnij się, że sezon istnieje
+        if season_id not in self.data.get('seasons', {}):
+            return False
+        
+        # Zwróć wartość archived (domyślnie False jeśli nie istnieje)
+        return self.data['seasons'][season_id].get('archived', False)
+    
+    def set_season_archived(self, archived: bool, season_id: str = None):
+        """Oznacza sezon jako archiwalny lub niearchiwalny"""
+        if season_id is None:
+            season_id = self.season_id
+        
+        # Upewnij się, że sezon istnieje
+        if season_id not in self.data.get('seasons', {}):
+            self.data['seasons'][season_id] = {
+                'league_id': None,
+                'rounds': [],
+                'start_date': None,
+                'end_date': None,
+                'selected_teams': [],
+                'selected_leagues': [],
+                'players': {}
+            }
+        
+        # Ustaw status archiwalny
+        self.data['seasons'][season_id]['archived'] = archived
+        self._save_data()
+    
     def add_player(self, player_name: str, season_id: str = None):
         """Dodaje gracza do sezonu"""
         if season_id is None:
@@ -1072,7 +1107,8 @@ class TipperStorage:
             'end_date': None,
             'selected_teams': [],
             'selected_leagues': [],
-            'players': {}
+            'players': {},
+            'archived': False
         }
         
         # Zapisz do pliku

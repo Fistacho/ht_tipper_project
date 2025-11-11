@@ -215,6 +215,34 @@ def main():
         if saved_leagues:
             st.info(f"**Zapisane ligi:** {', '.join(map(str, saved_leagues))}")
         
+        st.markdown("---")
+        
+        # Status archiwalny sezonu
+        st.subheader(f"📦 Status sezonu (Sezon {selected_season_id.replace('season_', '')})")
+        is_archived = storage.is_season_archived(season_id=selected_season_id)
+        
+        archived_status = st.checkbox(
+            "Oznacz jako archiwalny",
+            value=is_archived,
+            help="Archiwalne sezony nie wykonują zapytań do API - używają tylko danych z pliku",
+            key=f"archived_checkbox_{selected_season_id}"
+        )
+        
+        if archived_status != is_archived:
+            if st.button("💾 Zapisz status", type="primary", key=f"save_archived_{selected_season_id}", use_container_width=True):
+                storage.set_season_archived(archived_status, season_id=selected_season_id)
+                storage.flush_save()
+                if archived_status:
+                    st.success(f"✅ Sezon {selected_season_id.replace('season_', '')} oznaczony jako archiwalny")
+                else:
+                    st.success(f"✅ Sezon {selected_season_id.replace('season_', '')} oznaczony jako aktywny")
+                st.rerun()
+        
+        if is_archived:
+            st.info("📦 Ten sezon jest archiwalny - nie wykonuje zapytań do API")
+        
+        st.markdown("---")
+        
         # Przycisk odświeżania danych
         if st.button("🔄 Odśwież dane", type="primary"):
             st.cache_data.clear()
@@ -300,63 +328,110 @@ def main():
             st.info("💡 Aby uzyskać klucze OAuth, uruchom skrypt `get_oauth_simple.py`")
             return
         
-        # Inicjalizuj klienta OAuth
-        client = HattrickOAuthSimple(consumer_key, consumer_secret)
-        client.set_access_tokens(access_token, access_token_secret)
+        # Sprawdź czy sezon jest archiwalny
+        is_archived = storage.is_season_archived(season_id=selected_season_id)
         
-        # Pobierz mecze z obu lig
-        all_fixtures = []
-        with st.spinner("Pobieranie meczów z lig..."):
-            for league_id in TIPPER_LEAGUES:
-                try:
-                    fixtures = client.get_league_fixtures(league_id)
-                    if fixtures:
-                        # Dodaj informację o lidze
-                        for fixture in fixtures:
-                            fixture['league_id'] = league_id
-                        all_fixtures.extend(fixtures)
-                        logger.info(f"Pobrano {len(fixtures)} meczów z ligi {league_id}")
-                except Exception as e:
-                    logger.error(f"Błąd pobierania meczów z ligi {league_id}: {e}")
-                    st.warning(f"⚠️ Nie udało się pobrać meczów z ligi {league_id}: {e}")
-        
-        if not all_fixtures:
-            st.error("❌ Nie udało się pobrać meczów z API")
-            return
-        
-        # Grupuj mecze według rund (na podstawie daty)
-        rounds = defaultdict(list)
-        
-        for fixture in all_fixtures:
-            match_date = fixture.get('match_date')
-            if match_date:
-                try:
-                    # Parsuj datę i utwórz klucz rundy (np. "2024-10-26")
-                    dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
-                    round_key = dt.strftime("%Y-%m-%d")
-                    rounds[round_key].append(fixture)
-                except ValueError:
-                    continue
-        
-        # Sortuj rundy po dacie (najstarsza pierwsza) dla numeracji
-        sorted_rounds_asc = sorted(rounds.items(), key=lambda x: x[0])
-        
-        if not sorted_rounds_asc:
-            st.warning("⚠️ Brak meczów do wyświetlenia")
-            return
-        
-        # Pobierz wszystkie unikalne nazwy drużyn z meczów
-        all_team_names = set()
-        for _, matches in sorted_rounds_asc:
-            for match in matches:
-                home_team = match.get('home_team_name', '').strip()
-                away_team = match.get('away_team_name', '').strip()
+        # Dla archiwalnych sezonów nie pobieramy danych z API - używamy tylko danych z pliku
+        if is_archived:
+            st.info("📦 Sezon archiwalny - używam tylko danych z pliku (bez zapytań do API)")
+            # Pobierz mecze z zapisanych rund
+            all_fixtures = []
+            for round_id, round_data in storage.data.get('rounds', {}).items():
+                if round_data.get('season_id') == selected_season_id:
+                    matches = round_data.get('matches', [])
+                    all_fixtures.extend(matches)
+            
+            # Pobierz wszystkie unikalne nazwy drużyn z meczów
+            all_team_names = set()
+            for fixture in all_fixtures:
+                home_team = fixture.get('home_team_name', '').strip()
+                away_team = fixture.get('away_team_name', '').strip()
                 if home_team:
                     all_team_names.add(home_team)
                 if away_team:
                     all_team_names.add(away_team)
-        
-        all_team_names = sorted(list(all_team_names))
+            
+            all_team_names = sorted(list(all_team_names))
+            
+            # Grupuj mecze według rund (na podstawie daty)
+            rounds = defaultdict(list)
+            
+            for fixture in all_fixtures:
+                match_date = fixture.get('match_date')
+                if match_date:
+                    try:
+                        # Parsuj datę i utwórz klucz rundy (np. "2024-10-26")
+                        dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                        round_key = dt.strftime("%Y-%m-%d")
+                        rounds[round_key].append(fixture)
+                    except ValueError:
+                        continue
+            
+            # Sortuj rundy po dacie (najstarsza pierwsza) dla numeracji
+            sorted_rounds_asc = sorted(rounds.items(), key=lambda x: x[0])
+            
+            if not sorted_rounds_asc:
+                st.warning("⚠️ Brak meczów w archiwalnym sezonie")
+                return
+        else:
+            # Dla niearchiwalnych sezonów pobieramy dane z API
+            # Inicjalizuj klienta OAuth
+            client = HattrickOAuthSimple(consumer_key, consumer_secret)
+            client.set_access_tokens(access_token, access_token_secret)
+            
+            # Pobierz mecze z obu lig
+            all_fixtures = []
+            with st.spinner("Pobieranie meczów z lig..."):
+                for league_id in TIPPER_LEAGUES:
+                    try:
+                        fixtures = client.get_league_fixtures(league_id)
+                        if fixtures:
+                            # Dodaj informację o lidze
+                            for fixture in fixtures:
+                                fixture['league_id'] = league_id
+                            all_fixtures.extend(fixtures)
+                            logger.info(f"Pobrano {len(fixtures)} meczów z ligi {league_id}")
+                    except Exception as e:
+                        logger.error(f"Błąd pobierania meczów z ligi {league_id}: {e}")
+                        st.warning(f"⚠️ Nie udało się pobrać meczów z ligi {league_id}: {e}")
+            
+            if not all_fixtures:
+                st.error("❌ Nie udało się pobrać meczów z API")
+                return
+            
+            # Grupuj mecze według rund (na podstawie daty)
+            rounds = defaultdict(list)
+            
+            for fixture in all_fixtures:
+                match_date = fixture.get('match_date')
+                if match_date:
+                    try:
+                        # Parsuj datę i utwórz klucz rundy (np. "2024-10-26")
+                        dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                        round_key = dt.strftime("%Y-%m-%d")
+                        rounds[round_key].append(fixture)
+                    except ValueError:
+                        continue
+            
+            # Sortuj rundy po dacie (najstarsza pierwsza) dla numeracji
+            sorted_rounds_asc = sorted(rounds.items(), key=lambda x: x[0])
+            
+            if not sorted_rounds_asc:
+                st.warning("⚠️ Brak meczów do wyświetlenia")
+                return
+            
+            # Pobierz wszystkie unikalne nazwy drużyn z meczów
+            all_team_names = set()
+            for _, matches in sorted_rounds_asc:
+                for match in matches:
+                    home_team = match.get('home_team_name', '').strip()
+                    away_team = match.get('away_team_name', '').strip()
+                    if home_team:
+                        all_team_names.add(home_team)
+                    if away_team:
+                        all_team_names.add(away_team)
+            
+            all_team_names = sorted(list(all_team_names))
         
         # Przeładuj dane z pliku (aby mieć aktualne dane po restarcie)
         storage.reload_data()
