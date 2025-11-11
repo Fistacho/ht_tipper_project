@@ -84,10 +84,12 @@ class TipperStorage:
         """Ładuje dane z GitHub przez API"""
         try:
             from github import Github
+            from github.Auth import Token
             import base64
             
-            # Połącz z GitHub
-            g = Github(self.github_config['token'])
+            # Połącz z GitHub używając nowego API autoryzacji
+            auth = Token(self.github_config['token'])
+            g = Github(auth=auth)
             repo = g.get_repo(f"{self.github_config['repo_owner']}/{self.github_config['repo_name']}")
             
             # Nazwa pliku w repozytorium
@@ -153,46 +155,84 @@ class TipperStorage:
             logger.error(f"Błąd zapisywania danych typera: {e}")
     
     def _save_to_github(self) -> bool:
-        """Zapisuje dane do GitHub przez API"""
+        """Zapisuje dane do GitHub przez API (używa REST API bezpośrednio dla lepszej kompatybilności)"""
         try:
-            from github import Github
+            import requests
             import base64
-            
-            # Połącz z GitHub
-            g = Github(self.github_config['token'])
-            repo = g.get_repo(f"{self.github_config['repo_owner']}/{self.github_config['repo_name']}")
             
             # Przygotuj zawartość JSON
             json_content = json.dumps(self.data, ensure_ascii=False, indent=2)
             json_bytes = json_content.encode('utf-8')
+            json_b64 = base64.b64encode(json_bytes).decode('utf-8')
             
-            # Nazwa pliku w repozytorium (bez ścieżki bezwzględnej)
+            # Nazwa pliku w repozytorium
             file_path = os.path.basename(self.data_file)
             
-            # Sprawdź czy plik już istnieje w repozytorium
-            try:
-                file = repo.get_contents(file_path)
-                # Plik istnieje - zaktualizuj go
-                repo.update_file(
-                    path=file_path,
-                    message=f"Auto-update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                    content=json_bytes,
-                    sha=file.sha
-                )
-                logger.info(f"✅ Zaktualizowano plik {file_path} w GitHub")
-            except Exception:
-                # Plik nie istnieje - utwórz nowy
-                repo.create_file(
-                    path=file_path,
-                    message=f"Auto-create: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                    content=json_bytes
-                )
-                logger.info(f"✅ Utworzono plik {file_path} w GitHub")
+            # URL do API GitHub
+            url = f"https://api.github.com/repos/{self.github_config['repo_owner']}/{self.github_config['repo_name']}/contents/{file_path}"
             
-            return True
+            headers = {
+                "Authorization": f"token {self.github_config['token']}",
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "Hattrick-Tipper-App"
+            }
+            
+            # Sprawdź czy plik już istnieje
+            response = requests.get(url, headers=headers)
+            
+            if response.status_code == 200:
+                # Plik istnieje - zaktualizuj go
+                file_data = response.json()
+                sha = file_data['sha']
+                
+                data = {
+                    "message": f"Auto-update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    "content": json_b64,
+                    "sha": sha
+                }
+                
+                response = requests.put(url, headers=headers, json=data)
+                
+                if response.status_code == 200:
+                    logger.info(f"Zaktualizowano plik {file_path} w GitHub")
+                    return True
+                else:
+                    error_msg = response.text
+                    logger.error(f"Błąd aktualizacji pliku w GitHub: {response.status_code}")
+                    logger.error(f"Szczegóły: {error_msg[:500]}")
+                    if response.status_code == 403:
+                        logger.error("UWAGA: Token nie ma uprawnień do zapisu.")
+                        logger.error("Dla Fine-grained token: ustaw 'Contents' permission na 'Read and write'")
+                        logger.error("Dla Classic token: upewnij się, że ma uprawnienie 'repo'")
+                    return False
+                    
+            elif response.status_code == 404:
+                # Plik nie istnieje - utwórz nowy
+                data = {
+                    "message": f"Auto-create: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    "content": json_b64
+                }
+                
+                response = requests.put(url, headers=headers, json=data)
+                
+                if response.status_code == 201:
+                    logger.info(f"Utworzono plik {file_path} w GitHub")
+                    return True
+                else:
+                    error_msg = response.text
+                    logger.error(f"Błąd tworzenia pliku w GitHub: {response.status_code}")
+                    logger.error(f"Szczegóły: {error_msg[:500]}")
+                    return False
+            else:
+                error_msg = response.text
+                logger.error(f"Błąd sprawdzania pliku w GitHub: {response.status_code}")
+                logger.error(f"Szczegóły: {error_msg[:500]}")
+                return False
             
         except Exception as e:
+            error_msg = str(e)
             logger.error(f"Błąd zapisu do GitHub: {e}")
+            logger.error(f"Szczegóły: {error_msg}")
             return False
     
     def add_league(self, league_id: int, league_name: str = None):
