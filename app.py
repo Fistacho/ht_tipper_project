@@ -388,11 +388,6 @@ def main():
                 if not players_data and 'players' in storage.data and storage.data['players']:
                     players_data = storage.data['players']
                 
-                # Debug: sprawdź co mamy
-                if not players_data:
-                    st.warning(f"⚠️ Brak danych graczy dla sezonu {selected_season_id}")
-                    st.json(storage.data.get('seasons', {}).get(selected_season_id, {}))
-                
                 if players_data:
                     # Przygotuj ranking z podziałem na rundy
                     leaderboard_data = []
