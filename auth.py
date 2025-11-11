@@ -13,6 +13,45 @@ import plotly.express as px
 logger = logging.getLogger(__name__)
 
 
+def safe_int(value, default=0):
+    """Bezpiecznie konwertuje wartość na int, obsługując NaN i None"""
+    import math
+    if value is None:
+        return default
+    try:
+        # Sprawdź czy to NaN
+        if isinstance(value, float) and math.isnan(value):
+            return default
+        return int(float(value))
+    except (ValueError, TypeError):
+        return default
+
+
+def is_match_finished(match: dict) -> bool:
+    """
+    Sprawdza TYLKO flagę z API/DB: match['is_finished'] (lub podobną).
+    NIE używa żadnych heurystyk ani fallbacków.
+    """
+    try:
+        # 1) Sprawdź bezpośredni sygnał z API/DB
+        for key in ('is_finished', 'finished'):
+            if key in match and match[key] is not None:
+                try:
+                    return bool(int(match[key]))
+                except Exception:
+                    return bool(match[key])
+        
+        # 2) Sprawdź status z API
+        status = str(match.get('status', '')).lower()
+        if status in ('finished', 'played', 'completed', 'ended'):
+            return True
+        
+        # 3) Jeśli nie ma żadnej flagi z API/DB, mecz NIE jest zakończony
+        return False
+    except Exception:
+        return False
+
+
 def hash_password(password: str, salt: str = None) -> tuple:
     """
     Haszuje hasło używając SHA256 z solą
@@ -51,9 +90,9 @@ def verify_password(password: str, hashed_password: str, salt: str) -> bool:
 
 def load_users() -> Dict[str, Dict[str, str]]:
     """
-    Ładuje użytkowników z zmiennych środowiskowych
+    Ładuje użytkowników z Streamlit secrets lub zmiennych środowiskowych
     
-    Format w .env:
+    Format w Streamlit secrets lub .env:
     APP_USERNAME=admin
     APP_PASSWORD_HASH=hashed_password
     APP_PASSWORD_SALT=salt
@@ -69,36 +108,81 @@ def load_users() -> Dict[str, Dict[str, str]]:
     Returns:
         Dict z username -> {password_hash, salt}
     """
-    load_dotenv()
     users = {}
     
-    # Sprawdź pojedynczego użytkownika (stary format)
-    username = os.getenv('APP_USERNAME')
-    password_hash = os.getenv('APP_PASSWORD_HASH')
-    password_salt = os.getenv('APP_PASSWORD_SALT')
+    # Najpierw spróbuj odczytać z Streamlit secrets (dla Streamlit Cloud)
+    try:
+        if hasattr(st, 'secrets'):
+            # Sprawdź pojedynczego użytkownika (stary format)
+            try:
+                username = getattr(st.secrets, 'APP_USERNAME', None)
+                password_hash = getattr(st.secrets, 'APP_PASSWORD_HASH', None)
+                password_salt = getattr(st.secrets, 'APP_PASSWORD_SALT', None)
+                
+                if username and password_hash and password_salt:
+                    users[username] = {
+                        'password_hash': password_hash,
+                        'salt': password_salt
+                    }
+                    logger.info(f"DEBUG: Użytkownik {username} odczytany z secrets")
+                else:
+                    logger.info("DEBUG: APP_USERNAME nie odczytany z secrets")
+            except (AttributeError, KeyError) as e:
+                logger.info(f"DEBUG: Błąd odczytu autentykacji z secrets: {e}")
+            
+            # Sprawdź wielu użytkowników (nowy format)
+            i = 1
+            while True:
+                try:
+                    user_username = getattr(st.secrets, f'APP_USER_{i}_USERNAME', None)
+                    user_password_hash = getattr(st.secrets, f'APP_USER_{i}_PASSWORD_HASH', None)
+                    user_password_salt = getattr(st.secrets, f'APP_USER_{i}_PASSWORD_SALT', None)
+                    
+                    if not user_username:
+                        break
+                    
+                    if user_password_hash and user_password_salt:
+                        users[user_username] = {
+                            'password_hash': user_password_hash,
+                            'salt': user_password_salt
+                        }
+                    i += 1
+                except (AttributeError, KeyError):
+                    break
+    except (AttributeError, KeyError) as e:
+        logger.info(f"DEBUG: Błąd przy próbie odczytu secrets: {e}")
     
-    if username and password_hash and password_salt:
-        users[username] = {
-            'password_hash': password_hash,
-            'salt': password_salt
-        }
-    
-    # Sprawdź wielu użytkowników (nowy format)
-    i = 1
-    while True:
-        user_username = os.getenv(f'APP_USER_{i}_USERNAME')
-        user_password_hash = os.getenv(f'APP_USER_{i}_PASSWORD_HASH')
-        user_password_salt = os.getenv(f'APP_USER_{i}_PASSWORD_SALT')
+    # Jeśli nie ma secrets lub nie znaleziono użytkowników, spróbuj z .env (dla lokalnego rozwoju)
+    if not users:
+        load_dotenv()
         
-        if not user_username:
-            break
+        # Sprawdź pojedynczego użytkownika (stary format)
+        username = os.getenv('APP_USERNAME')
+        password_hash = os.getenv('APP_PASSWORD_HASH')
+        password_salt = os.getenv('APP_PASSWORD_SALT')
         
-        if user_password_hash and user_password_salt:
-            users[user_username] = {
-                'password_hash': user_password_hash,
-                'salt': user_password_salt
+        if username and password_hash and password_salt:
+            users[username] = {
+                'password_hash': password_hash,
+                'salt': password_salt
             }
-        i += 1
+        
+        # Sprawdź wielu użytkowników (nowy format)
+        i = 1
+        while True:
+            user_username = os.getenv(f'APP_USER_{i}_USERNAME')
+            user_password_hash = os.getenv(f'APP_USER_{i}_PASSWORD_HASH')
+            user_password_salt = os.getenv(f'APP_USER_{i}_PASSWORD_SALT')
+            
+            if not user_username:
+                break
+            
+            if user_password_hash and user_password_salt:
+                users[user_username] = {
+                    'password_hash': user_password_hash,
+                    'salt': user_password_salt
+                }
+            i += 1
     
     # Jeśli nie ma żadnych użytkowników, utwórz domyślnego
     if not users:
@@ -131,8 +215,105 @@ def login_page() -> bool:
     """
     # Wyświetl ranking (read-only) przed formularzem logowania
     try:
-        from tipper_storage import TipperStorage
-        storage = TipperStorage()
+        from tipper_storage import get_storage
+        # Użyj współdzielonej instancji storage z session_state, aby uniknąć wielokrotnych połączeń MySQL
+        if 'shared_storage' not in st.session_state:
+            st.session_state.shared_storage = get_storage()
+        storage = st.session_state.shared_storage
+        
+        st.title("🎯 Hattrick Typer")
+        
+        # Filtr sezonu - na górze pod tytułem
+        st.markdown("---")
+        st.subheader("📅 Filtr sezonu")
+        
+        # Pobierz wszystkie dostępne sezony
+        all_seasons = storage.data.get('seasons', {})
+        season_options = []
+        season_ids = []
+        
+        # Przygotuj listę sezonów do wyboru (posortowane: najnowszy pierwszy)
+        # Filtruj sezony - pomiń "current_season" i inne nieprawidłowe wartości
+        seasons_list = []
+        for season_id, season_data in all_seasons.items():
+            # Wyciągnij numer sezonu z season_id (np. "season_80" -> "80")
+            season_number = season_id.replace('season_', '') if season_id.startswith('season_') else season_id
+            
+            # Pomiń sezony z "current_season" lub innymi nieprawidłowymi wartościami
+            if season_number == "current_season" or not season_number or season_number == "":
+                continue
+            
+            try:
+                # Spróbuj przekonwertować na liczbę dla sortowania
+                season_num = int(season_number)
+            except ValueError:
+                # Jeśli nie można przekonwertować, pomiń ten sezon
+                continue
+            seasons_list.append((season_num, season_id, season_number))
+        
+        # Sortuj sezony: najnowszy pierwszy (malejąco)
+        seasons_list.sort(key=lambda x: x[0], reverse=True)
+        
+        for season_num, season_id, season_number in seasons_list:
+            season_display = f"Sezon {season_number}"
+            season_options.append(season_display)
+            season_ids.append(season_id)
+        
+        # Jeśli nie ma sezonów, dodaj domyślny
+        if not season_options:
+            # Pobierz aktualny sezon z storage lub użyj domyślnego
+            current_season_id = storage.get_current_season()
+            if current_season_id:
+                season_number = current_season_id.replace('season_', '') if current_season_id.startswith('season_') else current_season_id
+                season_options.append(f"Sezon {season_number}")
+                season_ids.append(current_season_id)
+            else:
+                season_options.append("Brak sezonów")
+                season_ids.append(None)
+        
+        # Selectbox do wyboru sezonu
+        if season_options:
+            # Znajdź indeks aktualnego sezonu
+            current_season_id = storage.get_current_season()
+            default_index = 0
+            if current_season_id and current_season_id in season_ids:
+                default_index = season_ids.index(current_season_id)
+            elif current_season_id:
+                # Jeśli aktualny sezon nie jest na liście, dodaj go (tylko jeśli to prawidłowy sezon)
+                season_number = current_season_id.replace('season_', '') if current_season_id.startswith('season_') else current_season_id
+                # Pomiń sezony z "current_season" lub innymi nieprawidłowymi wartościami
+                if season_number != "current_season" and season_number and season_number != "":
+                    try:
+                        # Sprawdź czy to liczba
+                        int(season_number)
+                        season_options.insert(0, f"Sezon {season_number}")
+                        season_ids.insert(0, current_season_id)
+                        default_index = 0
+                    except ValueError:
+                        # Nieprawidłowy format sezonu - nie dodawaj
+                        pass
+            
+            # Sprawdź czy użytkownik wybrał sezon wcześniej
+            if 'selected_season_id' in st.session_state and st.session_state.selected_season_id in season_ids:
+                default_index = season_ids.index(st.session_state.selected_season_id)
+            
+            selected_season_display = st.selectbox(
+                "Wybierz sezon:",
+                options=range(len(season_options)),
+                index=default_index,
+                format_func=lambda x: season_options[x],
+                key="login_season_filter"
+            )
+            
+            selected_season_id = season_ids[selected_season_display]
+            
+            # Zapisz wybrany sezon w session_state
+            st.session_state.selected_season_id = selected_season_id
+        else:
+            selected_season_id = None
+            st.warning("⚠️ Brak sezonów w bazie. Sezon zostanie utworzony po pobraniu meczów z API.")
+        
+        st.markdown("---")
         
         # Ranking - sekcja read-only
         st.subheader("🏆 Ranking (tylko do odczytu)")
@@ -143,10 +324,17 @@ def login_page() -> bool:
         
         # Ranking całości
         with ranking_tab1:
-            st.markdown("### 🏆 Ranking całości")
+            # Wyświetl sezon w nagłówku rankingu
+            if selected_season_id:
+                season_num = selected_season_id.replace('season_', '') if selected_season_id.startswith('season_') else selected_season_id
+                season_display = f"Sezon {season_num}"
+            else:
+                season_display = "Bieżący"
+            st.markdown(f"### 🏆 Ranking całości - {season_display}")
             
             exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza", value=True, key="login_exclude_worst_overall")
-            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst)
+            # Użyj wybranego sezonu z filtra
+            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst, season_id=selected_season_id)
             
             if leaderboard:
                 # Przygotuj dane do wyświetlenia
@@ -176,7 +364,7 @@ def login_page() -> bool:
                     })
                 
                 df_leaderboard = pd.DataFrame(leaderboard_data)
-                st.dataframe(df_leaderboard, use_container_width=True, hide_index=True)
+                st.dataframe(df_leaderboard, width="stretch", hide_index=True)
                 
                 # Wykres rankingu całości
                 if len(leaderboard) > 0:
@@ -190,7 +378,7 @@ def login_page() -> bool:
                         color_continuous_scale='plasma'
                     )
                     fig.update_layout(xaxis_tickangle=-45, height=400)
-                    st.plotly_chart(fig, use_container_width=True, key="login_ranking_overall_chart")
+                    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": True}, key="login_ranking_overall_chart")
                     
                     # Statystyki
                     col1, col2, col3, col4 = st.columns(4)
@@ -212,10 +400,26 @@ def login_page() -> bool:
         
         # Ranking per kolejka
         with ranking_tab2:
-            st.markdown("### 📊 Ranking per kolejka")
+            # Wyświetl sezon w nagłówku rankingu
+            if selected_season_id:
+                season_num = selected_season_id.replace('season_', '') if selected_season_id.startswith('season_') else selected_season_id
+                season_display = f"Sezon {season_num}"
+            else:
+                season_display = "Bieżący"
+            st.markdown(f"### 📊 Ranking per kolejka - {season_display}")
             
-            # Pobierz wszystkie rundy z storage
-            all_rounds = sorted(storage.data['rounds'].items(), key=lambda x: x[1].get('start_date', ''))
+            # Pobierz wszystkie rundy z storage - filtruj po sezonie
+            all_rounds = []
+            for round_id, round_data in storage.data['rounds'].items():
+                round_season_id = round_data.get('season_id')
+                # Jeśli sezon jest wybrany, filtruj tylko rundy z tego sezonu
+                if selected_season_id:
+                    if round_season_id and round_season_id != selected_season_id:
+                        continue  # Pomiń rundy z innych sezonów
+                all_rounds.append((round_id, round_data))
+            
+            # Sortuj po dacie
+            all_rounds = sorted(all_rounds, key=lambda x: x[1].get('start_date', ''))
             
             if all_rounds:
                 # Stwórz listę opcji rund
@@ -246,19 +450,27 @@ def login_page() -> bool:
                     for idx, (round_id, date_str, _) in enumerate(sorted_by_date, 1):
                         date_to_round_number[round_id] = idx
                     
-                    # Znajdź ostatnią rozegraną kolejkę (domyślnie)
-                    default_round_idx = 0
+                    # Znajdź ostatnią rozegraną kolejkę (domyślnie dla ekranu logowania)
+                    # round_options jest posortowane DESC (najnowsza pierwsza: 14, 13, 12...)
+                    # Szukamy pierwszej kolejki z punktacją (czyli takiej, dla której gracze mają już policzone punkty)
+                    default_round_idx = None
                     for idx, (round_id, _, _) in enumerate(round_options):
-                        round_data = storage.data['rounds'].get(round_id, {})
-                        matches = round_data.get('matches', [])
-                        # Sprawdź czy kolejka ma rozegrane mecze
-                        has_played = any(
-                            m.get('home_goals') is not None and m.get('away_goals') is not None 
-                            for m in matches
-                        )
-                        if has_played:
+                        # Sprawdź czy kolejka ma punktację dla graczy
+                        round_leaderboard = storage.get_round_leaderboard(round_id)
+                        # Kolejka ma punktację, jeśli leaderboard nie jest pusty i ma graczy z punktami > 0
+                        has_points = False
+                        if round_leaderboard:
+                            # Sprawdź czy przynajmniej jeden gracz ma punkty > 0
+                            has_points = any(player.get('total_points', 0) > 0 for player in round_leaderboard)
+                        
+                        if has_points:
+                            # Znajdź pierwszą kolejkę z punktacją w liście DESC (najnowszą z punktacją)
                             default_round_idx = idx
-                            break  # Weź pierwszą (najnowszą) rozegraną kolejkę
+                            break
+                    
+                    # Jeśli nie znaleziono kolejki z punktacją, użyj pierwszej (najnowszej)
+                    if default_round_idx is None:
+                        default_round_idx = 0
                     
                     # Wybór rundy
                     round_display_options = [f"Kolejka {date_to_round_number.get(rid, '?')} - {date} ({matches} meczów)" 
@@ -307,7 +519,7 @@ def login_page() -> bool:
                                 })
                             
                             df_round_leaderboard = pd.DataFrame(round_leaderboard_data)
-                            st.dataframe(df_round_leaderboard, use_container_width=True, hide_index=True)
+                            st.dataframe(df_round_leaderboard, width="stretch", hide_index=True)
                             
                             # Dodaj expandery z typami dla każdego gracza
                             st.markdown("### 📋 Szczegóły typów")
@@ -329,17 +541,18 @@ def login_page() -> bool:
                                         pred = player_predictions[match_id]
                                         home_team = match.get('home_team_name', '?')
                                         away_team = match.get('away_team_name', '?')
-                                        pred_home = pred.get('home', 0)
-                                        pred_away = pred.get('away', 0)
+                                        pred_home = safe_int(pred.get('home', 0))
+                                        pred_away = safe_int(pred.get('away', 0))
                                         
-                                        # Pobierz punkty dla tego meczu
+                                        # WAŻNE: Pobierz punkty TYLKO jeśli mecz jest zakończony (is_finished=1)
+                                        match_is_finished = is_match_finished(match)
                                         match_points_dict = round_data.get('match_points', {}).get(player_name, {})
-                                        points = match_points_dict.get(match_id, 0)
+                                        points = match_points_dict.get(match_id, 0) if match_is_finished else 0
                                         
                                         # Pobierz wynik meczu jeśli rozegrany
                                         home_goals = match.get('home_goals')
                                         away_goals = match.get('away_goals')
-                                        result = f"{home_goals}-{away_goals}" if home_goals is not None and away_goals is not None else "—"
+                                        result = f"{safe_int(home_goals)}-{safe_int(away_goals)}" if home_goals is not None and away_goals is not None else "—"
                                         
                                         types_table_data.append({
                                             'Mecz': f"{home_team} vs {away_team}",
@@ -351,7 +564,7 @@ def login_page() -> bool:
                                     if types_table_data:
                                         with st.expander(f"👤 {player_name} - Typy i wyniki", expanded=False):
                                             df_types = pd.DataFrame(types_table_data)
-                                            st.dataframe(df_types, use_container_width=True, hide_index=True)
+                                            st.dataframe(df_types, width="stretch", hide_index=True)
                                             total_points = sum(row['Punkty'] for row in types_table_data)
                                             st.caption(f"**Suma punktów: {total_points}**")
                             
@@ -367,7 +580,7 @@ def login_page() -> bool:
                                     color_continuous_scale='viridis'
                                 )
                                 fig.update_layout(xaxis_tickangle=-45, height=400)
-                                st.plotly_chart(fig, use_container_width=True, key=f"login_ranking_round_{round_number}_chart")
+                                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": True}, key=f"login_ranking_round_{round_number}_chart")
                         else:
                             st.info("📊 Brak danych do wyświetlenia dla tej kolejki")
                 else:
@@ -390,7 +603,7 @@ def login_page() -> bool:
     with st.form("login_form"):
         username = st.text_input("👤 Nazwa użytkownika", key="login_username")
         password = st.text_input("🔒 Hasło", type="password", key="login_password")
-        submit_button = st.form_submit_button("🚀 Zaloguj się", use_container_width=True)
+        submit_button = st.form_submit_button("🚀 Zaloguj się", width="stretch")
         
         if submit_button:
             if not username or not password:

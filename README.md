@@ -170,6 +170,103 @@ Aby pobrać backup danych z aplikacji:
 
 💡 **Wskazówka**: Regularnie rób backup danych używając funkcji eksportu!
 
+## 🗄️ Konfiguracja bazy danych MySQL (dla Streamlit Cloud)
+
+Aby zapewnić trwałość danych na Streamlit Cloud, możesz użyć zewnętrznej bazy danych MySQL. Aplikacja automatycznie wykryje konfigurację MySQL i użyje jej zamiast pliku JSON.
+
+### Krok 1: Utwórz bazę danych MySQL
+
+1. **Wybierz dostawcę bazy danych:**
+   - **Amazon RDS** (AWS)
+   - **Google Cloud SQL**
+   - **Azure Database for MySQL**
+   - **PlanetScale** (darmowy tier)
+   - **Railway** (darmowy tier)
+   - **Aiven** (darmowy tier)
+   - Inne dostawcy MySQL
+
+2. **Utwórz bazę danych** i zapisz dane dostępowe:
+   - Host (adres serwera)
+   - Port (domyślnie 3306)
+   - Nazwa bazy danych
+   - Nazwa użytkownika
+   - Hasło
+
+### Krok 2: Utwórz strukturę bazy danych
+
+Uruchom skrypt SQL z pliku `database_schema.sql` w swojej bazie danych:
+
+```sql
+-- Skopiuj zawartość pliku database_schema.sql i uruchom w swojej bazie MySQL
+```
+
+Lub użyj narzędzia do zarządzania bazą danych (np. phpMyAdmin, MySQL Workbench) i zaimportuj plik `database_schema.sql`.
+
+### Krok 3: Skonfiguruj Streamlit Secrets
+
+1. **W Streamlit Cloud:**
+   - Przejdź do **Dashboard** → **Manage app** → **Secrets**
+   - Dodaj następującą konfigurację:
+
+```toml
+# MySQL Database Connection (WYMAGANE)
+[connections.mysql]
+dialect = "mysql"
+host = "twoj_host_mysql"
+port = 3306
+database = "nazwa_bazy_danych"
+username = "nazwa_uzytkownika"
+password = "haslo"
+
+# Hattrick OAuth (WYMAGANE)
+HATTRICK_CONSUMER_KEY = "twoj_consumer_key"
+HATTRICK_CONSUMER_SECRET = "twoj_consumer_secret"
+HATTRICK_ACCESS_TOKEN = "twoj_access_token"
+HATTRICK_ACCESS_TOKEN_SECRET = "twoj_access_token_secret"
+
+# Authentication (WYMAGANE)
+APP_USERNAME = "admin"
+APP_PASSWORD_HASH = "wygenerowany_hash"
+APP_PASSWORD_SALT = "wygenerowana_sol"
+```
+
+**Uwaga:** 
+- `HATTRICK_ACCESS_TOKEN` i `HATTRICK_ACCESS_TOKEN_SECRET` są opcjonalne (można je wygenerować w aplikacji)
+- Aby wygenerować hash hasła, uruchom lokalnie: `python generate_password.py`
+- Szczegółowa dokumentacja: zobacz plik `STREAMLIT_SECRETS.md`
+
+2. **Lokalnie (opcjonalnie):**
+   - Utwórz folder `.streamlit` w katalogu głównym projektu
+   - Utwórz plik `secrets.toml` z powyższą konfiguracją
+   - ⚠️ **Uwaga**: Dodaj `.streamlit/secrets.toml` do `.gitignore` aby nie commitować haseł!
+
+### Krok 4: Zainstaluj zależności
+
+Zależności MySQL są już dodane do `requirements.txt`:
+- `sqlalchemy>=2.0.0`
+- `pymysql>=1.1.0`
+
+### Jak to działa?
+
+- **Bez MySQL**: Aplikacja używa pliku `tipper_data.json` (działa lokalnie, ale dane znikają po restarcie na Streamlit Cloud)
+- **Z MySQL**: Aplikacja automatycznie wykrywa konfigurację MySQL w Streamlit Secrets i używa bazy danych (dane są trwałe na Streamlit Cloud)
+
+### Migracja danych z JSON do MySQL
+
+Jeśli masz już dane w pliku `tipper_data.json`:
+
+1. **Eksportuj dane** z aplikacji (przycisk "📥 Pobierz backup danych")
+2. **Skonfiguruj MySQL** (kroki powyżej)
+3. **Zaimportuj dane** przez interfejs aplikacji (przycisk "📤 Import danych z pliku")
+4. ✅ Dane zostaną automatycznie zapisane do MySQL
+
+### Bezpieczeństwo
+
+- ✅ Hasła są przechowywane w Streamlit Secrets (szyfrowane)
+- ✅ Połączenia z bazą danych są szyfrowane (SSL/TLS)
+- ✅ Użyj silnych haseł dla bazy danych
+- ✅ Ogranicz dostęp do bazy danych tylko z IP Streamlit Cloud (jeśli możliwe)
+
 ## 📝 Format wprowadzania typów (bulk)
 
 ```

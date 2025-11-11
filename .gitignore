@@ -26,6 +26,9 @@ wheels/
 # Environment variables
 .env
 
+# Streamlit secrets (zawiera hasła!)
+.streamlit/secrets.toml
+
 # Data files
 #tipper_data.json
 *.log
@@ -41,3 +44,4 @@ wheels/
 .DS_Store
 Thumbs.db
 
+newdb
