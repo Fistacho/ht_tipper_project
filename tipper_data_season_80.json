@@ -2984,7 +2984,7 @@
           "home_goals": 7,
           "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2025-11-11T13:55:39.579233"
+          "result_updated": "2025-11-11T14:03:20.366368"
         },
         {
           "match_id": "753891424",
@@ -7707,7 +7707,67 @@
         "round_2025-11-16"
       ],
       "start_date": null,
-      "end_date": null
+      "end_date": null,
+      "players": {
+        "Sonne": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        },
+        "Wilk": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        },
+        "Fistach": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        },
+        "Adi": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        },
+        "Manvers": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        },
+        "Sokół": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        },
+        "Moli": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        }
+      }
+    },
+    "season_80": {
+      "league_id": null,
+      "rounds": [],
+      "start_date": null,
+      "end_date": null,
+      "selected_teams": [],
+      "selected_leagues": [],
+      "players": {}
     }
   },
   "leagues": {},
