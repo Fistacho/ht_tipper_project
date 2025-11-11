@@ -406,6 +406,34 @@ class TipperStorage:
         self._save_data()
         return True
     
+    def delete_player_predictions(self, round_id: str, player_name: str):
+        """Usuwa wszystkie typy gracza dla danej rundy"""
+        if round_id not in self.data['rounds']:
+            logger.error(f"Runda {round_id} nie istnieje")
+            return False
+        
+        if player_name not in self.data['players']:
+            logger.error(f"Gracz {player_name} nie istnieje")
+            return False
+        
+        # Usuń typy z rundy
+        if 'predictions' in self.data['rounds'][round_id]:
+            if player_name in self.data['rounds'][round_id]['predictions']:
+                del self.data['rounds'][round_id]['predictions'][player_name]
+        
+        # Usuń typy z gracza
+        if round_id in self.data['players'][player_name]['predictions']:
+            del self.data['players'][player_name]['predictions'][round_id]
+        
+        # Usuń punkty dla tego gracza w tej rundzie
+        if 'match_points' in self.data['rounds'][round_id]:
+            if player_name in self.data['rounds'][round_id]['match_points']:
+                del self.data['rounds'][round_id]['match_points'][player_name]
+        
+        self._save_data()
+        self._recalculate_player_totals()
+        return True
+    
     def update_match_result(self, round_id: str, match_id: str, home_goals: int, away_goals: int):
         """Aktualizuje wynik meczu i przelicza punkty"""
         if round_id not in self.data['rounds']:
