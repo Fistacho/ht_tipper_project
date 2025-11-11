@@ -2984,7 +2984,7 @@
           "home_goals": 7,
           "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2025-11-11T14:07:43.959430"
+          "result_updated": "2025-11-11T14:10:01.044996"
         },
         {
           "match_id": "753891424",
@@ -10698,7 +10698,19 @@
             "round_2025-11-16": 0
           }
         }
-      }
+      },
+      "selected_teams": [
+        "Borciuchy International",
+        "FC Lokomotywa",
+        "Szmacianka Szynwałdzianka",
+        "ks Jastrowie",
+        "Dotmk",
+        "FC Paralityks",
+        "Legia KG(L)",
+        "LegiaWawa",
+        "Moli Team",
+        "WKS BRONEK 50"
+      ]
     }
   },
   "leagues": {},
