@@ -341,6 +341,139 @@ def main():
                     matches = round_data.get('matches', [])
                     all_fixtures.extend(matches)
             
+            # Sprawdź czy są gracze z wynikami - bezpośrednio z danych
+            has_players_with_scores = False
+            players_data_check = {}
+            
+            # Sprawdź w strukturze sezonu
+            if selected_season_id in storage.data.get('seasons', {}):
+                season_data = storage.data['seasons'][selected_season_id]
+                if 'players' in season_data and season_data['players']:
+                    players_data_check = season_data['players']
+            
+            # Jeśli nie ma w sezonie, sprawdź starą strukturę (kompatybilność wsteczna)
+            if not players_data_check and 'players' in storage.data and storage.data['players']:
+                players_data_check = storage.data['players']
+            
+            # Sprawdź czy są gracze z wynikami
+            for player_name, player_data in players_data_check.items():
+                if player_data.get('total_points', 0) > 0:
+                    has_players_with_scores = True
+                    break
+            
+            # Jeśli nie ma meczów, ale są gracze z wynikami - wyświetl tylko ranking
+            if not all_fixtures and has_players_with_scores:
+                st.info("📊 Sezon archiwalny - wyświetlam tylko podsumowania (brak szczegółowych danych o meczach)")
+                
+                # Przeładuj dane z pliku
+                storage.reload_data()
+                
+                # Wyświetl tylko ranking
+                st.markdown("---")
+                st.subheader("🏆 Ranking")
+                
+                exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza", value=True, key="exclude_worst_overall_archived")
+                
+                # Pobierz graczy bezpośrednio z danych sezonu (dla archiwalnych sezonów)
+                # Najpierw sprawdź w seasons[season_id]['players'], potem w players (kompatybilność wsteczna)
+                players_data = {}
+                
+                # Sprawdź w strukturze sezonu
+                if selected_season_id in storage.data.get('seasons', {}):
+                    season_data = storage.data['seasons'][selected_season_id]
+                    if 'players' in season_data and season_data['players']:
+                        players_data = season_data['players']
+                
+                # Jeśli nie ma w sezonie, sprawdź starą strukturę (kompatybilność wsteczna)
+                if not players_data and 'players' in storage.data and storage.data['players']:
+                    players_data = storage.data['players']
+                
+                # Debug: sprawdź co mamy
+                if not players_data:
+                    st.warning(f"⚠️ Brak danych graczy dla sezonu {selected_season_id}")
+                    st.json(storage.data.get('seasons', {}).get(selected_season_id, {}))
+                
+                if players_data:
+                    # Przygotuj ranking z podziałem na rundy
+                    leaderboard_data = []
+                    for player_name, player_data in players_data.items():
+                        round_scores = player_data.get('round_scores', {})
+                        total_points = player_data.get('total_points', 0)
+                        worst_score = player_data.get('worst_score', 0)
+                        rounds_played = player_data.get('rounds_played', 0)
+                        
+                        # Pobierz punkty z rund w kolejności (round_1, round_2, ...)
+                        round_points_list = []
+                        for i in range(1, rounds_played + 1):
+                            round_key = f"round_{i}"
+                            points = round_scores.get(round_key, 0)
+                            round_points_list.append(points)
+                        
+                        # Oblicz sumę przed odrzuceniem najgorszego
+                        # Jeśli mamy round_scores, użyj sumy z listy, w przeciwnym razie użyj total_points
+                        if round_points_list and any(p > 0 for p in round_points_list):
+                            # Mamy szczegółowe dane z rund
+                            original_total = sum(round_points_list)
+                        else:
+                            # Nie mamy szczegółowych danych lub same zera - użyj total_points
+                            original_total = total_points
+                            # Jeśli nie ma round_scores w ogóle, stwórz pustą listę dla wyświetlania
+                            if not round_scores:
+                                round_points_list = []
+                        
+                        # Odrzuć najgorszy wynik jeśli exclude_worst=True
+                        final_total = original_total
+                        if exclude_worst and len(round_points_list) > 1 and worst_score > 0:
+                            final_total = original_total - worst_score
+                        elif exclude_worst and worst_score > 0 and original_total == total_points:
+                            # Jeśli używamy total_points, odrzuć worst_score
+                            final_total = original_total - worst_score
+                        
+                        # Formatuj punkty: 26 + 38 + 40 + ... = 477 - 13 = 464
+                        if round_points_list and any(p > 0 for p in round_points_list):
+                            # Mamy szczegółowe dane - pokaż podział na rundy
+                            points_str = ' + '.join(str(p) for p in round_points_list)
+                            if exclude_worst and worst_score > 0:
+                                summary = f"{points_str} = {original_total} - {worst_score} = {final_total}"
+                            else:
+                                summary = f"{points_str} = {final_total}"
+                        else:
+                            # Nie mamy szczegółowych danych - pokaż tylko sumę
+                            if exclude_worst and worst_score > 0:
+                                summary = f"{total_points} - {worst_score} = {final_total}"
+                            else:
+                                summary = str(final_total)
+                        
+                        leaderboard_data.append({
+                            'Pozycja': 0,  # Zostanie ustawione po sortowaniu
+                            'Gracz': player_name,
+                            'Punkty': summary,
+                            'Suma': final_total,
+                            'Rundy': rounds_played
+                        })
+                    
+                    # Sortuj po sumie (malejąco)
+                    leaderboard_data.sort(key=lambda x: x['Suma'], reverse=True)
+                    
+                    # Ustaw pozycje
+                    for idx, item in enumerate(leaderboard_data, 1):
+                        item['Pozycja'] = idx
+                    
+                    if leaderboard_data:
+                        df_leaderboard = pd.DataFrame(leaderboard_data)
+                        st.dataframe(df_leaderboard[['Pozycja', 'Gracz', 'Punkty', 'Suma', 'Rundy']], use_container_width=True, hide_index=True)
+                    else:
+                        st.info("📊 Brak danych rankingowych")
+                else:
+                    st.info("📊 Brak danych rankingowych")
+                
+                return
+            
+            # Jeśli nie ma ani meczów, ani graczy - wyświetl komunikat
+            if not all_fixtures and not has_players_with_scores:
+                st.warning("⚠️ Brak danych w archiwalnym sezonie")
+                return
+            
             # Pobierz wszystkie unikalne nazwy drużyn z meczów
             all_team_names = set()
             for fixture in all_fixtures:
@@ -370,8 +503,9 @@ def main():
             # Sortuj rundy po dacie (najstarsza pierwsza) dla numeracji
             sorted_rounds_asc = sorted(rounds.items(), key=lambda x: x[0])
             
+            # Jeśli nie ma meczów, ale są gracze - już obsłużyliśmy to wyżej
             if not sorted_rounds_asc:
-                st.warning("⚠️ Brak meczów w archiwalnym sezonie")
+                # To nie powinno się zdarzyć, ale na wszelki wypadek
                 return
         else:
             # Dla niearchiwalnych sezonów pobieramy dane z API
