@@ -119,36 +119,25 @@ def safe_int(value, default=0):
 
 def is_match_finished(match: dict) -> bool:
     """
-    Preferuj flagę z API/DB: match['is_finished'] (lub podobną), a dopiero
-    w ostateczności heurystykę po wyniku/dacie.
+    Sprawdza TYLKO flagę z API/DB: match['is_finished'] (lub podobną).
+    NIE używa żadnych heurystyk ani fallbacków.
     """
     try:
-        # 1) Najpierw bezpośredni sygnał z API/DB
+        # 1) Sprawdź bezpośredni sygnał z API/DB
         for key in ('is_finished', 'finished'):
             if key in match and match[key] is not None:
                 try:
                     return bool(int(match[key]))
                 except Exception:
                     return bool(match[key])
+        
+        # 2) Sprawdź status z API
         status = str(match.get('status', '')).lower()
         if status in ('finished', 'played', 'completed', 'ended'):
             return True
-
-        # 2) Fallback: jeśli mamy wynik z API (obie bramki != None) i mecz po czasie
-        from datetime import datetime, timedelta
-        match_date_str = match.get('match_date', '')
-        if not match_date_str:
-            return False
-        match_dt = datetime.strptime(match_date_str, "%Y-%m-%d %H:%M:%S")
-        if datetime.now() < match_dt:
-            return False
-        home_goals = match.get('home_goals')
-        away_goals = match.get('away_goals')
-        if home_goals is None or away_goals is None:
-            return False
-        if int(home_goals) == 0 and int(away_goals) == 0:
-            return datetime.now() >= (match_dt + timedelta(hours=2))
-        return True
+        
+        # 3) Jeśli nie ma żadnej flagi z API/DB, mecz NIE jest zakończony
+        return False
     except Exception:
         return False
 
@@ -210,6 +199,254 @@ def _get_oauth_keys():
     at = os.getenv('HATTRICK_ACCESS_TOKEN') or st.secrets.get('HATTRICK_ACCESS_TOKEN', '')
     ats = os.getenv('HATTRICK_ACCESS_TOKEN_SECRET') or st.secrets.get('HATTRICK_ACCESS_TOKEN_SECRET', '')
     return ck, cs, at, ats
+
+
+def refresh_round_from_api(storage, round_id: str, matches: List[dict]):
+    """Odświeża dane z API dla konkretnej kolejki"""
+    try:
+        logger.info(f"🔄 Rozpoczynam odświeżanie kolejki {round_id} z API")
+        logger.info(f"📊 Otrzymano {len(matches)} meczów do sprawdzenia")
+        
+        # Pobierz ligi z meczów w tej kolejce
+        leagues = set()
+        for match in matches:
+            league_id = match.get('league_id')
+            logger.info(f"🔍 Mecz {match.get('match_id', '?')}: league_id={league_id}, home={match.get('home_team_name', '?')}, away={match.get('away_team_name', '?')}")
+            if league_id:
+                try:
+                    leagues.add(int(league_id))
+                except Exception:
+                    pass
+        
+        logger.info(f"📊 Znaleziono {len(leagues)} lig w meczach: {leagues}")
+        
+        # Jeśli nie znaleziono lig w meczach, spróbuj pobrać z bazy danych
+        if not leagues:
+            logger.warning(f"⚠️ Brak lig w meczach, próbuję pobrać z bazy danych dla kolejki {round_id}")
+            if hasattr(storage, 'conn'):
+                try:
+                    # Najpierw sprawdź, czy w ogóle są mecze w tej kolejce
+                    all_matches_df = storage.conn.query(
+                        f"SELECT match_id, league_id, round_id FROM matches WHERE round_id = '{round_id}'",
+                        ttl=0
+                    )
+                    logger.info(f"🔍 Znaleziono {len(all_matches_df)} meczów w kolejce {round_id} w bazie danych")
+                    if not all_matches_df.empty:
+                        logger.info(f"📊 Przykładowe mecze z bazy:")
+                        for idx, row in all_matches_df.head(5).iterrows():
+                            logger.info(f"  - match_id={row.get('match_id')}, league_id={row.get('league_id')}, round_id={row.get('round_id')}")
+                    
+                    logger.info(f"🔍 Wykonuję zapytanie SQL: SELECT DISTINCT league_id FROM matches WHERE round_id = '{round_id}' AND league_id IS NOT NULL")
+                    matches_df = storage.conn.query(
+                        f"SELECT DISTINCT league_id FROM matches WHERE round_id = '{round_id}' AND league_id IS NOT NULL",
+                        ttl=0
+                    )
+                    logger.info(f"📊 Zapytanie SQL zwróciło {len(matches_df)} wierszy")
+                    if not matches_df.empty:
+                        logger.info(f"📊 Kolumny w wynikach: {matches_df.columns.tolist()}")
+                        for idx, row in matches_df.iterrows():
+                            league_id = row.get('league_id')
+                            logger.info(f"🔍 Wiersz {idx}: league_id={league_id} (typ: {type(league_id)})")
+                            if league_id:
+                                try:
+                                    leagues.add(int(league_id))
+                                    logger.info(f"✅ Dodano ligę {league_id} do zbioru lig")
+                                except Exception as e:
+                                    logger.error(f"❌ Błąd konwersji league_id {league_id} na int: {e}")
+                        logger.info(f"📊 Pobrano {len(leagues)} lig z bazy danych: {leagues}")
+                    else:
+                        logger.warning(f"⚠️ Zapytanie SQL nie zwróciło żadnych wyników dla kolejki {round_id}")
+                        
+                        # Jeśli nie znaleziono lig w meczach, spróbuj pobrać z tabeli teams na podstawie nazw drużyn
+                        logger.info(f"🔍 Próbuję pobrać ligi z tabeli teams na podstawie nazw drużyn")
+                        try:
+                            # Pobierz nazwy drużyn z meczów
+                            team_names = set()
+                            for match in matches:
+                                home_team = match.get('home_team_name', '').strip()
+                                away_team = match.get('away_team_name', '').strip()
+                                if home_team:
+                                    team_names.add(home_team)
+                                if away_team:
+                                    team_names.add(away_team)
+                            
+                            if team_names:
+                                team_names_str = "', '".join([t.replace("'", "''") for t in team_names])
+                                teams_df = storage.conn.query(
+                                    f"SELECT DISTINCT league_id FROM teams WHERE team_name IN ('{team_names_str}') AND league_id IS NOT NULL",
+                                    ttl=0
+                                )
+                                logger.info(f"📊 Zapytanie do tabeli teams zwróciło {len(teams_df)} wierszy")
+                                if not teams_df.empty:
+                                    for _, row in teams_df.iterrows():
+                                        league_id = row.get('league_id')
+                                        if league_id:
+                                            try:
+                                                leagues.add(int(league_id))
+                                                logger.info(f"✅ Dodano ligę {league_id} z tabeli teams do zbioru lig")
+                                            except Exception as e:
+                                                logger.error(f"❌ Błąd konwersji league_id {league_id} na int: {e}")
+                                    logger.info(f"📊 Pobrano {len(leagues)} lig z tabeli teams: {leagues}")
+                        except Exception as e:
+                            logger.error(f"❌ Błąd pobierania lig z tabeli teams: {e}", exc_info=True)
+                except Exception as e:
+                    logger.error(f"❌ Błąd pobierania lig z bazy danych: {e}", exc_info=True)
+        
+        if not leagues:
+            logger.warning(f"❌ Brak lig w kolejce {round_id} - nie można odświeżyć danych z API")
+            return
+        
+        ck, cs, at, ats = _get_oauth_keys()
+        if not ck or not cs:
+            logger.warning("Brak kluczy OAuth do API")
+            return
+        
+        logger.info(f"✅ Klucze OAuth dostępne, pobieram dane z API dla {len(leagues)} lig")
+        
+        # Użyj bezpośredniego wywołania API zamiast cache, aby zawsze pobrać najnowsze dane
+        from hattrick_oauth_simple import HattrickOAuthSimple
+        client = HattrickOAuthSimple(ck, cs)
+        client.set_access_tokens(at, ats)
+        
+        updated_count = 0
+        for league_id in leagues:
+            try:
+                logger.info(f"📡 Pobieram dane z API dla ligi {league_id} (bezpośrednio, bez cache)")
+                # Pobierz dane z API dla ligi bezpośrednio, bez cache
+                api_league = client.get_league_fixtures(league_id) or {}
+                # get_league_fixtures zwraca {'season': ..., 'fixtures': [...]}
+                if isinstance(api_league, dict) and 'fixtures' in api_league:
+                    api_matches = api_league['fixtures']
+                elif isinstance(api_league, dict) and 'matches' in api_league:
+                    api_matches = api_league['matches']
+                else:
+                    api_matches = api_league if isinstance(api_league, list) else []
+                
+                logger.info(f"📊 Pobrano {len(api_matches)} meczów z API dla ligi {league_id}")
+                
+                # Stwórz mapę match_id -> match z API
+                api_map = {str(m.get('match_id')): m for m in api_matches if m}
+                logger.info(f"🔍 Utworzono mapę {len(api_map)} meczów z API dla ligi {league_id}")
+                
+                # Zaktualizuj mecze z tej kolejki - filtruj po match_id, nie po league_id
+                # (ponieważ mecze w liście matches mogą nie mieć league_id)
+                matches_in_round = []
+                for m in matches:
+                    match_id = str(m.get('match_id', ''))
+                    if match_id in api_map:
+                        matches_in_round.append(m)
+                
+                logger.info(f"🔍 Sprawdzam {len(matches_in_round)} meczów z kolejki {round_id} w lidze {league_id} (dopasowane po match_id)")
+                
+                for match in matches_in_round:
+                    match_id = str(match.get('match_id', ''))
+                    if not match_id:
+                        continue
+                    
+                    api_match = api_map.get(match_id)
+                    if not api_match:
+                        logger.warning(f"⚠️ Nie znaleziono meczu {match_id} w danych z API dla ligi {league_id}")
+                        continue
+                    
+                    logger.info(f"✅ Znaleziono mecz {match_id} w danych z API")
+                    logger.info(f"📋 Pełne dane meczu z API: {api_match}")
+                    
+                    # Sprawdź flagę is_finished z API
+                    finished_flag = None
+                    if 'is_finished' in api_match:
+                        finished_flag = api_match.get('is_finished')
+                        logger.info(f"🔍 Mecz {match_id}: is_finished z API = {finished_flag}")
+                    elif 'finished' in api_match:
+                        finished_flag = api_match.get('finished')
+                        logger.info(f"🔍 Mecz {match_id}: finished z API = {finished_flag}")
+                    else:
+                        status = str(api_match.get('status', '')).lower()
+                        logger.info(f"🔍 Mecz {match_id}: status z API = '{status}'")
+                        if status in ('finished', 'played', 'completed', 'ended'):
+                            finished_flag = True
+                            logger.info(f"✅ Mecz {match_id}: status wskazuje na zakończenie")
+                        else:
+                            logger.info(f"⚠️ Mecz {match_id}: status NIE wskazuje na zakończenie (status='{status}')")
+                    
+                    # Pobierz wyniki z API
+                    hg = api_match.get('home_goals') or api_match.get('homeGoals')
+                    ag = api_match.get('away_goals') or api_match.get('awayGoals')
+                    logger.info(f"📊 Mecz {match_id}: wyniki z API = {hg}-{ag}")
+                    
+                    # Aktualizuj mecz w bazie
+                    if hasattr(storage, 'conn'):
+                        # Aktualizuj wyniki jeśli są dostępne
+                        if hg is not None and ag is not None:
+                            logger.info(f"📝 Aktualizuję wynik meczu {match_id}: {hg}-{ag}")
+                            storage.update_match_result(round_id, match_id, safe_int(hg), safe_int(ag))
+                            updated_count += 1
+                        else:
+                            logger.info(f"⚠️ Mecz {match_id} nie ma wyników w API (hg={hg}, ag={ag})")
+                        
+                        # Aktualizuj flagę is_finished - WAŻNE: jeśli API nie potwierdza zakończenia, ustaw is_finished=0
+                        if finished_flag is not None:
+                            is_finished_value = 1 if bool(finished_flag) else 0
+                            logger.info(f"📝 Aktualizuję flagę is_finished dla meczu {match_id}: {is_finished_value} (z API)")
+                            storage.conn.query(
+                                f"UPDATE matches SET is_finished = {is_finished_value}, api_checked_at = NOW() WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
+                                ttl=0
+                            )
+                            updated_count += 1
+                        else:
+                            # Jeśli API nie zwraca flagi is_finished, ale status nie wskazuje na zakończenie, ustaw is_finished=0
+                            status = str(api_match.get('status', '')).lower()
+                            if status not in ('finished', 'played', 'completed', 'ended'):
+                                logger.info(f"📝 API nie potwierdza zakończenia meczu {match_id} (status='{status}'), ustawiam is_finished=0")
+                                storage.conn.query(
+                                    f"UPDATE matches SET is_finished = 0, api_checked_at = NOW() WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
+                                    ttl=0
+                                )
+                                updated_count += 1
+                            else:
+                                logger.warning(f"⚠️ Mecz {match_id} nie ma flagi is_finished w API, ale status wskazuje na zakończenie")
+            except Exception as e:
+                logger.error(f"Błąd odświeżania ligi {league_id} z API: {e}")
+                continue
+        
+        # Sprawdź czy wszystkie mecze w kolejce są zakończone i zaktualizuj status rundy
+        if hasattr(storage, 'conn'):
+            try:
+                logger.info(f"🔍 Sprawdzam status rundy {round_id} po aktualizacji")
+                matches_status_df = storage.conn.query(
+                    f"""
+                    SELECT 
+                        COUNT(*) as total_matches,
+                        SUM(CASE WHEN is_finished = 1 THEN 1 ELSE 0 END) as finished_matches
+                    FROM matches 
+                    WHERE round_id = '{round_id}'
+                    """,
+                    ttl=0
+                )
+                
+                if not matches_status_df.empty:
+                    total_matches = int(matches_status_df.iloc[0].get('total_matches', 0))
+                    finished_matches = int(matches_status_df.iloc[0].get('finished_matches', 0))
+                    
+                    logger.info(f"📊 Status rundy {round_id}: {finished_matches}/{total_matches} meczów zakończonych")
+                    
+                    # Jeśli wszystkie mecze są zakończone, ustaw is_finished=1 dla rundy
+                    if total_matches > 0 and finished_matches == total_matches:
+                        logger.info(f"✅ Wszystkie mecze w kolejce {round_id} są zakończone, aktualizuję status rundy")
+                        storage.conn.query(
+                            f"UPDATE rounds SET is_finished = 1, is_archival = 1, is_current = 0 WHERE round_id = '{round_id}'",
+                            ttl=0
+                        )
+                    else:
+                        logger.info(f"⚠️ Nie wszystkie mecze w kolejce {round_id} są zakończone, nie aktualizuję statusu rundy")
+            except Exception as e:
+                logger.error(f"Błąd aktualizacji statusu rundy {round_id}: {e}")
+        
+        # Unieważnij cache
+        st.session_state['data_version'] = st.session_state.get('data_version', 0) + 1
+        
+        logger.info(f"✅ Zakończono odświeżanie kolejki {round_id}: zaktualizowano {updated_count} meczów z API")
+    except Exception as e:
+        logger.error(f"Błąd refresh_round_from_api: {e}")
 
 
 def refresh_unfinished_matches_from_api(storage, season_id: str, throttle_seconds: int = 120):
@@ -1135,7 +1372,7 @@ def main():
                     )
                     if not db_df.empty:
                         for _, row in db_df.iterrows():
-                            all_fixtures.append({
+                            match_dict = {
                                 'match_id': str(row['match_id']),
                                 'round_id': row['round_id'],
                                 'home_team_name': row['home_team_name'],
@@ -1145,7 +1382,9 @@ def main():
                                 'away_goals': row.get('away_goals'),
                                 'league_id': row.get('league_id'),
                                 'season': str(row.get('season_id')).replace('season_', '') if row.get('season_id') else None,
-                            })
+                                'is_finished': row.get('is_finished', 0),  # WAŻNE: Dodaj flagę is_finished z bazy
+                            }
+                            all_fixtures.append(match_dict)
                         # Wyciągnij numer sezonu z season_id
                         if selected_season_id and str(selected_season_id).startswith('season_'):
                             try:
@@ -1826,7 +2065,7 @@ def main():
                         color_continuous_scale='plasma'
                     )
                     fig.update_layout(xaxis_tickangle=-45, height=400)
-                    st.plotly_chart(fig, width="stretch", config={"displayModeBar": True, "responsive": True}, key="ranking_overall_chart_main")
+                    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": True}, key="ranking_overall_chart_main")
                     
                     # Statystyki
                     col1, col2, col3, col4 = st.columns(4)
@@ -2067,7 +2306,7 @@ def main():
                             color_continuous_scale='viridis'
                         )
                         fig.update_layout(xaxis_tickangle=-45, height=400)
-                        st.plotly_chart(fig, width="stretch", config={"displayModeBar": True, "responsive": True}, key=f"ranking_round_{round_number}_chart")
+                        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": True}, key=f"ranking_round_{round_number}_chart")
                 else:
                     st.info("📊 Brak danych do wyświetlenia dla tej kolejki")
         
@@ -2116,6 +2355,17 @@ def main():
             round_options.append(f"Kolejka {round_number} - {date} ({len(matches)} meczów)")
         
         selected_round_idx = st.selectbox("Wybierz rundę:", range(len(round_options)), index=default_round_idx, format_func=lambda x: round_options[x], key="round_select_main")
+        
+        # Przycisk do odświeżania danych z API dla wybranej kolejki
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            if st.button("🔄 Odśwież dane z API", key="refresh_round_api", help="Pobierz aktualne wyniki z API dla wybranej kolejki"):
+                if selected_round_idx is not None:
+                    selected_round_date, selected_matches = filtered_rounds[selected_round_idx]
+                    round_id = f"round_{selected_round_date}"
+                    refresh_round_from_api(storage, round_id, selected_matches)
+                    st.success(f"✅ Zaktualizowano dane z API dla kolejki {date_to_round_number.get(selected_round_date, '?')}")
+                    st.rerun()
         
         # Zapisz wybór rundy w session_state (synchronizacja z rankingiem)
         # Oznacz że użytkownik wybrał kolejkę ręcznie (jeśli wybór różni się od domyślnego)

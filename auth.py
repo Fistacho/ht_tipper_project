@@ -353,7 +353,7 @@ def login_page() -> bool:
                         color_continuous_scale='plasma'
                     )
                     fig.update_layout(xaxis_tickangle=-45, height=400)
-                    st.plotly_chart(fig, width="stretch", config={"displayModeBar": True, "responsive": True}, key="login_ranking_overall_chart")
+                    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": True}, key="login_ranking_overall_chart")
                     
                     # Statystyki
                     col1, col2, col3, col4 = st.columns(4)
@@ -554,7 +554,7 @@ def login_page() -> bool:
                                     color_continuous_scale='viridis'
                                 )
                                 fig.update_layout(xaxis_tickangle=-45, height=400)
-                                st.plotly_chart(fig, width="stretch", config={"displayModeBar": True, "responsive": True}, key=f"login_ranking_round_{round_number}_chart")
+                                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": True}, key=f"login_ranking_round_{round_number}_chart")
                         else:
                             st.info("📊 Brak danych do wyświetlenia dla tej kolejki")
                 else:

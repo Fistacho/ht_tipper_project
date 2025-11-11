@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 import streamlit as st
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -1151,13 +1152,45 @@ class TipperStorageMySQL:
                 else:
                     is_finished = 1 if (match.get('home_goals') is not None and match.get('away_goals') is not None) else 0
                 
-                self.conn.query(
-                    f"INSERT INTO matches (match_id, round_id, home_team_name, away_team_name, match_date, home_goals, away_goals, league_id, is_finished) "
-                    f"VALUES ('{match_id}', '{round_id}', '{home_team}', '{away_team}', '{match_date}', {home_goals}, {away_goals}, {league_id}, {is_finished}) "
-                    f"ON DUPLICATE KEY UPDATE home_team_name = '{home_team}', away_team_name = '{away_team}', "
-                    f"match_date = '{match_date}', home_goals = {home_goals}, away_goals = {away_goals}, league_id = {league_id}, is_finished = {is_finished}",
+                # WAŻNE: Nie nadpisuj wyników (home_goals, away_goals), jeśli mecz już ma wyniki w bazie
+                # Aktualizuj tylko, jeśli wyniki są NULL lub jeśli nowe wyniki pochodzą z API (nie są NULL)
+                # Sprawdź, czy mecz już istnieje i ma wyniki
+                existing_match_df = self.conn.query(
+                    f"SELECT home_goals, away_goals FROM matches WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
                     ttl=0
                 )
+                
+                if not existing_match_df.empty:
+                    # Mecz już istnieje - sprawdź, czy ma wyniki
+                    existing_home = existing_match_df.iloc[0].get('home_goals')
+                    existing_away = existing_match_df.iloc[0].get('away_goals')
+                    has_existing_results = existing_home is not None and existing_away is not None
+                    
+                    # Jeśli mecz ma wyniki w bazie, NIE nadpisuj ich (chyba że nowe wyniki pochodzą z API i nie są NULL)
+                    if has_existing_results:
+                        # Nie nadpisuj wyników - aktualizuj tylko inne pola
+                        self.conn.query(
+                            f"UPDATE matches SET home_team_name = '{home_team}', away_team_name = '{away_team}', "
+                            f"match_date = '{match_date}', league_id = {league_id}, is_finished = {is_finished} "
+                            f"WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
+                            ttl=0
+                        )
+                    else:
+                        # Mecz nie ma wyników - można zaktualizować (nawet jeśli nowe to NULL)
+                        self.conn.query(
+                            f"UPDATE matches SET home_team_name = '{home_team}', away_team_name = '{away_team}', "
+                            f"match_date = '{match_date}', home_goals = {home_goals}, away_goals = {away_goals}, "
+                            f"league_id = {league_id}, is_finished = {is_finished} "
+                            f"WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
+                            ttl=0
+                        )
+                else:
+                    # Mecz nie istnieje - dodaj nowy
+                    self.conn.query(
+                        f"INSERT INTO matches (match_id, round_id, home_team_name, away_team_name, match_date, home_goals, away_goals, league_id, is_finished) "
+                        f"VALUES ('{match_id}', '{round_id}', '{home_team}', '{away_team}', '{match_date}', {home_goals}, {away_goals}, {league_id}, {is_finished})",
+                        ttl=0
+                    )
                 
                 # Zaktualizuj mapowanie drużyna -> liga (jeśli znamy league_id)
                 try:
@@ -1278,13 +1311,26 @@ class TipperStorageMySQL:
                 )
             
             # Jeśli mecze są rozegrane, przelicz punkty (tylko raz na końcu)
+            # WAŻNE: Przeliczaj punkty TYLKO dla meczów, które są zakończone (is_finished=1)
             if recalculate_points:
-                # Pobierz wyniki meczów dla wszystkich typów
+                # WAŻNE: Najpierw usuń punkty dla nie zakończonych meczów w tej rundzie (jeśli były wcześniej zapisane)
                 match_ids_str = "', '".join([mid.replace("'", "''") for mid in predictions.keys()])
+                self.conn.query(
+                    f"DELETE mp FROM match_points mp "
+                    f"INNER JOIN matches m ON m.match_id = mp.match_id AND m.round_id = mp.round_id "
+                    f"WHERE mp.round_id = '{round_id_escaped}' AND mp.player_name = '{player_name_escaped}' "
+                    f"AND mp.match_id IN ('{match_ids_str}') "
+                    f"AND m.is_finished = 0",
+                    ttl=0
+                )
+                
+                # WAŻNE: Przelicz punkty TYLKO dla meczów, które mają wynik I są zakończone (is_finished=1)
+                # Pobierz wyniki meczów dla wszystkich typów - TYLKO dla meczów zakończonych
                 matches_df = self.conn.query(
-                    f"SELECT match_id, home_goals, away_goals FROM matches "
+                    f"SELECT match_id, home_goals, away_goals, is_finished FROM matches "
                     f"WHERE match_id IN ('{match_ids_str}') AND round_id = '{round_id_escaped}' "
-                    f"AND home_goals IS NOT NULL AND away_goals IS NOT NULL",
+                    f"AND home_goals IS NOT NULL AND away_goals IS NOT NULL "
+                    f"AND is_finished = 1",
                     ttl=0
                 )
                 
@@ -1294,7 +1340,10 @@ class TipperStorageMySQL:
                     
                     for _, match_row in matches_df.iterrows():
                         match_id = match_row['match_id']
-                        if match_id in predictions:
+                        is_finished = int(match_row.get('is_finished', 0))
+                        
+                        # TYLKO jeśli mecz ma wynik I jest zakończony
+                        if match_id in predictions and is_finished == 1:
                             home_goals = int(match_row['home_goals'])
                             away_goals = int(match_row['away_goals'])
                             prediction = predictions[match_id]
@@ -1312,9 +1361,20 @@ class TipperStorageMySQL:
                             f"ON DUPLICATE KEY UPDATE points = VALUES(points)",
                             ttl=0
                         )
-                    
-                    # Przelicz całkowite punkty gracza (tylko raz na końcu)
-                    self._recalculate_player_totals()
+                
+                # WAŻNE: Usuń punkty dla meczów, które nie są zakończone (is_finished=0)
+                # To zapewni, że punkty są tylko dla zakończonych meczów
+                self.conn.query(
+                    f"DELETE mp FROM match_points mp "
+                    f"INNER JOIN matches m ON m.match_id = mp.match_id AND m.round_id = mp.round_id "
+                    f"WHERE mp.round_id = '{round_id_escaped}' AND mp.player_name = '{player_name_escaped}' "
+                    f"AND mp.match_id IN ('{match_ids_str}') "
+                    f"AND m.is_finished = 0",
+                    ttl=0
+                )
+                
+                # Przelicz całkowite punkty gracza (tylko raz na końcu)
+                self._recalculate_player_totals()
             
             # Wyczyść cache po zapisie
             TipperStorageMySQL._memory_cache = None
@@ -1328,34 +1388,51 @@ class TipperStorageMySQL:
             raise  # Rzuć wyjątek zamiast zwracać False, aby aplikacja mogła go obsłużyć
     
     def update_match_result(self, round_id: str, match_id: str, home_goals: int, away_goals: int):
-        """Aktualizuje wynik meczu i przelicza punkty"""
+        """Aktualizuje wynik meczu i przelicza punkty - TYLKO jeśli mecz jest zakończony (is_finished=1)"""
         try:
-            # Aktualizuj wynik meczu
+            # Aktualizuj wynik meczu i ustaw is_finished=1 (bo mamy wynik)
             self.conn.query(
                 f"UPDATE matches SET home_goals = {home_goals}, away_goals = {away_goals}, is_finished = 1 "
                 f"WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
                 ttl=0
             )
             
-            # Przelicz punkty dla wszystkich graczy
-            from tipper import Tipper
-            predictions_df = self.conn.query(
-                f"SELECT * FROM predictions WHERE round_id = '{round_id}' AND match_id = '{match_id}'",
+            # WAŻNE: Przelicz punkty TYLKO dla meczów z is_finished=1 (mecz ma wynik i jest zakończony)
+            # Sprawdź, czy mecz jest zakończony przed przeliczaniem punktów
+            match_status_df = self.conn.query(
+                f"SELECT is_finished FROM matches WHERE match_id = '{match_id}' AND round_id = '{round_id}'",
                 ttl=0
             )
             
-            for _, pred_row in predictions_df.iterrows():
-                player_name = pred_row['player_name']
-                prediction = (int(pred_row['home_goals']), int(pred_row['away_goals']))
-                points = Tipper.calculate_points(prediction, (home_goals, away_goals))
+            if not match_status_df.empty:
+                is_finished = int(match_status_df.iloc[0].get('is_finished', 0))
                 
-                # Zapisz punkty
-                self.conn.query(
-                    f"INSERT INTO match_points (round_id, player_name, match_id, points) "
-                    f"VALUES ('{round_id}', '{player_name}', '{match_id}', {points}) "
-                    f"ON DUPLICATE KEY UPDATE points = {points}",
-                    ttl=0
-                )
+                # Przelicz punkty TYLKO jeśli mecz jest zakończony
+                if is_finished == 1:
+                    from tipper import Tipper
+                    predictions_df = self.conn.query(
+                        f"SELECT * FROM predictions WHERE round_id = '{round_id}' AND match_id = '{match_id}'",
+                        ttl=0
+                    )
+                    
+                    for _, pred_row in predictions_df.iterrows():
+                        player_name = pred_row['player_name']
+                        prediction = (int(pred_row['home_goals']), int(pred_row['away_goals']))
+                        points = Tipper.calculate_points(prediction, (home_goals, away_goals))
+                        
+                        # Zapisz punkty
+                        self.conn.query(
+                            f"INSERT INTO match_points (round_id, player_name, match_id, points) "
+                            f"VALUES ('{round_id}', '{player_name}', '{match_id}', {points}) "
+                            f"ON DUPLICATE KEY UPDATE points = {points}",
+                            ttl=0
+                        )
+                else:
+                    # Mecz nie jest zakończony - usuń punkty jeśli były wcześniej zapisane
+                    self.conn.query(
+                        f"DELETE FROM match_points WHERE round_id = '{round_id}' AND match_id = '{match_id}'",
+                        ttl=0
+                    )
             
             # Przelicz całkowite punkty graczy
             self._recalculate_player_totals()
@@ -1390,35 +1467,103 @@ class TipperStorageMySQL:
         try:
             from tipper import Tipper
             
+            # Najpierw zaktualizuj is_finished dla rund, które mają wszystkie mecze zakończone
+            # ale nie mają ustawionego is_finished=1
+            try:
+                # Zaktualizuj is_finished dla rund, gdzie wszystkie mecze są zakończone
+                self.conn.query(
+                    """
+                    UPDATE rounds r
+                    SET r.is_finished = 1, r.is_archival = 1, r.is_current = 0
+                    WHERE r.is_finished = 0
+                    AND (
+                        SELECT COUNT(*) 
+                        FROM matches m 
+                        WHERE m.round_id = r.round_id 
+                        AND m.is_finished = 1
+                    ) = (
+                        SELECT COUNT(*) 
+                        FROM matches m 
+                        WHERE m.round_id = r.round_id
+                    )
+                    AND (
+                        SELECT COUNT(*) 
+                        FROM matches m 
+                        WHERE m.round_id = r.round_id
+                    ) > 0
+                    """,
+                    ttl=0
+                )
+            except Exception as e:
+                logger.warning(f"Błąd aktualizacji is_finished dla rund w _recalculate_player_totals: {e}")
+            
             # Pobierz wszystkich graczy
             players_df = self.conn.query("SELECT player_name FROM players", ttl=0)
+            
+            # Pobierz wszystkie zakończone rundy
+            finished_rounds_df = self.conn.query(
+                "SELECT round_id FROM rounds WHERE (is_finished = 1 OR is_archival = 1) ORDER BY start_date ASC",
+                ttl=0
+            )
+            all_finished_round_ids = []
+            if not finished_rounds_df.empty:
+                all_finished_round_ids = [str(row['round_id']) for _, row in finished_rounds_df.iterrows()]
             
             for _, player_row in players_df.iterrows():
                 player_name = player_row['player_name']
                 
-                # Pobierz wszystkie punkty gracza
+                # WAŻNE: Usuń punkty dla meczów, które nie są zakończone (is_finished=0)
+                # To zapewni, że punkty są liczone tylko dla zakończonych meczów
+                self.conn.query(
+                    f"DELETE FROM match_points mp "
+                    f"WHERE mp.player_name = '{player_name}' "
+                    f"AND EXISTS (SELECT 1 FROM matches m WHERE m.match_id = mp.match_id AND m.round_id = mp.round_id AND m.is_finished = 0)",
+                    ttl=0
+                )
+                
+                # Pobierz wszystkie punkty gracza - TYLKO z zakończonych meczów w zakończonych rundach
                 points_df = self.conn.query(
                     "SELECT mp.points FROM match_points mp "
                     "INNER JOIN rounds r ON r.round_id = mp.round_id "
-                    f"WHERE mp.player_name = '{player_name}' AND (r.is_finished = 1 OR r.is_archival = 1)",
+                    "INNER JOIN matches m ON m.match_id = mp.match_id AND m.round_id = mp.round_id "
+                    f"WHERE mp.player_name = '{player_name}' "
+                    f"AND (r.is_finished = 1 OR r.is_archival = 1) "
+                    f"AND m.is_finished = 1",
                     ttl=0
                 )
                 
                 total_points = int(points_df['points'].sum()) if not points_df.empty else 0
                 
-                # Pobierz punkty per runda
+                # Pobierz punkty per runda (tylko rundy z typami) - TYLKO z zakończonych meczów
                 round_points_df = self.conn.query(
                     "SELECT mp.round_id, SUM(mp.points) as round_total "
                     "FROM match_points mp "
                     "INNER JOIN rounds r ON r.round_id = mp.round_id "
-                    f"WHERE mp.player_name = '{player_name}' AND (r.is_finished = 1 OR r.is_archival = 1) "
+                    "INNER JOIN matches m ON m.match_id = mp.match_id AND m.round_id = mp.round_id "
+                    f"WHERE mp.player_name = '{player_name}' "
+                    f"AND (r.is_finished = 1 OR r.is_archival = 1) "
+                    f"AND m.is_finished = 1 "
                     "GROUP BY mp.round_id",
                     ttl=0
                 )
                 
-                rounds_played = len(round_points_df) if not round_points_df.empty else 0
-                best_score = int(round_points_df['round_total'].max()) if not round_points_df.empty and len(round_points_df) > 0 else 0
-                worst_score = int(round_points_df['round_total'].min()) if not round_points_df.empty and len(round_points_df) > 0 else 0
+                # Stwórz mapę round_id -> points (tylko rundy z typami)
+                round_points_map = {}
+                if not round_points_df.empty:
+                    for _, row in round_points_df.iterrows():
+                        round_id = str(row['round_id'])
+                        points = int(row['round_total'])
+                        round_points_map[round_id] = points
+                
+                # Zbierz punkty z wszystkich zakończonych rund (uwzględniając 0 dla rund bez typów)
+                round_points_list = []
+                for round_id in all_finished_round_ids:
+                    points = round_points_map.get(round_id, 0)  # 0 jeśli gracz nie typował
+                    round_points_list.append(points)
+                
+                rounds_played = len([p for p in round_points_list if p > 0])  # Liczba rund z typami
+                best_score = max(round_points_list) if round_points_list else 0
+                worst_score = min(round_points_list) if round_points_list else 0  # Uwzględnia 0 dla rund bez typów
                 
                 # Aktualizuj gracza
                 self.conn.query(
@@ -1559,8 +1704,106 @@ class TipperStorageMySQL:
             if season_id is None:
                 season_id = self.get_current_season()
             
+            # Najpierw zaktualizuj is_finished dla rund na podstawie statusu meczów
+            # 1. Ustaw is_finished=1 dla rund, gdzie wszystkie mecze są zakończone
+            # 2. Ustaw is_finished=0 dla rund, gdzie nie wszystkie mecze są zakończone
+            try:
+                if season_id:
+                    # Ustaw is_finished=1 dla rund, gdzie wszystkie mecze są zakończone
+                    self.conn.query(
+                        f"""
+                        UPDATE rounds r
+                        SET r.is_finished = 1, r.is_archival = 1, r.is_current = 0
+                        WHERE r.season_id = '{season_id}'
+                        AND r.is_finished = 0
+                        AND (
+                            SELECT COUNT(*) 
+                            FROM matches m 
+                            WHERE m.round_id = r.round_id 
+                            AND m.is_finished = 1
+                        ) = (
+                            SELECT COUNT(*) 
+                            FROM matches m 
+                            WHERE m.round_id = r.round_id
+                        )
+                        AND (
+                            SELECT COUNT(*) 
+                            FROM matches m 
+                            WHERE m.round_id = r.round_id
+                        ) > 0
+                        """,
+                        ttl=0
+                    )
+                    # Ustaw is_finished=0 dla rund, gdzie nie wszystkie mecze są zakończone
+                    self.conn.query(
+                        f"""
+                        UPDATE rounds r
+                        SET r.is_finished = 0, r.is_current = 1, r.is_archival = 0
+                        WHERE r.season_id = '{season_id}'
+                        AND r.is_finished = 1
+                        AND (
+                            SELECT COUNT(*) 
+                            FROM matches m 
+                            WHERE m.round_id = r.round_id 
+                            AND m.is_finished = 1
+                        ) < (
+                            SELECT COUNT(*) 
+                            FROM matches m 
+                            WHERE m.round_id = r.round_id
+                        )
+                        """,
+                        ttl=0
+                    )
+                else:
+                    # Ustaw is_finished=1 dla rund, gdzie wszystkie mecze są zakończone
+                    self.conn.query(
+                        """
+                        UPDATE rounds r
+                        SET r.is_finished = 1, r.is_archival = 1, r.is_current = 0
+                        WHERE r.is_finished = 0
+                        AND (
+                            SELECT COUNT(*) 
+                            FROM matches m 
+                            WHERE m.round_id = r.round_id 
+                            AND m.is_finished = 1
+                        ) = (
+                            SELECT COUNT(*) 
+                            FROM matches m 
+                            WHERE m.round_id = r.round_id
+                        )
+                        AND (
+                            SELECT COUNT(*) 
+                            FROM matches m 
+                            WHERE m.round_id = r.round_id
+                        ) > 0
+                        """,
+                        ttl=0
+                    )
+                    # Ustaw is_finished=0 dla rund, gdzie nie wszystkie mecze są zakończone
+                    self.conn.query(
+                        """
+                        UPDATE rounds r
+                        SET r.is_finished = 0, r.is_current = 1, r.is_archival = 0
+                        WHERE r.is_finished = 1
+                        AND (
+                            SELECT COUNT(*) 
+                            FROM matches m 
+                            WHERE m.round_id = r.round_id 
+                            AND m.is_finished = 1
+                        ) < (
+                            SELECT COUNT(*) 
+                            FROM matches m 
+                            WHERE m.round_id = r.round_id
+                        )
+                        """,
+                        ttl=0
+                    )
+            except Exception as e:
+                logger.warning(f"Błąd aktualizacji is_finished dla rund: {e}")
+            
             # Pobierz wszystkie rundy posortowane po dacie (najstarsza pierwsza) - z cache
             # Filtruj tylko rundy z aktualnego sezonu (jeśli sezon jest ustawiony)
+            # WAŻNE: Sprawdź czy wszystkie mecze w rundzie są zakończone przed dodaniem do listy
             if season_id:
                 rounds_df = self.conn.query(
                     f"SELECT r.round_id, r.start_date FROM rounds r "
@@ -1575,34 +1818,81 @@ class TipperStorageMySQL:
                     "SELECT round_id, start_date FROM rounds WHERE (is_finished = 1 OR is_archival = 1) ORDER BY start_date ASC",
                     ttl=120
                 )
+            
+            # Sprawdź status meczów dla wszystkich rund w jednym zapytaniu
             all_rounds = []
             if not rounds_df.empty:
-                for _, round_row in rounds_df.iterrows():
-                    all_rounds.append((round_row['round_id'], round_row['start_date']))
+                # Pobierz status meczów dla wszystkich rund jednocześnie
+                round_ids_list = [str(row['round_id']) for _, row in rounds_df.iterrows()]
+                if round_ids_list:
+                    round_ids_str = "', '".join(round_ids_list)
+                    matches_status_df = self.conn.query(
+                        f"""
+                        SELECT 
+                            round_id,
+                            COUNT(*) as total_matches,
+                            SUM(CASE WHEN is_finished = 1 THEN 1 ELSE 0 END) as finished_matches
+                        FROM matches 
+                        WHERE round_id IN ('{round_ids_str}')
+                        GROUP BY round_id
+                        """,
+                        ttl=60
+                    )
+                    
+                    # Stwórz mapę round_id -> (total_matches, finished_matches)
+                    matches_status_map = {}
+                    if not matches_status_df.empty:
+                        for _, row in matches_status_df.iterrows():
+                            round_id = str(row['round_id'])
+                            total_matches = int(row['total_matches'])
+                            finished_matches = int(row['finished_matches'])
+                            matches_status_map[round_id] = (total_matches, finished_matches)
+                    
+                    # Filtruj rundy - tylko te, gdzie wszystkie mecze są zakończone
+                    # WAŻNE: Sprawdzamy is_finished z tabeli matches, nie z tabeli rounds
+                    # bo rounds.is_finished może być nieaktualne
+                    for _, round_row in rounds_df.iterrows():
+                        round_id = str(round_row['round_id'])
+                        start_date = round_row['start_date']
+                        
+                        # Sprawdź status meczów dla tej rundy
+                        if round_id in matches_status_map:
+                            total_matches, finished_matches = matches_status_map[round_id]
+                            # Dodaj rundę tylko jeśli wszystkie mecze są zakończone (is_finished=1 w matches)
+                            # I dodatkowo sprawdź, czy runda ma is_finished=1 w tabeli rounds
+                            if total_matches > 0 and finished_matches == total_matches:
+                                # Sprawdź jeszcze raz, czy runda ma is_finished=1 w tabeli rounds
+                                round_status_df = self.conn.query(
+                                    f"SELECT is_finished FROM rounds WHERE round_id = '{round_id}'",
+                                    ttl=0
+                                )
+                                if not round_status_df.empty:
+                                    round_is_finished = int(round_status_df.iloc[0].get('is_finished', 0))
+                                    # Dodaj rundę tylko jeśli ma is_finished=1 w tabeli rounds
+                                    if round_is_finished == 1:
+                                        all_rounds.append((round_id, start_date))
+                        else:
+                            # Jeśli nie ma meczów w bazie, nie dodawaj rundy
+                            pass
             
             # Pobierz wszystkich graczy - z cache
             players_df = self.conn.query("SELECT * FROM players ORDER BY total_points DESC", ttl=120)
             
             # Zoptymalizowane: Pobierz wszystkie punkty per runda dla wszystkich graczy w jednym zapytaniu
-            # Filtruj tylko rundy z aktualnego sezonu jeśli sezon jest ustawiony
-            if season_id and all_rounds:
+            # WAŻNE: Używamy tylko rund z all_rounds (gdzie wszystkie mecze są zakończone)
+            # Nie używamy filtru is_finished z tabeli rounds, bo all_rounds już zawiera tylko zakończone rundy
+            if all_rounds:
                 round_ids_str = "', '".join([r[0] for r in all_rounds])
                 all_round_points_df = self.conn.query(
                     f"SELECT mp.player_name, mp.round_id, SUM(mp.points) as round_total "
                     f"FROM match_points mp "
-                    f"INNER JOIN rounds r ON r.round_id = mp.round_id "
-                    f"WHERE mp.round_id IN ('{round_ids_str}') AND (r.is_finished = 1 OR r.is_archival = 1) "
+                    f"WHERE mp.round_id IN ('{round_ids_str}') "
                     f"GROUP BY mp.player_name, mp.round_id",
                     ttl=120
                 )
             else:
-                all_round_points_df = self.conn.query(
-                    "SELECT mp.player_name, mp.round_id, SUM(mp.points) as round_total "
-                    "FROM match_points mp INNER JOIN rounds r ON r.round_id = mp.round_id "
-                    "WHERE (r.is_finished = 1 OR r.is_archival = 1) "
-                    "GROUP BY mp.player_name, mp.round_id",
-                    ttl=120
-                )
+                # Jeśli nie ma zakończonych rund, zwróć pusty DataFrame
+                all_round_points_df = pd.DataFrame(columns=['player_name', 'round_id', 'round_total'])
             
             # Stwórz mapę player_name -> {round_id: points}
             player_round_points_map = {}
@@ -1624,15 +1914,24 @@ class TipperStorageMySQL:
                 
                 # Zbierz punkty z każdej kolejki w kolejności (najstarsza pierwsza)
                 # Jeśli gracz nie typował w rundzie, dodaj 0
+                # UWAGA: all_rounds zawiera już tylko rundy, gdzie wszystkie mecze są zakończone
                 round_points_list = []
                 for round_id, _ in all_rounds:
                     round_points = round_points_map.get(round_id, 0)
                     round_points_list.append(round_points)
                 
-                original_total = int(row['total_points'])
-                worst_score = int(row['worst_score']) if row['worst_score'] else 0
+                # Oblicz rzeczywistą sumę punktów tylko z zakończonych rund
+                original_total = sum(round_points_list)
                 
-                if exclude_worst and worst_score > 0 and len(round_points_list) > 1:
+                # Oblicz rzeczywistą liczbę rund (tylko zakończone)
+                rounds_played = len(all_rounds)
+                
+                # Oblicz najlepszy i najgorszy wynik z round_points_list
+                best_score = max(round_points_list) if round_points_list else 0
+                worst_score = min(round_points_list) if round_points_list else 0
+                
+                # Odrzuć najgorszy wynik (w tym 0) jeśli exclude_worst=True i jest więcej niż 1 runda
+                if exclude_worst and len(round_points_list) > 1:
                     total_points = original_total - worst_score
                     excluded_worst = True
                 else:
@@ -1643,9 +1942,9 @@ class TipperStorageMySQL:
                     'player_name': player_name,
                     'total_points': total_points,
                     'original_total': original_total,
-                    'rounds_played': int(row['rounds_played']),
-                    'best_score': int(row['best_score']),
-                    'worst_score': worst_score,
+                    'rounds_played': rounds_played,  # Używamy rzeczywistej liczby zakończonych rund
+                    'best_score': best_score,  # Obliczamy z round_points_list
+                    'worst_score': worst_score,  # Obliczamy z round_points_list
                     'excluded_worst': excluded_worst,
                     'round_points': round_points_list  # Lista punktów z każdej kolejki (w kolejności dat)
                 })
@@ -1659,22 +1958,12 @@ class TipperStorageMySQL:
     def get_round_leaderboard(self, round_id: str) -> List[Dict]:
         """Zwraca ranking dla rundy - wszyscy gracze, nawet ci bez typów (z 0 punktami) - zoptymalizowane"""
         try:
-            # Najpierw zaktualizuj is_finished dla meczów, które mają wyniki (home_goals i away_goals)
-            # ale nie mają ustawionego is_finished=1
+            # NIE ustawiamy automatycznie is_finished=1 tylko na podstawie wyników!
+            # is_finished powinno być ustawiane TYLKO na podstawie flagi z API.
+            # Usunięto automatyczne ustawianie is_finished=1 dla meczów z wynikami.
+            
+            # Sprawdź czy wszystkie mecze w rundzie są zakończone i zaktualizuj is_finished dla rundy
             try:
-                self.conn.query(
-                    f"""
-                    UPDATE matches 
-                    SET is_finished = 1 
-                    WHERE round_id = '{round_id}' 
-                    AND is_finished = 0 
-                    AND home_goals IS NOT NULL 
-                    AND away_goals IS NOT NULL
-                    """,
-                    ttl=0
-                )
-                
-                # Sprawdź czy wszystkie mecze w rundzie są zakończone i zaktualizuj is_finished dla rundy
                 matches_status_df = self.conn.query(
                     f"""
                     SELECT 
@@ -1697,7 +1986,7 @@ class TipperStorageMySQL:
                             ttl=0
                         )
             except Exception as e:
-                logger.warning(f"Błąd aktualizacji is_finished dla meczów z wynikami: {e}")
+                logger.warning(f"Błąd aktualizacji is_finished dla rundy: {e}")
             
             # Sprawdź czy wszystkie mecze w rundzie są zakończone (is_finished=1 w tabeli matches)
             # Jeśli wszystkie mecze są zakończone, kolejka jest zakończona i pokazujemy ranking
