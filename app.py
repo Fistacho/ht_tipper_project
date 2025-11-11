@@ -2592,114 +2592,114 @@ def main():
                                     st.info("⏰ Rozegrany")
                                 else:
                                     st.warning("⏰ Rozpoczęty")
+                    
+                    # Przyciski do zapisania i usunięcia typów - w jednej linii (POZA pętlą meczów)
+                    btn_col1, btn_col2 = st.columns(2)
+                    
+                    with btn_col1:
+                        save_clicked = st.button("💾 Zapisz typy", type="primary", key=f"tipper_save_all_{player_name}", width="stretch")
+                    
+                    with btn_col2:
+                        delete_clicked = st.button("🗑️ Usuń typy", key=f"tipper_delete_all_{player_name}", width="stretch")
+                    
+                    if save_clicked:
+                        # Zbierz wszystkie typy z pól tekstowych
+                        predictions_to_save = {}
                         
-                        # Przyciski do zapisania i usunięcia typów - w jednej linii
-                        btn_col1, btn_col2 = st.columns(2)
-                        
-                        with btn_col1:
-                            save_clicked = st.button("💾 Zapisz typy", type="primary", key=f"tipper_save_all_{player_name}", width="stretch")
-                        
-                        with btn_col2:
-                            delete_clicked = st.button("🗑️ Usuń typy", key=f"tipper_delete_all_{player_name}", width="stretch")
-                        
-                        if save_clicked:
-                            # Zbierz wszystkie typy z pól tekstowych
-                            predictions_to_save = {}
+                        for match in selected_matches:
+                            match_id = str(match.get('match_id', ''))
+                            input_key = f"tipper_pred_{player_name}_{match_id}"
                             
-                            for match in selected_matches:
-                                match_id = str(match.get('match_id', ''))
-                                input_key = f"tipper_pred_{player_name}_{match_id}"
-                                
-                                if input_key in st.session_state:
-                                    pred_input = st.session_state[input_key]
-                                    if pred_input and pred_input.strip():
-                                        parsed = tipper.parse_prediction(pred_input)
-                                        if parsed:
-                                            predictions_to_save[match_id] = parsed
+                            if input_key in st.session_state:
+                                pred_input = st.session_state[input_key]
+                                if pred_input and pred_input.strip():
+                                    parsed = tipper.parse_prediction(pred_input)
+                                    if parsed:
+                                        predictions_to_save[match_id] = parsed
+                        
+                        if predictions_to_save:
+                            saved_count = 0
+                            updated_count = 0
                             
-                            if predictions_to_save:
-                                saved_count = 0
-                                updated_count = 0
+                            # Filtruj typy, które można zapisać
+                            valid_predictions = {}
+                            for match_id, prediction in predictions_to_save.items():
+                                # Sprawdź czy typ już istnieje
+                                is_update = match_id in existing_predictions
                                 
-                                # Filtruj typy, które można zapisać
-                                valid_predictions = {}
-                                for match_id, prediction in predictions_to_save.items():
-                                    # Sprawdź czy typ już istnieje
-                                    is_update = match_id in existing_predictions
-                                    
-                                    # Sprawdź czy mecz można edytować
-                                    match = next((m for m in selected_matches if str(m.get('match_id')) == match_id), None)
-                                    can_add = True
-                                    
-                                    if match:
-                                        match_date = match.get('match_date')
-                                        if match_date:
-                                            try:
-                                                match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
-                                                if datetime.now() >= match_dt:
-                                                    can_add = allow_historical
-                                            except:
-                                                pass
-                                    
-                                    if can_add:
-                                        valid_predictions[match_id] = prediction
-                                        if is_update:
-                                            updated_count += 1
-                                        else:
-                                            saved_count += 1
+                                # Sprawdź czy mecz można edytować
+                                match = next((m for m in selected_matches if str(m.get('match_id')) == match_id), None)
+                                can_add = True
                                 
-                                # Zapisz wszystkie typy naraz (batch insert - szybsze)
-                                if valid_predictions:
-                                    try:
-                                        log_to_file(f"save_clicked: start add_predictions_batch count={len(valid_predictions)} player={player_name} round={round_id}")
-                                        logger.info(f"DEBUG save: zapisuję {len(valid_predictions)} typów dla gracza {player_name} w rundzie {round_id}")
-                                        if hasattr(storage, 'add_predictions_batch'):
-                                            storage.add_predictions_batch(round_id, player_name, valid_predictions)
-                                        else:
-                                            # Fallback dla JSON storage
-                                            for match_id, prediction in valid_predictions.items():
-                                                storage.add_prediction(round_id, player_name, match_id, prediction)
-                                        log_to_file("save_clicked: add_predictions_batch done")
-                                    except Exception as e:
-                                        logger.exception(f"Błąd zapisu typów (single): {e}")
-                                        log_to_file(f"save_clicked: EXCEPTION {e}")
-                                        st.error(f"❌ Błąd zapisu typów: {e}")
-                                        return
+                                if match:
+                                    match_date = match.get('match_date')
+                                    if match_date:
+                                        try:
+                                            match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                                            if datetime.now() >= match_dt:
+                                                can_add = allow_historical
+                                        except:
+                                            pass
                                 
-                                total_saved = saved_count + updated_count
-                                
-                                if total_saved > 0:
-                                    # Zwiększ wersję danych, aby unieważnić cache
-                                    st.session_state['data_version'] = st.session_state.get('data_version', 0) + 1
-                                    # Zapisz zmiany (dla JSON storage)
-                                    if hasattr(storage, '_save_data'):
-                                        storage._save_data()
-                                    
-                                    # Usuń klucze z session_state, aby pola tekstowe zostały ponownie zainicjalizowane z wartościami z bazy
-                                    # Streamlit text_input zachowuje wartość w session_state po rerun, więc musimy je usunąć
-                                    keys_to_remove = []
-                                    for match in selected_matches:
-                                        match_id = str(match.get('match_id', ''))
-                                        input_key = f"tipper_pred_{player_name}_{match_id}"
-                                        if input_key in st.session_state:
-                                            keys_to_remove.append(input_key)
-                                    
-                                    # Usuń klucze po zakończeniu iteracji (aby uniknąć modyfikacji podczas iteracji)
-                                    for key in keys_to_remove:
-                                        del st.session_state[key]
-                                    
-                                    if updated_count > 0 and saved_count > 0:
-                                        st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
-                                    elif updated_count > 0:
-                                        st.success(f"✅ Zaktualizowano {updated_count} typów")
+                                if can_add:
+                                    valid_predictions[match_id] = prediction
+                                    if is_update:
+                                        updated_count += 1
                                     else:
-                                        st.success(f"✅ Zapisano {saved_count} typów")
-                                    
-                                    st.rerun()
+                                        saved_count += 1
+                            
+                            # Zapisz wszystkie typy naraz (batch insert - szybsze)
+                            if valid_predictions:
+                                try:
+                                    log_to_file(f"save_clicked: start add_predictions_batch count={len(valid_predictions)} player={player_name} round={round_id}")
+                                    logger.info(f"DEBUG save: zapisuję {len(valid_predictions)} typów dla gracza {player_name} w rundzie {round_id}")
+                                    if hasattr(storage, 'add_predictions_batch'):
+                                        storage.add_predictions_batch(round_id, player_name, valid_predictions)
+                                    else:
+                                        # Fallback dla JSON storage
+                                        for match_id, prediction in valid_predictions.items():
+                                            storage.add_prediction(round_id, player_name, match_id, prediction)
+                                    log_to_file("save_clicked: add_predictions_batch done")
+                                except Exception as e:
+                                    logger.exception(f"Błąd zapisu typów (single): {e}")
+                                    log_to_file(f"save_clicked: EXCEPTION {e}")
+                                    st.error(f"❌ Błąd zapisu typów: {e}")
+                                    return
+                            
+                            total_saved = saved_count + updated_count
+                            
+                            if total_saved > 0:
+                                # Zwiększ wersję danych, aby unieważnić cache
+                                st.session_state['data_version'] = st.session_state.get('data_version', 0) + 1
+                                # Zapisz zmiany (dla JSON storage)
+                                if hasattr(storage, '_save_data'):
+                                    storage._save_data()
+                                
+                                # Usuń klucze z session_state, aby pola tekstowe zostały ponownie zainicjalizowane z wartościami z bazy
+                                # Streamlit text_input zachowuje wartość w session_state po rerun, więc musimy je usunąć
+                                keys_to_remove = []
+                                for match in selected_matches:
+                                    match_id = str(match.get('match_id', ''))
+                                    input_key = f"tipper_pred_{player_name}_{match_id}"
+                                    if input_key in st.session_state:
+                                        keys_to_remove.append(input_key)
+                                
+                                # Usuń klucze po zakończeniu iteracji (aby uniknąć modyfikacji podczas iteracji)
+                                for key in keys_to_remove:
+                                    del st.session_state[key]
+                                
+                                if updated_count > 0 and saved_count > 0:
+                                    st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
+                                elif updated_count > 0:
+                                    st.success(f"✅ Zaktualizowano {updated_count} typów")
                                 else:
-                                    st.warning("⚠️ Wszystkie mecze już rozpoczęte")
+                                    st.success(f"✅ Zapisano {saved_count} typów")
+                                
+                                st.rerun()
                             else:
-                                st.info("ℹ️ Wprowadź typy przed zapisaniem")
+                                st.warning("⚠️ Wszystkie mecze już rozpoczęte")
+                        else:
+                            st.info("ℹ️ Wprowadź typy przed zapisaniem")
                         
                         if delete_clicked:
                             # Sprawdź czy są typy do usunięcia
