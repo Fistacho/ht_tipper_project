@@ -2984,7 +2984,7 @@
           "home_goals": 7,
           "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2025-11-11T15:19:28.553441"
+          "result_updated": "2025-11-11T15:58:26.985815"
         },
         {
           "match_id": "753891424",
@@ -8125,7 +8125,7 @@
             }
           },
           "total_points": 433,
-          "rounds_played": 12,
+          "rounds_played": 13,
           "best_score": 46,
           "worst_score": 23,
           "round_scores": {
