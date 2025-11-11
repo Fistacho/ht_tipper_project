@@ -383,41 +383,41 @@
         },
         "round_2025-11-16": {
           "753891427": {
-            "home": 1,
-            "away": 1,
-            "timestamp": "2025-11-11T13:18:33.858784"
+            "home": 8,
+            "away": 0,
+            "timestamp": "2025-11-11T13:38:23.734201"
           },
           "753891428": {
             "home": 1,
             "away": 2,
-            "timestamp": "2025-11-09T14:20:01.131245"
+            "timestamp": "2025-11-11T13:38:25.259028"
           },
           "753891429": {
             "home": 1,
             "away": 1,
-            "timestamp": "2025-11-09T14:20:01.148841"
+            "timestamp": "2025-11-11T13:38:25.259028"
           },
           "753891430": {
             "home": 1,
             "away": 8,
-            "timestamp": "2025-11-09T14:20:01.163168"
+            "timestamp": "2025-11-11T13:38:25.259028"
           },
           "753850099": {
             "home": 2,
             "away": 2,
-            "timestamp": "2025-11-09T14:20:01.176019"
+            "timestamp": "2025-11-11T13:38:25.259028"
           },
           "753850100": {
             "home": 1,
             "away": 1,
-            "timestamp": "2025-11-09T14:20:01.191601"
+            "timestamp": "2025-11-11T13:38:25.259028"
           }
         }
       },
       "total_points": 433,
-      "rounds_played": 13,
+      "rounds_played": 12,
       "best_score": 46,
-      "worst_score": 0,
+      "worst_score": 23,
       "round_scores": {
         "round_2025-11-09": 39,
         "round_2025-11-23": 0,
@@ -820,7 +820,7 @@
       "total_points": 390,
       "rounds_played": 12,
       "best_score": 40,
-      "worst_score": 0,
+      "worst_score": 20,
       "round_scores": {
         "round_2025-11-09": 32,
         "round_2025-11-23": 0,
@@ -1223,7 +1223,7 @@
       "total_points": 426,
       "rounds_played": 12,
       "best_score": 53,
-      "worst_score": 0,
+      "worst_score": 24,
       "round_scores": {
         "round_2025-11-09": 30,
         "round_2025-11-23": 0,
@@ -1626,7 +1626,7 @@
       "total_points": 415,
       "rounds_played": 12,
       "best_score": 54,
-      "worst_score": 0,
+      "worst_score": 16,
       "round_scores": {
         "round_2025-11-09": 34,
         "round_2025-11-23": 0,
@@ -2029,7 +2029,7 @@
       "total_points": 434,
       "rounds_played": 12,
       "best_score": 50,
-      "worst_score": 0,
+      "worst_score": 21,
       "round_scores": {
         "round_2025-11-09": 42,
         "round_2025-11-23": 0,
@@ -7654,34 +7654,34 @@
       "predictions": {
         "Sonne": {
           "753891427": {
-            "home": 1,
-            "away": 1,
-            "timestamp": "2025-11-11T13:18:33.858784"
+            "home": 8,
+            "away": 0,
+            "timestamp": "2025-11-11T13:38:23.734201"
           },
           "753891428": {
             "home": 1,
             "away": 2,
-            "timestamp": "2025-11-09T14:20:01.131245"
+            "timestamp": "2025-11-11T13:38:25.259028"
           },
           "753891429": {
             "home": 1,
             "away": 1,
-            "timestamp": "2025-11-09T14:20:01.148841"
+            "timestamp": "2025-11-11T13:38:25.259028"
           },
           "753891430": {
             "home": 1,
             "away": 8,
-            "timestamp": "2025-11-09T14:20:01.163168"
+            "timestamp": "2025-11-11T13:38:25.259028"
           },
           "753850099": {
             "home": 2,
             "away": 2,
-            "timestamp": "2025-11-09T14:20:01.176019"
+            "timestamp": "2025-11-11T13:38:25.259028"
           },
           "753850100": {
             "home": 1,
             "away": 1,
-            "timestamp": "2025-11-09T14:20:01.191601"
+            "timestamp": "2025-11-11T13:38:25.259028"
           }
         }
       }
