@@ -21,6 +21,10 @@ class TipperStorage:
         self.data_file = os.path.abspath(data_file)
         self.github_config = self._get_github_config()
         self.data = self._load_data()
+        # Mechanizm opóźnionego zapisu (debounce) - zapisuje dopiero po 2 sekundach bez zmian
+        self._pending_save = False
+        self._last_save_time = 0
+        self._save_delay = 2.0  # 2 sekundy opóźnienia
     
     def _get_github_config(self) -> Optional[Dict]:
         """Pobiera konfigurację GitHub API z .env lub Streamlit Secrets"""
@@ -125,12 +129,43 @@ class TipperStorage:
             }
         }
     
-    def _save_data(self):
-        """Zapisuje dane do pliku JSON - lokalnie lub przez GitHub API"""
+    def _save_data(self, force: bool = False):
+        """
+        Zapisuje dane do pliku JSON - lokalnie lub przez GitHub API
+        Używa mechanizmu debounce - zapisuje dopiero po 2 sekundach bez zmian
+        (lub natychmiast jeśli force=True)
+        """
+        import time
+        current_time = time.time()
+        
+        # Jeśli force=True, zapisz natychmiast
+        if force:
+            self._pending_save = False
+            self._last_save_time = current_time
+            self._do_save()
+            return
+        
+        # Oznacz, że zapis jest potrzebny
+        self._pending_save = True
+        
+        # Sprawdź czy minęło wystarczająco czasu od ostatniego zapisu
+        time_since_last_save = current_time - self._last_save_time
+        if time_since_last_save >= self._save_delay:
+            # Zapisz natychmiast
+            self._pending_save = False
+            self._last_save_time = current_time
+            self._do_save()
+        else:
+            # Zaplanuj zapis za pozostały czas
+            remaining_time = self._save_delay - time_since_last_save
+            logger.debug(f"Opóźniam zapis o {remaining_time:.2f} sekund (debounce)")
+    
+    def _do_save(self):
+        """Wykonuje faktyczny zapis danych"""
         # Próbuj najpierw zapisać przez GitHub API (jeśli skonfigurowane)
         if self.github_config:
             if self._save_to_github():
-                logger.info("✅ Zapisano dane do GitHub przez API")
+                logger.debug("Zapisano dane do GitHub przez API")
                 return
         
         # Fallback: zapis lokalny (dla lokalnego rozwoju)
@@ -142,17 +177,25 @@ class TipperStorage:
             with open(abs_path, 'w', encoding='utf-8') as f:
                 json.dump(self.data, f, ensure_ascii=False, indent=2)
             
-            logger.info(f"Zapisano dane do pliku {abs_path}: {len(self.data.get('players', {}))} graczy, {len(self.data.get('rounds', {}))} rund")
+            logger.debug(f"Zapisano dane do pliku {abs_path}: {len(self.data.get('players', {}))} graczy, {len(self.data.get('rounds', {}))} rund")
             
             # Sprawdź czy plik rzeczywiście istnieje po zapisie
             if os.path.exists(abs_path):
                 file_size = os.path.getsize(abs_path)
-                logger.info(f"Plik zapisany poprawnie, rozmiar: {file_size} bajtów")
+                logger.debug(f"Plik zapisany poprawnie, rozmiar: {file_size} bajtów")
             else:
                 logger.warning(f"Plik {abs_path} nie istnieje po zapisie (może być normalne na Streamlit Cloud)")
                 
         except IOError as e:
             logger.error(f"Błąd zapisywania danych typera: {e}")
+    
+    def flush_save(self):
+        """Wymusza natychmiastowy zapis wszystkich oczekujących zmian"""
+        if self._pending_save:
+            import time
+            self._pending_save = False
+            self._last_save_time = time.time()
+            self._do_save()
     
     def _save_to_github(self) -> bool:
         """Zapisuje dane do GitHub przez API (używa REST API bezpośrednio dla lepszej kompatybilności)"""
@@ -409,6 +452,21 @@ class TipperStorage:
         self._save_data()
         self._recalculate_player_totals()
     
+    def _is_round_finished(self, round_data: Dict) -> bool:
+        """Sprawdza czy runda jest rozegrana (wszystkie mecze mają wyniki)"""
+        matches = round_data.get('matches', [])
+        if not matches:
+            return False
+        
+        # Runda jest rozegrana jeśli wszystkie mecze mają wyniki
+        for match in matches:
+            home_goals = match.get('home_goals')
+            away_goals = match.get('away_goals')
+            if home_goals is None or away_goals is None:
+                return False
+        
+        return True
+    
     def _recalculate_player_totals(self):
         """Przelicza całkowite punkty dla wszystkich graczy"""
         from tipper import Tipper
@@ -419,28 +477,53 @@ class TipperStorage:
             best_score = 0
             worst_score = float('inf')
             round_scores = {}  # {round_id: total_points_in_round}
+            finished_round_scores = []  # Lista punktów tylko z rozegranych kolejek (dla worst_score)
             
             # Przejdź przez wszystkie rundy
             for round_id, round_data in self.data['rounds'].items():
-                if player_name in round_data.get('predictions', {}):
-                    round_points = 0
-                    match_points = round_data.get('match_points', {}).get(player_name, {})
-                    
-                    # Sumuj punkty z meczów w rundzie
-                    for match_id, points in match_points.items():
-                        round_points += points
-                    
-                    if round_points > 0:
-                        round_scores[round_id] = round_points
-                        total_points += round_points
-                        rounds_played += 1
+                round_points = 0
+                match_points = round_data.get('match_points', {}).get(player_name, {})
+                
+                # Sumuj punkty z meczów w rundzie (jeśli gracz typował)
+                for match_id, points in match_points.items():
+                    round_points += points
+                
+                # Zawsze zapisz punkty do round_scores (dla wyświetlania)
+                round_scores[round_id] = round_points
+                total_points += round_points
+                
+                # Jeśli gracz typował w tej rundzie (ma typy) lub ma punkty, to runda jest "rozegrana"
+                if player_name in round_data.get('predictions', {}) or round_points > 0:
+                    rounds_played += 1
+                
+                # WAŻNE: Uwzględnij 0 jako najgorszy wynik TYLKO dla rozegranych kolejek
+                is_finished = self._is_round_finished(round_data)
+                if is_finished:
+                    # Dla rozegranych kolejek: jeśli gracz nie typował, ma 0 punktów
+                    if round_points == 0 and player_name not in round_data.get('predictions', {}):
+                        # Gracz nie typował w rozegranej kolejce - ma 0 punktów
+                        finished_round_scores.append(0)
+                    elif round_points > 0:
+                        # Gracz typował i ma punkty
+                        finished_round_scores.append(round_points)
                         best_score = max(best_score, round_points)
-                        worst_score = min(worst_score, round_points)
+                
+                # Aktualizuj best_score dla wszystkich rund (nie tylko rozegranych)
+                if round_points > 0:
+                    best_score = max(best_score, round_points)
+            
+            # Oblicz worst_score tylko z rozegranych kolejek
+            if finished_round_scores:
+                worst_score = min(finished_round_scores)
+            elif round_scores:
+                # Jeśli nie ma rozegranych kolejek, ale są jakieś rundy, użyj minimum z wszystkich
+                worst_score = min(round_scores.values()) if round_scores.values() else 0
             
             # Aktualizuj dane gracza
             player_data['total_points'] = total_points
             player_data['rounds_played'] = rounds_played
             player_data['best_score'] = best_score if best_score > 0 else 0
+            # Jeśli worst_score jest inf, oznacza to że gracz nie ma żadnych rund - ustaw 0
             player_data['worst_score'] = worst_score if worst_score != float('inf') else 0
             player_data['round_scores'] = round_scores
         
@@ -476,22 +559,40 @@ class TipperStorage:
             
             # Zbierz punkty z każdej kolejki w kolejności (najstarsza pierwsza)
             round_points_list = []
+            finished_round_points = []  # Punkty tylko z rozegranych kolejek
             for round_id, round_data in all_rounds:
                 round_points = round_scores.get(round_id, 0)
                 round_points_list.append(round_points)
+                
+                # Zbierz punkty tylko z rozegranych kolejek (dla odrzucania najgorszego)
+                if self._is_round_finished(round_data):
+                    # Jeśli gracz nie typował w rozegranej kolejce, ma 0 punktów
+                    if round_points == 0 and player_name not in round_data.get('predictions', {}):
+                        finished_round_points.append(0)
+                    elif round_points > 0:
+                        finished_round_points.append(round_points)
             
             # Odrzuć najgorszy wynik jeśli exclude_worst=True
+            # WAŻNE: Odrzucamy tylko z rozegranych kolejek
             final_total_points = total_points
-            if exclude_worst and worst_score > 0:
-                final_total_points -= worst_score
+            if exclude_worst and len(finished_round_points) > 1:
+                # Oblicz worst_score tylko z rozegranych kolejek
+                worst_from_finished = min(finished_round_points) if finished_round_points else 0
+                # Odrzuć najgorszy wynik tylko jeśli jest więcej niż jedna rozegrana kolejka
+                final_total_points -= worst_from_finished
+                excluded_worst = True
+                actual_worst_score = worst_from_finished
+            else:
+                excluded_worst = False
+                actual_worst_score = worst_score
             
             leaderboard.append({
                 'player_name': player_name,
                 'total_points': final_total_points,
                 'rounds_played': player_data['rounds_played'],
                 'best_score': player_data.get('best_score', 0),
-                'worst_score': worst_score,
-                'excluded_worst': exclude_worst and worst_score > 0,
+                'worst_score': actual_worst_score,
+                'excluded_worst': excluded_worst,
                 'round_points': round_points_list,  # Lista punktów z każdej kolejki
                 'original_total': total_points  # Suma przed odrzuceniem najgorszego
             })

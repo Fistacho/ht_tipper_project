@@ -252,6 +252,7 @@ def main():
             # Przycisk zapisu ustawień
             if st.button("💾 Zapisz wybór drużyn", type="primary", use_container_width=True):
                 storage.set_selected_teams(new_selected_teams)
+                storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
                 st.success(f"✅ Zapisano wybór {len(new_selected_teams)} drużyn")
                 st.rerun()
             
@@ -644,7 +645,7 @@ def main():
                                     'best_score': 0,
                                     'worst_score': float('inf')
                                 }
-                                storage._save_data()
+                                storage._save_data(force=True)  # Wymuś natychmiastowy zapis
                                 st.success(f"✅ Dodano gracza: {new_player_name}")
                                 st.rerun()
                             else:
@@ -751,6 +752,7 @@ def main():
                                         parsed = tipper.parse_prediction(pred_input)
                                         if parsed:
                                             storage.add_prediction(round_id, selected_player, match_id, parsed)
+                                            storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
                                             st.success("✅ Zapisano")
                                             st.rerun()
                                         else:
@@ -834,6 +836,7 @@ def main():
                                     
                                     if errors:
                                         st.warning(f"⚠️ {len(errors)} typów nie zostało zapisanych:\n" + "\n".join(errors[:5]))
+                                    storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
                                     st.rerun()
                                 else:
                                     if errors:
