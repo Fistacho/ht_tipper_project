@@ -27,6 +27,31 @@ def safe_int(value, default=0):
         return default
 
 
+def is_match_finished(match: dict) -> bool:
+    """
+    Sprawdza TYLKO flagę z API/DB: match['is_finished'] (lub podobną).
+    NIE używa żadnych heurystyk ani fallbacków.
+    """
+    try:
+        # 1) Sprawdź bezpośredni sygnał z API/DB
+        for key in ('is_finished', 'finished'):
+            if key in match and match[key] is not None:
+                try:
+                    return bool(int(match[key]))
+                except Exception:
+                    return bool(match[key])
+        
+        # 2) Sprawdź status z API
+        status = str(match.get('status', '')).lower()
+        if status in ('finished', 'played', 'completed', 'ended'):
+            return True
+        
+        # 3) Jeśli nie ma żadnej flagi z API/DB, mecz NIE jest zakończony
+        return False
+    except Exception:
+        return False
+
+
 def hash_password(password: str, salt: str = None) -> tuple:
     """
     Haszuje hasło używając SHA256 z solą
@@ -519,9 +544,10 @@ def login_page() -> bool:
                                         pred_home = safe_int(pred.get('home', 0))
                                         pred_away = safe_int(pred.get('away', 0))
                                         
-                                        # Pobierz punkty dla tego meczu
+                                        # WAŻNE: Pobierz punkty TYLKO jeśli mecz jest zakończony (is_finished=1)
+                                        match_is_finished = is_match_finished(match)
                                         match_points_dict = round_data.get('match_points', {}).get(player_name, {})
-                                        points = match_points_dict.get(match_id, 0)
+                                        points = match_points_dict.get(match_id, 0) if match_is_finished else 0
                                         
                                         # Pobierz wynik meczu jeśli rozegrany
                                         home_goals = match.get('home_goals')

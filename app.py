@@ -903,8 +903,8 @@ def main():
             st.markdown("**➕ Dodaj nową ligę:**")
             new_league_id = st.number_input(
                 "ID ligi (LeagueLevelUnitID):",
-                value=32612,
-                min_value=1,
+            value=32612,
+            min_value=1,
                 key="new_league_id",
                 help="Wprowadź ID ligi do dodania"
             )
@@ -1081,7 +1081,7 @@ def main():
                 if st.button("🔄 Odśwież dane", key="refresh_data_btn", width="stretch"):
                     st.cache_data.clear()
                     st.rerun()
-            
+        
             # Sekcja zarządzania zespołami
             st.markdown("---")
             st.subheader("👥 Zespoły")
@@ -1185,7 +1185,7 @@ def main():
             # Użyj wybranych lig (lista ID dla API)
             TIPPER_LEAGUES = selected_league_ids
             
-            # Informacje
+        # Informacje
             if TIPPER_LEAGUES:
                 league_names = [league_names_map.get(league_id, f"Liga {league_id}") for league_id in TIPPER_LEAGUES]
                 st.info(f"**Aktywne ligi ({len(TIPPER_LEAGUES)}):** {', '.join(league_names)}")
@@ -1232,7 +1232,7 @@ def main():
                         rounds_count = len(uploaded_data.get('rounds', {}))
                         
                         st.info(f"📊 Dane w pliku:\n- Gracze: {players_count}\n- Rundy: {rounds_count}")
-                        
+    
                         # Przycisk importu
                         if st.button("💾 Zaimportuj dane", type="primary", width="stretch"):
                             try:
@@ -2271,9 +2271,10 @@ def main():
                                 pred_home = safe_int(pred.get('home', 0))
                                 pred_away = safe_int(pred.get('away', 0))
                                 
-                                # Pobierz punkty dla tego meczu
+                                # WAŻNE: Pobierz punkty TYLKO jeśli mecz jest zakończony (is_finished=1)
+                                match_is_finished = is_match_finished(match)
                                 match_points_dict = round_data.get('match_points', {}).get(player_name, {})
-                                points = match_points_dict.get(match_id, 0)
+                                points = match_points_dict.get(match_id, 0) if match_is_finished else 0
                                 
                                 # Pobierz wynik meczu jeśli rozegrany
                                 home_goals = match.get('home_goals')
@@ -2500,96 +2501,97 @@ def main():
                 if player_name:
                     # Pobierz istniejące typy gracza dla tej rundy (zawsze bezpośrednio z bazy, ttl=0)
                     existing_predictions = storage.get_player_predictions(player_name, round_id)
-                    
+                
                     st.markdown(f"### Typy dla: **{player_name}**")
-                    
+                
                     # Dwie kolumny obok siebie: Pojedyncze mecze i Bulk
                     col_single, col_bulk = st.columns(2)
                     
                     with col_single:
                         st.markdown("#### 📝 Pojedyncze mecze")
-                        # Wyświetl formularz dla każdego meczu
+                    # Wyświetl formularz dla każdego meczu
                         st.markdown("**Wprowadź typy dla każdego meczu:**")
+                    
+                    for idx, match in enumerate(selected_matches):
+                        match_id = str(match.get('match_id', ''))
+                        home_team = match.get('home_team_name', 'Unknown')
+                        away_team = match.get('away_team_name', 'Unknown')
+                        match_date = match.get('match_date', '')
+                        home_goals = match.get('home_goals')
+                        away_goals = match.get('away_goals')
                         
-                        for idx, match in enumerate(selected_matches):
-                            match_id = str(match.get('match_id', ''))
-                            home_team = match.get('home_team_name', 'Unknown')
-                            away_team = match.get('away_team_name', 'Unknown')
-                            match_date = match.get('match_date', '')
-                            home_goals = match.get('home_goals')
-                            away_goals = match.get('away_goals')
-                            
-                            # Sprawdź czy mecz już się rozpoczął
-                            can_edit = True
-                            is_historical = False
-                            if match_date:
-                                try:
-                                    match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
-                                    if datetime.now() >= match_dt:
-                                        is_historical = True
-                                        can_edit = allow_historical
-                                except:
-                                    pass
-                            
-                            # Pobierz istniejący typ
-                            has_existing = match_id in existing_predictions
-                            input_key = f"tipper_pred_{player_name}_{match_id}"
-                            
-                            # Ustaw wartość w session_state tylko jeśli klucz nie istnieje
-                            # To zapewnia, że po usunięciu klucza przed rerun(), wartość zostanie zaktualizowana
-                            if input_key not in st.session_state:
-                                if has_existing:
-                                    existing_pred = existing_predictions[match_id]
-                                    default_value = f"{safe_int(existing_pred.get('home', 0))}-{safe_int(existing_pred.get('away', 0))}"
-                                    st.session_state[input_key] = default_value
-                                else:
-                                    st.session_state[input_key] = ""
+                        # Sprawdź czy mecz już się rozpoczął
+                        can_edit = True
+                        is_historical = False
+                        if match_date:
+                            try:
+                                match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                                if datetime.now() >= match_dt:
+                                    is_historical = True
+                                    can_edit = allow_historical
+                            except:
+                                pass
+                        
+                        # Pobierz istniejący typ
+                        has_existing = match_id in existing_predictions
+                        input_key = f"tipper_pred_{player_name}_{match_id}"
+                        
+                        # Ustaw wartość w session_state tylko jeśli klucz nie istnieje
+                        # To zapewnia, że po usunięciu klucza przed rerun(), wartość zostanie zaktualizowana
+                        if input_key not in st.session_state:
+                            if has_existing:
+                                existing_pred = existing_predictions[match_id]
+                                default_value = f"{safe_int(existing_pred.get('home', 0))}-{safe_int(existing_pred.get('away', 0))}"
+                                st.session_state[input_key] = default_value
                             else:
-                                # Jeśli klucz istnieje, NIE aktualizuj go z existing_predictions
-                                # Pozwól użytkownikowi edytować wartość bez nadpisywania jej wartością z bazy
-                                # Aktualizacja nastąpi dopiero po st.rerun(), gdy klucz zostanie usunięty i ponownie utworzony
-                                current_value = st.session_state[input_key]
-                                if has_existing:
-                                    existing_pred = existing_predictions[match_id]
-                                    expected_value = f"{safe_int(existing_pred.get('home', 0))}-{safe_int(existing_pred.get('away', 0))}"
-                                    # Nie aktualizuj wartości - pozwól użytkownikowi edytować
-                                else:
-                                    # Jeśli nie ma typu w bazie, ale klucz istnieje i ma wartość, zachowaj ją (użytkownik może wprowadzać nowy typ)
-                                    pass
-                            
-                            # Pobierz existing_pred dla obliczenia punktów
-                            existing_pred = existing_predictions.get(match_id) if has_existing else None
-                            
-                            # Oblicz punkty jeśli mecz rozegrany
-                            points_display = ""
-                            if home_goals is not None and away_goals is not None and has_existing and existing_pred:
-                                pred_home = existing_pred.get('home', 0)
-                                pred_away = existing_pred.get('away', 0)
-                                points = tipper.calculate_points((pred_home, pred_away), (safe_int(home_goals), safe_int(away_goals)))
-                                points_display = f" | **Punkty: {points}**"
-                            
-                            league_name = get_league_name_for_match(storage, match, round_id)
-                            league_info = f" _(Liga: {league_name})_"
-                            
-                            col1, col2 = st.columns([3, 1.5])
-                            with col1:
-                                status_icon = "✅" if has_existing else "❌"
-                                result_text = f" ({safe_int(home_goals)}-{safe_int(away_goals)})" if home_goals is not None and away_goals is not None else ""
-                                st.write(f"{status_icon} **{home_team}** vs **{away_team}**{league_info}{result_text} {points_display}")
-                            with col2:
-                                if can_edit:
+                                st.session_state[input_key] = ""
+                        else:
+                            # Jeśli klucz istnieje, NIE aktualizuj go z existing_predictions
+                            # Pozwól użytkownikowi edytować wartość bez nadpisywania jej wartością z bazy
+                            # Aktualizacja nastąpi dopiero po st.rerun(), gdy klucz zostanie usunięty i ponownie utworzony
+                            current_value = st.session_state[input_key]
+                            if has_existing:
+                                existing_pred = existing_predictions[match_id]
+                                expected_value = f"{safe_int(existing_pred.get('home', 0))}-{safe_int(existing_pred.get('away', 0))}"
+                                # Nie aktualizuj wartości - pozwól użytkownikowi edytować
+                            else:
+                                # Jeśli nie ma typu w bazie, ale klucz istnieje i ma wartość, zachowaj ją (użytkownik może wprowadzać nowy typ)
+                                pass
+                        
+                        # Pobierz existing_pred dla obliczenia punktów
+                        existing_pred = existing_predictions.get(match_id) if has_existing else None
+                        
+                        # WAŻNE: Oblicz punkty TYLKO jeśli mecz ma wynik I jest zakończony (is_finished=1)
+                        points_display = ""
+                        match_is_finished = is_match_finished(match)
+                        if match_is_finished and home_goals is not None and away_goals is not None and has_existing and existing_pred:
+                            pred_home = existing_pred.get('home', 0)
+                            pred_away = existing_pred.get('away', 0)
+                            points = tipper.calculate_points((pred_home, pred_away), (safe_int(home_goals), safe_int(away_goals)))
+                            points_display = f" | **Punkty: {points}**"
+                        
+                        league_name = get_league_name_for_match(storage, match, round_id)
+                        league_info = f" _(Liga: {league_name})_"
+                        
+                        col1, col2 = st.columns([3, 1.5])
+                        with col1:
+                            status_icon = "✅" if has_existing else "❌"
+                            result_text = f" ({safe_int(home_goals)}-{safe_int(away_goals)})" if home_goals is not None and away_goals is not None else ""
+                            st.write(f"{status_icon} **{home_team}** vs **{away_team}**{league_info}{result_text} {points_display}")
+                        with col2:
+                            if can_edit:
                                     # Pole tekstowe - wartość jest już w session_state
                                     st.text_input(
-                                        f"Typ:",
+                                    f"Typ:",
                                         key=input_key,
-                                        label_visibility="collapsed",
+                                    label_visibility="collapsed",
                                         placeholder="0-0"
-                                    )
+                                )
+                            else:
+                                if is_historical:
+                                    st.info("⏰ Rozegrany")
                                 else:
-                                    if is_historical:
-                                        st.info("⏰ Rozegrany")
-                                    else:
-                                        st.warning("⏰ Rozpoczęty")
+                                    st.warning("⏰ Rozpoczęty")
                         
                         # Przyciski do zapisania i usunięcia typów - w jednej linii
                         btn_col1, btn_col2 = st.columns(2)
@@ -2792,7 +2794,7 @@ def main():
                                     st.warning("⚠️ Nie można usunąć typów - mecze już rozpoczęte")
                             else:
                                 st.info("ℹ️ Brak typów do usunięcia")
-                    
+                
                     with col_bulk:
                         st.markdown("#### 📋 Wklej wszystkie (bulk)")
                         st.markdown("**Wklej typy w formacie:**")
@@ -2852,7 +2854,7 @@ def main():
                                                     saved_count += 1
                                         else:
                                             errors.append(f"Nie znaleziono meczu dla ID: {match_id}")
-                                    
+                                
                                     # Zapisz wszystkie typy naraz (batch insert - szybsze)
                                     if valid_predictions:
                                         try:
