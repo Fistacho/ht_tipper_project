@@ -16,7 +16,48 @@ TIPPER_DATA_FILE = "tipper_data.json"
 class TipperStorage:
     """Klasa do przechowywania i zarządzania danymi typera"""
     
-    def __init__(self, data_file: str = TIPPER_DATA_FILE):
+    def __init__(self, data_file: str = None, season_id: str = None):
+        """
+        Inicjalizuje storage dla danego sezonu
+        
+        Args:
+            data_file: Ścieżka do pliku (opcjonalne, jeśli None, używa domyślnej nazwy z sezonem)
+            season_id: ID sezonu (np. "season_80", "season_81"). Jeśli None, używa "current_season"
+        """
+        if season_id is None:
+            season_id = "current_season"
+        
+        self.season_id = season_id
+        
+        # Jeśli data_file nie jest podany, użyj domyślnej nazwy z sezonem
+        if data_file is None:
+            # Zawsze używaj plików sezonowych (nie używamy tipper_data.json)
+            # Wyciągnij numer sezonu (np. "season_80" -> "80")
+            if season_id == "current_season":
+                # Dla current_season użyj najwyższego numeru sezonu z dostępnych plików
+                import glob
+                import re
+                pattern = os.path.join(os.getcwd(), "tipper_data_season_*.json")
+                files = glob.glob(pattern)
+                season_nums = []
+                for file_path in files:
+                    filename = os.path.basename(file_path)
+                    match = re.search(r'tipper_data_season_(\d+)\.json', filename)
+                    if match:
+                        season_nums.append(int(match.group(1)))
+                if season_nums:
+                    season_num = max(season_nums)
+                    season_id = f"season_{season_num}"
+                    self.season_id = season_id
+                else:
+                    # Jeśli nie ma plików sezonowych, użyj domyślnego 80
+                    season_num = 80
+                    season_id = f"season_{season_num}"
+                    self.season_id = season_id
+            else:
+                season_num = season_id.replace("season_", "") if season_id.startswith("season_") else season_id
+            data_file = f"tipper_data_season_{season_num}.json"
+        
         # Użyj bezwzględnej ścieżki dla pewności (szczególnie na Streamlit Cloud)
         self.data_file = os.path.abspath(data_file)
         self.github_config = self._get_github_config()
@@ -66,23 +107,119 @@ class TipperStorage:
             github_data = self._load_from_github()
             if github_data:
                 logger.info(f"✅ Załadowano dane z GitHub: {len(github_data.get('players', {}))} graczy, {len(github_data.get('rounds', {}))} rund")
-                return github_data
+                data = github_data
+            else:
+                data = None
+        else:
+            data = None
         
         # Fallback: załaduj lokalnie (dla lokalnego rozwoju)
-        abs_path = os.path.abspath(self.data_file)
+        if data is None:
+            abs_path = os.path.abspath(self.data_file)
+            
+            if os.path.exists(abs_path):
+                try:
+                    with open(abs_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        logger.info(f"Załadowano dane z pliku {abs_path}: {len(data.get('players', {}))} graczy, {len(data.get('rounds', {}))} rund")
+                except (json.JSONDecodeError, IOError) as e:
+                    logger.error(f"Błąd ładowania danych typera z {abs_path}: {e}")
+                    data = self._get_default_data()
+            else:
+                logger.warning(f"Plik {abs_path} nie istnieje, używam domyślnych danych")
+                data = self._get_default_data()
         
-        if os.path.exists(abs_path):
-            try:
-                with open(abs_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    logger.info(f"Załadowano dane z pliku {abs_path}: {len(data.get('players', {}))} graczy, {len(data.get('rounds', {}))} rund")
-                    return data
-            except (json.JSONDecodeError, IOError) as e:
-                logger.error(f"Błąd ładowania danych typera z {abs_path}: {e}")
-                return self._get_default_data()
-        else:
-            logger.warning(f"Plik {abs_path} nie istnieje, używam domyślnych danych")
-            return self._get_default_data()
+        # Migracja danych: przenieś graczy ze starej struktury do sezonu
+        self._migrate_players_to_season(data)
+        
+        return data
+    
+    def _migrate_players_to_season(self, data: Dict):
+        """Migruje graczy ze starej struktury (globalnej) do struktury per sezon"""
+        # Sprawdź czy istnieją gracze w starej strukturze
+        if 'players' in data and data['players']:
+            # Znajdź sezon dla migracji
+            target_season_id = self.season_id
+            
+            # Jeśli sezon to "current_season", spróbuj znaleźć właściwy sezon
+            if target_season_id == "current_season":
+                # Najpierw sprawdź czy w danych jest sezon "season_XX" (na podstawie nazwy pliku)
+                # Wyciągnij numer sezonu z nazwy pliku
+                import re
+                filename = os.path.basename(self.data_file)
+                match = re.search(r'tipper_data_season_(\d+)\.json', filename)
+                if match:
+                    season_num = match.group(1)
+                    target_season_id = f"season_{season_num}"
+                    self.season_id = target_season_id
+                    logger.info(f"Zidentyfikowano sezon {target_season_id} na podstawie nazwy pliku")
+                else:
+                    # Sprawdź rundy - znajdź sezon z największą liczbą rund
+                    season_rounds_count = {}
+                    for round_id, round_data in data.get('rounds', {}).items():
+                        round_season = round_data.get('season_id', 'current_season')
+                        season_rounds_count[round_season] = season_rounds_count.get(round_season, 0) + 1
+                    
+                    if season_rounds_count:
+                        # Wybierz sezon z największą liczbą rund
+                        target_season_id = max(season_rounds_count.items(), key=lambda x: x[1])[0]
+                        self.season_id = target_season_id
+                        logger.info(f"Zidentyfikowano sezon {target_season_id} na podstawie rund")
+            
+            # Jeśli w danych jest "current_season", zamień na właściwy sezon
+            if 'current_season' in data.get('seasons', {}) and target_season_id != 'current_season':
+                # Przenieś dane z current_season do właściwego sezonu
+                if target_season_id not in data.get('seasons', {}):
+                    data['seasons'][target_season_id] = data['seasons']['current_season'].copy()
+                else:
+                    # Scal dane (zachowaj istniejące, dodaj brakujące)
+                    current_season_data = data['seasons']['current_season']
+                    for key in ['rounds', 'selected_teams', 'selected_leagues']:
+                        if key in current_season_data and key not in data['seasons'][target_season_id]:
+                            data['seasons'][target_season_id][key] = current_season_data[key]
+                        elif key in current_season_data:
+                            # Scal listy (bez duplikatów)
+                            if isinstance(current_season_data[key], list):
+                                existing = set(data['seasons'][target_season_id].get(key, []))
+                                new_items = [item for item in current_season_data[key] if item not in existing]
+                                data['seasons'][target_season_id][key].extend(new_items)
+            
+            # Upewnij się, że sezon istnieje w danych
+            if target_season_id not in data.get('seasons', {}):
+                data['seasons'][target_season_id] = {
+                    'league_id': None,
+                    'rounds': [],
+                    'start_date': None,
+                    'end_date': None,
+                    'selected_teams': [],
+                    'selected_leagues': [],
+                    'players': {}
+                }
+            
+            # Jeśli sezon nie ma graczy, przenieś ich ze starej struktury
+            if 'players' not in data['seasons'][target_season_id] or not data['seasons'][target_season_id].get('players'):
+                data['seasons'][target_season_id]['players'] = data['players'].copy()
+                logger.info(f"Zmigrowano {len(data['players'])} graczy do sezonu {target_season_id}")
+            
+            # Przenieś selected_teams z settings do sezonu (jeśli nie ma w sezonie)
+            if 'settings' in data and 'selected_teams' in data['settings']:
+                if 'selected_teams' not in data['seasons'][target_season_id] or not data['seasons'][target_season_id].get('selected_teams'):
+                    data['seasons'][target_season_id]['selected_teams'] = data['settings']['selected_teams'].copy()
+                    logger.info(f"Zmigrowano {len(data['settings']['selected_teams'])} drużyn do sezonu {target_season_id}")
+            
+            # Przenieś selected_leagues z settings do sezonu (jeśli istnieją w settings)
+            if 'settings' in data and 'selected_leagues' in data['settings']:
+                if 'selected_leagues' not in data['seasons'][target_season_id] or not data['seasons'][target_season_id].get('selected_leagues'):
+                    data['seasons'][target_season_id]['selected_leagues'] = data['settings']['selected_leagues'].copy()
+                    logger.info(f"Zmigrowano {len(data['settings']['selected_leagues'])} lig do sezonu {target_season_id}")
+            
+            # Zaktualizuj season_id w rundach, jeśli jest "current_season"
+            for round_id, round_data in data.get('rounds', {}).items():
+                if round_data.get('season_id') == 'current_season':
+                    round_data['season_id'] = target_season_id
+            
+            # Opcjonalnie: usuń starą strukturę (lub zostaw dla kompatybilności)
+            # data.pop('players', None)
     
     def _load_from_github(self) -> Optional[Dict]:
         """Ładuje dane z GitHub przez API"""
@@ -120,11 +257,10 @@ class TipperStorage:
     def _get_default_data(self) -> Dict:
         """Zwraca domyślną strukturę danych"""
         return {
-            'players': {},  # {player_name: {predictions: {}, total_points: 0, ...}}
             'rounds': {},  # {round_id: {matches: [], start_date: ..., end_date: ...}}
-            'seasons': {},  # {season_id: {rounds: [], start_date: ..., end_date: ...}}
+            'seasons': {},  # {season_id: {rounds: [], start_date: ..., end_date: ..., players: {}, ...}}
             'leagues': {},  # {league_id: {name: ..., seasons: []}}
-            'settings': {  # Ustawienia typera
+            'settings': {  # Ustawienia typera (kompatybilność wsteczna)
                 'selected_teams': []  # Lista nazw drużyn do typowania
             }
         }
@@ -298,7 +434,9 @@ class TipperStorage:
                 'league_id': league_id,
                 'rounds': [],
                 'start_date': start_date,
-                'end_date': end_date
+                'end_date': end_date,
+                'selected_teams': [],
+                'selected_leagues': []
             }
             self.data['leagues'][league_key]['seasons'].append(season_id)
             self._save_data()
@@ -312,7 +450,9 @@ class TipperStorage:
                 'league_id': None,  # Nie wiemy jeszcze ID ligi
                 'rounds': [],
                 'start_date': None,
-                'end_date': None
+                'end_date': None,
+                'selected_teams': [],
+                'selected_leagues': []
             }
         
         if round_id not in self.data['rounds']:
@@ -331,14 +471,49 @@ class TipperStorage:
             self.data['seasons'][season_id]['rounds'].append(round_id)
             self._save_data()
     
+    def _get_season_players(self, season_id: str = None) -> Dict:
+        """Zwraca słownik graczy dla danego sezonu"""
+        if season_id is None:
+            season_id = self.season_id
+        
+        if season_id not in self.data.get('seasons', {}):
+            self.data['seasons'][season_id] = {
+                'league_id': None,
+                'rounds': [],
+                'start_date': None,
+                'end_date': None,
+                'selected_teams': [],
+                'selected_leagues': [],
+                'players': {}
+            }
+        
+        if 'players' not in self.data['seasons'][season_id]:
+            self.data['seasons'][season_id]['players'] = {}
+        
+        # Kompatybilność wsteczna: jeśli sezon nie ma graczy, sprawdź starą strukturę
+        if not self.data['seasons'][season_id]['players'] and 'players' in self.data and self.data['players']:
+            # Przenieś graczy ze starej struktury
+            self.data['seasons'][season_id]['players'] = self.data['players'].copy()
+            logger.info(f"Przeniesiono {len(self.data['players'])} graczy ze starej struktury do sezonu {season_id}")
+            self._save_data()  # Zapisz migrację
+        
+        return self.data['seasons'][season_id]['players']
+    
     def add_prediction(self, round_id: str, player_name: str, match_id: str, prediction: tuple):
         """Dodaje lub aktualizuje typ gracza dla meczu (tylko jeden typ na gracza i mecz)"""
         if round_id not in self.data['rounds']:
             logger.error(f"Runda {round_id} nie istnieje")
             return False
         
-        if player_name not in self.data['players']:
-            self.data['players'][player_name] = {
+        # Pobierz sezon z rundy
+        round_data = self.data['rounds'][round_id]
+        season_id = round_data.get('season_id', self.season_id)
+        
+        # Pobierz graczy dla sezonu
+        players = self._get_season_players(season_id)
+        
+        if player_name not in players:
+            players[player_name] = {
                 'predictions': {},
                 'total_points': 0,
                 'rounds_played': 0,
@@ -367,12 +542,12 @@ class TipperStorage:
             'timestamp': datetime.now().isoformat()
         }
         
-        # Dodaj lub aktualizuj typ do gracza
-        if round_id not in self.data['players'][player_name]['predictions']:
-            self.data['players'][player_name]['predictions'][round_id] = {}
+        # Dodaj lub aktualizuj typ do gracza (w sezonie)
+        if round_id not in players[player_name]['predictions']:
+            players[player_name]['predictions'][round_id] = {}
         
         # Nadpisz istniejący typ (lub dodaj nowy)
-        self.data['players'][player_name]['predictions'][round_id][match_id] = {
+        players[player_name]['predictions'][round_id][match_id] = {
             'home': prediction[0],
             'away': prediction[1],
             'timestamp': datetime.now().isoformat()
@@ -399,8 +574,8 @@ class TipperStorage:
                         
                         self.data['rounds'][round_id]['match_points'][player_name][match_id] = points
                         
-                        # Przelicz całkowite punkty gracza
-                        self._recalculate_player_totals()
+                        # Przelicz całkowite punkty gracza (dla sezonu)
+                        self._recalculate_player_totals(season_id=season_id)
                     break
         
         self._save_data()
@@ -412,8 +587,15 @@ class TipperStorage:
             logger.error(f"Runda {round_id} nie istnieje")
             return False
         
-        if player_name not in self.data['players']:
-            logger.error(f"Gracz {player_name} nie istnieje")
+        # Pobierz sezon z rundy
+        round_data = self.data['rounds'][round_id]
+        season_id = round_data.get('season_id', self.season_id)
+        
+        # Pobierz graczy dla sezonu
+        players = self._get_season_players(season_id)
+        
+        if player_name not in players:
+            logger.error(f"Gracz {player_name} nie istnieje w sezonie {season_id}")
             return False
         
         # Usuń typy z rundy
@@ -421,9 +603,9 @@ class TipperStorage:
             if player_name in self.data['rounds'][round_id]['predictions']:
                 del self.data['rounds'][round_id]['predictions'][player_name]
         
-        # Usuń typy z gracza
-        if round_id in self.data['players'][player_name]['predictions']:
-            del self.data['players'][player_name]['predictions'][round_id]
+        # Usuń typy z gracza (w sezonie)
+        if round_id in players[player_name]['predictions']:
+            del players[player_name]['predictions'][round_id]
         
         # Usuń punkty dla tego gracza w tej rundzie
         if 'match_points' in self.data['rounds'][round_id]:
@@ -431,7 +613,7 @@ class TipperStorage:
                 del self.data['rounds'][round_id]['match_points'][player_name]
         
         self._save_data()
-        self._recalculate_player_totals()
+        self._recalculate_player_totals(season_id=season_id)
         return True
     
     def update_match_result(self, round_id: str, match_id: str, home_goals: int, away_goals: int):
@@ -449,6 +631,13 @@ class TipperStorage:
                 match['result_updated'] = datetime.now().isoformat()
                 break
         
+        # Pobierz sezon z rundy
+        round_data = self.data['rounds'][round_id]
+        season_id = round_data.get('season_id', self.season_id)
+        
+        # Pobierz graczy dla sezonu
+        players = self._get_season_players(season_id)
+        
         # Przelicz punkty dla wszystkich graczy
         from tipper import Tipper
         predictions = self.data['rounds'][round_id].get('predictions', {})
@@ -459,9 +648,9 @@ class TipperStorage:
                 prediction_tuple = (pred['home'], pred['away'])
                 points = Tipper.calculate_points(prediction_tuple, (home_goals, away_goals))
                 
-                # Aktualizuj punkty gracza
-                if player_name not in self.data['players']:
-                    self.data['players'][player_name] = {
+                # Aktualizuj punkty gracza (w sezonie)
+                if player_name not in players:
+                    players[player_name] = {
                         'predictions': {},
                         'total_points': 0,
                         'rounds_played': 0,
@@ -478,7 +667,7 @@ class TipperStorage:
                 self.data['rounds'][round_id]['match_points'][player_name][match_id] = points
         
         self._save_data()
-        self._recalculate_player_totals()
+        self._recalculate_player_totals(season_id=season_id)
     
     def _is_round_finished(self, round_data: Dict) -> bool:
         """Sprawdza czy runda jest rozegrana (wszystkie mecze mają wyniki)"""
@@ -495,11 +684,23 @@ class TipperStorage:
         
         return True
     
-    def _recalculate_player_totals(self):
-        """Przelicza całkowite punkty dla wszystkich graczy"""
+    def _recalculate_player_totals(self, season_id: str = None):
+        """Przelicza całkowite punkty dla wszystkich graczy w danym sezonie"""
+        if season_id is None:
+            season_id = self.season_id
+        
         from tipper import Tipper
         
-        for player_name, player_data in self.data['players'].items():
+        # Pobierz graczy dla sezonu
+        players = self._get_season_players(season_id)
+        
+        # Filtruj rundy tylko dla tego sezonu
+        season_rounds = {}
+        for round_id, round_data in self.data['rounds'].items():
+            if round_data.get('season_id') == season_id:
+                season_rounds[round_id] = round_data
+        
+        for player_name, player_data in players.items():
             total_points = 0
             rounds_played = 0
             best_score = 0
@@ -507,8 +708,8 @@ class TipperStorage:
             round_scores = {}  # {round_id: total_points_in_round}
             finished_round_scores = []  # Lista punktów tylko z rozegranych kolejek (dla worst_score)
             
-            # Przejdź przez wszystkie rundy
-            for round_id, round_data in self.data['rounds'].items():
+            # Przejdź przez wszystkie rundy w sezonie
+            for round_id, round_data in season_rounds.items():
                 round_points = 0
                 match_points = round_data.get('match_points', {}).get(player_name, {})
                 
@@ -563,24 +764,42 @@ class TipperStorage:
             return {}
         return self.data['rounds'][round_id].get('predictions', {})
     
-    def get_player_predictions(self, player_name: str, round_id: str = None) -> Dict:
-        """Zwraca typy gracza"""
-        if player_name not in self.data['players']:
+    def get_player_predictions(self, player_name: str, round_id: str = None, season_id: str = None) -> Dict:
+        """Zwraca typy gracza dla danego sezonu"""
+        if season_id is None:
+            season_id = self.season_id
+        
+        # Pobierz graczy dla sezonu
+        players = self._get_season_players(season_id)
+        
+        if player_name not in players:
             return {}
         
         if round_id:
-            return self.data['players'][player_name]['predictions'].get(round_id, {})
+            return players[player_name]['predictions'].get(round_id, {})
         else:
-            return self.data['players'][player_name]['predictions']
+            return players[player_name]['predictions']
     
-    def get_leaderboard(self, exclude_worst: bool = True) -> List[Dict]:
-        """Zwraca ranking graczy (z opcją odrzucenia najgorszego wyniku)"""
+    def get_leaderboard(self, exclude_worst: bool = True, season_id: str = None) -> List[Dict]:
+        """Zwraca ranking graczy dla danego sezonu (z opcją odrzucenia najgorszego wyniku)"""
+        if season_id is None:
+            season_id = self.season_id
+        
         leaderboard = []
         
-        # Pobierz wszystkie rundy posortowane po dacie (najstarsza pierwsza)
-        all_rounds = sorted(self.data['rounds'].items(), key=lambda x: x[1].get('start_date', ''))
+        # Pobierz graczy dla sezonu
+        players = self._get_season_players(season_id)
         
-        for player_name, player_data in self.data['players'].items():
+        # Filtruj rundy tylko dla tego sezonu
+        season_rounds = {}
+        for round_id, round_data in self.data['rounds'].items():
+            if round_data.get('season_id') == season_id:
+                season_rounds[round_id] = round_data
+        
+        # Pobierz wszystkie rundy sezonu posortowane po dacie (najstarsza pierwsza)
+        all_rounds = sorted(season_rounds.items(), key=lambda x: x[1].get('start_date', ''))
+        
+        for player_name, player_data in players.items():
             total_points = player_data['total_points']
             worst_score = player_data.get('worst_score', 0)
             round_scores = player_data.get('round_scores', {})
@@ -643,10 +862,14 @@ class TipperStorage:
         # Stwórz mapę match_id -> mecz dla łatwego dostępu
         matches_map = {str(m.get('match_id', '')): m for m in matches}
         
-        # Pobierz wszystkich graczy, którzy mają typy w jakiejkolwiek kolejce
-        all_players = set()
-        for player_name in self.data['players'].keys():
-            all_players.add(player_name)
+        # Pobierz sezon z rundy
+        season_id = round_data.get('season_id', self.season_id)
+        
+        # Pobierz graczy dla sezonu
+        players = self._get_season_players(season_id)
+        
+        # Pobierz wszystkich graczy z sezonu
+        all_players = set(players.keys())
         
         # Dodaj graczy, którzy mają typy w tej konkretnej kolejce
         for player_name in predictions.keys():
@@ -698,16 +921,167 @@ class TipperStorage:
             return []
         return self.data['rounds'][round_id].get('matches', [])
     
-    def get_selected_teams(self) -> List[str]:
-        """Zwraca listę wybranych drużyn do typowania"""
-        if 'settings' not in self.data:
-            self.data['settings'] = {'selected_teams': []}
-        return self.data['settings'].get('selected_teams', [])
+    def get_selected_teams(self, season_id: str = None) -> List[str]:
+        """Zwraca listę wybranych drużyn do typowania dla danego sezonu"""
+        if season_id is None:
+            season_id = self.season_id
+        
+        # Sprawdź czy sezon istnieje i ma zapisane drużyny
+        if season_id in self.data.get('seasons', {}):
+            if 'selected_teams' in self.data['seasons'][season_id]:
+                return self.data['seasons'][season_id]['selected_teams']
+        
+        # Fallback: sprawdź stare ustawienia (kompatybilność wsteczna)
+        if 'settings' in self.data and 'selected_teams' in self.data['settings']:
+            return self.data['settings'].get('selected_teams', [])
+        
+        return []
     
-    def set_selected_teams(self, team_names: List[str]):
-        """Zapisuje listę wybranych drużyn do typowania"""
-        if 'settings' not in self.data:
-            self.data['settings'] = {}
-        self.data['settings']['selected_teams'] = team_names
+    def set_selected_teams(self, team_names: List[str], season_id: str = None):
+        """Zapisuje listę wybranych drużyn do typowania dla danego sezonu"""
+        if season_id is None:
+            season_id = self.season_id
+        
+        # Upewnij się, że sezon istnieje
+        if season_id not in self.data.get('seasons', {}):
+            self.data['seasons'][season_id] = {
+                'league_id': None,
+                'rounds': [],
+                'start_date': None,
+                'end_date': None,
+                'selected_teams': []
+            }
+        
+        # Zapisz wybór drużyn dla sezonu
+        self.data['seasons'][season_id]['selected_teams'] = team_names
         self._save_data()
+    
+    def get_selected_leagues(self, season_id: str = None) -> List[int]:
+        """Zwraca listę wybranych lig do typowania dla danego sezonu"""
+        if season_id is None:
+            season_id = self.season_id
+        
+        # Sprawdź czy sezon istnieje i ma zapisane ligi
+        if season_id in self.data.get('seasons', {}):
+            if 'selected_leagues' in self.data['seasons'][season_id]:
+                return self.data['seasons'][season_id]['selected_leagues']
+        
+        # Fallback: sprawdź stare ustawienia (kompatybilność wsteczna)
+        if 'settings' in self.data and 'selected_leagues' in self.data['settings']:
+            return self.data['settings'].get('selected_leagues', [])
+        
+        return []
+    
+    def set_selected_leagues(self, league_ids: List[int], season_id: str = None):
+        """Zapisuje listę wybranych lig do typowania dla danego sezonu"""
+        if season_id is None:
+            season_id = self.season_id
+        
+        # Upewnij się, że sezon istnieje
+        if season_id not in self.data.get('seasons', {}):
+            self.data['seasons'][season_id] = {
+                'league_id': None,
+                'rounds': [],
+                'start_date': None,
+                'end_date': None,
+                'selected_teams': [],
+                'selected_leagues': []
+            }
+        
+        # Zapisz wybór lig dla sezonu
+        self.data['seasons'][season_id]['selected_leagues'] = league_ids
+        self._save_data()
+    
+    def add_player(self, player_name: str, season_id: str = None):
+        """Dodaje gracza do sezonu"""
+        if season_id is None:
+            season_id = self.season_id
+        
+        # Pobierz graczy dla sezonu
+        players = self._get_season_players(season_id)
+        
+        if player_name in players:
+            return False  # Gracz już istnieje
+        
+        players[player_name] = {
+            'predictions': {},
+            'total_points': 0,
+            'rounds_played': 0,
+            'best_score': 0,
+            'worst_score': float('inf')
+        }
+        
+        self._save_data()
+        return True
+    
+    def remove_player(self, player_name: str, season_id: str = None):
+        """Usuwa gracza z sezonu (i wszystkie jego typy)"""
+        if season_id is None:
+            season_id = self.season_id
+        
+        # Pobierz graczy dla sezonu
+        players = self._get_season_players(season_id)
+        
+        if player_name not in players:
+            return False  # Gracz nie istnieje
+        
+        # Usuń wszystkie typy gracza ze wszystkich rund sezonu
+        for round_id, round_data in self.data['rounds'].items():
+            if round_data.get('season_id') == season_id:
+                # Usuń typy z rundy
+                if 'predictions' in round_data:
+                    if player_name in round_data['predictions']:
+                        del round_data['predictions'][player_name]
+                
+                # Usuń punkty z rundy
+                if 'match_points' in round_data:
+                    if player_name in round_data['match_points']:
+                        del round_data['match_points'][player_name]
+        
+        # Usuń gracza z sezonu
+        del players[player_name]
+        
+        self._save_data()
+        self._recalculate_player_totals(season_id=season_id)
+        return True
+    
+    def get_season_players_list(self, season_id: str = None) -> List[str]:
+        """Zwraca listę graczy dla danego sezonu"""
+        if season_id is None:
+            season_id = self.season_id
+        
+        players = self._get_season_players(season_id)
+        return sorted(list(players.keys()))
+    
+    def create_new_season(self, season_num: int) -> bool:
+        """Tworzy nowy sezon z pustym plikiem JSON"""
+        season_id = f"season_{season_num}"
+        data_file = f"tipper_data_season_{season_num}.json"
+        
+        # Sprawdź czy plik już istnieje
+        abs_path = os.path.abspath(data_file)
+        if os.path.exists(abs_path):
+            return False  # Sezon już istnieje
+        
+        # Utwórz nową strukturę danych dla sezonu
+        new_data = self._get_default_data()
+        new_data['seasons'][season_id] = {
+            'league_id': None,
+            'rounds': [],
+            'start_date': None,
+            'end_date': None,
+            'selected_teams': [],
+            'selected_leagues': [],
+            'players': {}
+        }
+        
+        # Zapisz do pliku
+        try:
+            with open(abs_path, 'w', encoding='utf-8') as f:
+                json.dump(new_data, f, ensure_ascii=False, indent=2)
+            logger.info(f"Utworzono nowy sezon {season_id} w pliku {abs_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Błąd tworzenia nowego sezonu: {e}")
+            return False
 

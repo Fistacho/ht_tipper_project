@@ -47,6 +47,91 @@ def main():
     username = st.session_state.get('username', 'Użytkownik')
     
     st.title("🎯 Hattrick Typer")
+    
+    # Automatyczne wykrywanie sezonów z plików JSON
+    def get_available_seasons():
+        """Skanuje katalog w poszukiwaniu plików tipper_data_season_*.json i zwraca listę sezonów"""
+        import glob
+        import re
+        
+        seasons = []
+        
+        # Szukaj plików tipper_data_season_*.json
+        pattern = os.path.join(os.getcwd(), "tipper_data_season_*.json")
+        files = glob.glob(pattern)
+        
+        # Wyciągnij numery sezonów z nazw plików
+        for file_path in files:
+            filename = os.path.basename(file_path)
+            match = re.search(r'tipper_data_season_(\d+)\.json', filename)
+            if match:
+                season_num = int(match.group(1))
+                seasons.append(season_num)
+        
+        # Sortuj malejąco (najnowszy pierwszy)
+        seasons.sort(reverse=True)
+        
+        # Zwróć jako listę stringów "season_XX"
+        return [f"season_{s}" for s in seasons]
+    
+    # Pobierz dostępne sezony
+    available_seasons = get_available_seasons()
+    
+    # Jeśli nie znaleziono żadnych sezonów, użyj domyślnych
+    if not available_seasons:
+        available_seasons = ["current_season"]
+        current_season_id = "current_season"
+    else:
+        # Najwyższy numer sezonu to current_season
+        current_season_num = max([int(s.replace("season_", "")) for s in available_seasons])
+        current_season_id = f"season_{current_season_num}"
+    
+    # Przygotuj opcje dla dropdown (current_season + dostępne sezony)
+    season_options = [current_season_id] + [s for s in available_seasons if s != current_season_id]
+    season_display = []
+    for s in season_options:
+        if s == current_season_id:
+            season_display.append(f"Sezon {current_season_num} (obecny)")
+        else:
+            season_num = s.replace("season_", "")
+            season_display.append(f"Sezon {season_num}")
+    
+    # Domyślnie wybierz current_season (pierwszy w liście)
+    default_season_idx = 0
+    
+    selected_season_idx = st.selectbox(
+        "📅 Wybierz sezon:",
+        range(len(season_options)),
+        index=default_season_idx,
+        format_func=lambda x: season_display[x],
+        key="selected_season"
+    )
+    selected_season_id = season_options[selected_season_idx]
+    # Zapisz wybrany sezon w session_state dla użycia w sidebarze
+    st.session_state["selected_season_id"] = selected_season_id
+    
+    # Przycisk dodawania nowego sezonu
+    with st.expander("➕ Dodaj nowy sezon", expanded=False):
+        new_season_num = st.number_input(
+            "Numer sezonu:",
+            value=int(selected_season_id.replace("season_", "")) + 1 if selected_season_id.startswith("season_") else 81,
+            min_value=1,
+            step=1,
+            key="new_season_num"
+        )
+        if st.button("➕ Utwórz nowy sezon", type="primary", key="create_new_season"):
+            # Utwórz storage dla nowego sezonu (tylko do utworzenia pliku)
+            new_season_id = f"season_{new_season_num}"
+            temp_storage = TipperStorage(season_id=new_season_id)
+            if temp_storage.create_new_season(new_season_num):
+                st.success(f"✅ Utworzono nowy sezon {new_season_num}")
+                st.rerun()
+            else:
+                st.error(f"❌ Sezon {new_season_num} już istnieje lub wystąpił błąd")
+    
+    # Inicjalizacja storage dla wybranego sezonu (używany w całej aplikacji)
+    storage = TipperStorage(season_id=selected_season_id)
+    
     st.markdown("---")
     
     # Sidebar z konfiguracją
@@ -61,37 +146,53 @@ def main():
         st.markdown("---")
         st.header("⚙️ Konfiguracja")
         
-        # ID lig dla typera
-        st.subheader("🏆 Ligi typera")
+        # ID lig dla typera - per sezon
+        st.subheader(f"🏆 Ligi typera (Sezon {selected_season_id.replace('season_', '')})")
+        
+        # Pobierz zapisane ligi dla wybranego sezonu
+        saved_leagues = storage.get_selected_leagues(season_id=selected_season_id)
+        
+        # Domyślne wartości (zapisane lub standardowe)
+        default_league_1 = saved_leagues[0] if len(saved_leagues) > 0 else 32612
+        default_league_2 = saved_leagues[1] if len(saved_leagues) > 1 else 9399
+        
         league_1 = st.number_input(
             "Liga 1 (LeagueLevelUnitID):",
-            value=32612,
+            value=default_league_1,
             min_value=1,
-            help="Wprowadź ID pierwszej ligi"
+            help="Wprowadź ID pierwszej ligi",
+            key=f"league_1_{selected_season_id}"
         )
         league_2 = st.number_input(
             "Liga 2 (LeagueLevelUnitID):",
-            value=9399,
+            value=default_league_2,
             min_value=1,
-            help="Wprowadź ID drugiej ligi"
+            help="Wprowadź ID drugiej ligi",
+            key=f"league_2_{selected_season_id}"
         )
         
         TIPPER_LEAGUES = [league_1, league_2]
+        
+        # Przycisk zapisu lig
+        if st.button("💾 Zapisz ligi", type="primary", use_container_width=True, key=f"save_leagues_{selected_season_id}"):
+            storage.set_selected_leagues(TIPPER_LEAGUES, season_id=selected_season_id)
+            storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
+            st.success(f"✅ Zapisano ligi dla sezonu {selected_season_id.replace('season_', '')}")
+            st.rerun()
+        
+        # Informacje o zapisanych ligach
+        if saved_leagues:
+            st.info(f"**Zapisane ligi:** {', '.join(map(str, saved_leagues))}")
         
         # Przycisk odświeżania danych
         if st.button("🔄 Odśwież dane", type="primary"):
             st.cache_data.clear()
             st.rerun()
         
-        # Informacje
-        st.info(f"**Liga 1:** {league_1}")
-        st.info(f"**Liga 2:** {league_2}")
-        
         st.markdown("---")
         st.subheader("💾 Import/Eksport danych")
         
-        # Inicjalizacja storage (wcześniej dla eksportu/importu)
-        storage = TipperStorage()
+        # Storage jest już utworzony w głównym widoku - użyj go
         
         # Eksport danych
         if st.button("📥 Pobierz backup danych", use_container_width=True, help="Pobierz aktualny plik tipper_data.json"):
@@ -229,31 +330,31 @@ def main():
         # Przeładuj dane z pliku (aby mieć aktualne dane po restarcie)
         storage.reload_data()
         
-        # Pobierz zapisane ustawienia
-        selected_teams = storage.get_selected_teams()
+        # Pobierz zapisane ustawienia dla wybranego sezonu
+        selected_teams = storage.get_selected_teams(season_id=selected_season_id)
         
-        # Jeśli nie ma zapisanych ustawień, wybierz wszystkie drużyny domyślnie
+        # Jeśli nie ma zapisanych ustawień dla tego sezonu, wybierz wszystkie drużyny domyślnie
         if not selected_teams:
             selected_teams = all_team_names.copy()
         
         # Wybór drużyn do typowania - w sidebarze
         with st.sidebar:
             st.markdown("---")
-            st.subheader("⚙️ Wybór drużyn do typowania")
+            st.subheader(f"⚙️ Wybór drużyn do typowania (Sezon {selected_season_id.replace('season_', '')})")
             st.markdown("*Zaznacz drużyny, które chcesz uwzględnić w typerze*")
             
             # Użyj checkboxów dla wyboru drużyn
             new_selected_teams = []
             
             for team_name in all_team_names:
-                if st.checkbox(team_name, value=team_name in selected_teams, key=f"team_select_{team_name}"):
+                if st.checkbox(team_name, value=team_name in selected_teams, key=f"team_select_{selected_season_id}_{team_name}"):
                     new_selected_teams.append(team_name)
             
             # Przycisk zapisu ustawień
             if st.button("💾 Zapisz wybór drużyn", type="primary", use_container_width=True):
-                storage.set_selected_teams(new_selected_teams)
+                storage.set_selected_teams(new_selected_teams, season_id=selected_season_id)
                 storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
-                st.success(f"✅ Zapisano wybór {len(new_selected_teams)} drużyn")
+                st.success(f"✅ Zapisano wybór {len(new_selected_teams)} drużyn dla sezonu {selected_season_id.replace('season_', '')}")
                 st.rerun()
             
             # Użyj aktualnie wybranych drużyn
@@ -308,7 +409,7 @@ def main():
             st.markdown("### 🏆 Ranking całości")
             
             exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza", value=True, key="exclude_worst_overall")
-            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst)
+            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst, season_id=selected_season_id)
             
             if leaderboard:
                 # Przygotuj dane do wyświetlenia
@@ -416,7 +517,7 @@ def main():
                 # Dodaj rundę do storage jeśli nie istnieje
                 if round_id not in storage.data['rounds']:
                     # Sezon zostanie automatycznie utworzony w add_round jeśli nie istnieje
-                    storage.add_round("current_season", round_id, selected_matches, selected_round_date)
+                    storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
                 
                 # Ranking dla wybranej rundy
                 round_leaderboard = storage.get_round_leaderboard(round_id)
@@ -551,7 +652,7 @@ def main():
             # Dodaj rundę do storage jeśli nie istnieje
             if round_id not in storage.data['rounds']:
                 # Sezon zostanie automatycznie utworzony w add_round jeśli nie istnieje
-                storage.add_round("current_season", round_id, selected_matches, selected_round_date)
+                storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
             
             # Wyświetl mecze w rundzie - tabela na górze dla czytelności
             st.subheader(f"⚽ Kolejka {round_number} - {selected_round_date}")
@@ -619,17 +720,24 @@ def main():
             col_player1, col_player2 = st.columns([3, 1])
             
             with col_player1:
-                # Lista graczy
-                all_players_list = list(storage.data['players'].keys())
+                # Lista graczy z sezonu
+                all_players_list = storage.get_season_players_list(season_id=selected_season_id)
                 if all_players_list:
                     selected_player = st.selectbox("Wybierz gracza:", all_players_list, key="tipper_selected_player")
                 else:
                     selected_player = None
-                    st.info("📊 Brak graczy. Dodaj nowego gracza.")
+                    st.info("📊 Brak graczy w sezonie. Dodaj nowego gracza.")
             
             with col_player2:
                 st.markdown("<br>", unsafe_allow_html=True)  # Spacing
-                add_new_player = st.button("➕ Dodaj gracza", key="tipper_add_new_player_btn")
+                col_add, col_remove = st.columns(2)
+                with col_add:
+                    add_new_player = st.button("➕ Dodaj", key="tipper_add_new_player_btn", use_container_width=True)
+                with col_remove:
+                    if all_players_list and selected_player:
+                        remove_player = st.button("🗑️ Usuń", key="tipper_remove_player_btn", use_container_width=True)
+                    else:
+                        remove_player = False
             
             # Dodawanie nowego gracza
             if add_new_player:
@@ -637,23 +745,25 @@ def main():
                     new_player_name = st.text_input("Nazwa nowego gracza:", key="tipper_new_player_name")
                     if st.button("💾 Zapisz", key="tipper_save_new_player"):
                         if new_player_name:
-                            if new_player_name not in storage.data['players']:
-                                storage.data['players'][new_player_name] = {
-                                    'predictions': {},
-                                    'total_points': 0,
-                                    'rounds_played': 0,
-                                    'best_score': 0,
-                                    'worst_score': float('inf')
-                                }
-                                storage._save_data(force=True)  # Wymuś natychmiastowy zapis
-                                st.success(f"✅ Dodano gracza: {new_player_name}")
+                            if storage.add_player(new_player_name, season_id=selected_season_id):
+                                storage.flush_save()  # Wymuś natychmiastowy zapis
+                                st.success(f"✅ Dodano gracza: {new_player_name} do sezonu {selected_season_id.replace('season_', '')}")
                                 st.rerun()
                             else:
-                                st.warning("⚠️ Gracz już istnieje")
+                                st.warning("⚠️ Gracz już istnieje w tym sezonie")
+            
+            # Usuwanie gracza
+            if remove_player and selected_player:
+                if storage.remove_player(selected_player, season_id=selected_season_id):
+                    storage.flush_save()  # Wymuś natychmiastowy zapis
+                    st.success(f"✅ Usunięto gracza: {selected_player} z sezonu {selected_season_id.replace('season_', '')}")
+                    st.rerun()
+                else:
+                    st.error("❌ Nie udało się usunąć gracza")
             
             if selected_player:
                 # Pobierz istniejące typy gracza dla tej rundy
-                existing_predictions = storage.get_player_predictions(selected_player, round_id)
+                existing_predictions = storage.get_player_predictions(selected_player, round_id, season_id=selected_season_id)
                 
                 st.markdown(f"### Typy dla: **{selected_player}**")
                 
