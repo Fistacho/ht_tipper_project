@@ -7780,7 +7780,18 @@
       ],
       "start_date": null,
       "end_date": null,
-      "selected_teams": [],
+      "selected_teams": [
+        "Borciuchy International",
+        "Dotmk",
+        "FC Lokomotywa",
+        "FC Paralityks",
+        "Legia KG(L)",
+        "LegiaWawa",
+        "Moli Team",
+        "Szmacianka Szynwałdzianka",
+        "WKS BRONEK 50",
+        "ks Jastrowie"
+      ],
       "selected_leagues": [],
       "players": {
         "Sonne": {
