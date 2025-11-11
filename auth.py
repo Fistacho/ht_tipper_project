@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import logging
 import pandas as pd
 import plotly.express as px
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -304,6 +305,121 @@ def login_page() -> bool:
                         if leaderboard:
                             total_rounds = sum(p['rounds_played'] for p in leaderboard)
                             st.metric("Łącznie rund", total_rounds)
+                    
+                    # Rozbudowane raporty
+                    st.markdown("---")
+                    st.markdown("### 📊 Szczegółowe raporty")
+                    
+                    # Progress chart - punkty przez kolejki
+                    if leaderboard and any(p.get('round_points') for p in leaderboard):
+                        st.markdown("#### 📈 Progress przez kolejki")
+                        progress_data = []
+                        for player in leaderboard:
+                            round_points = player.get('round_points', [])
+                            if round_points:
+                                cumulative = 0
+                                for idx, points in enumerate(round_points, 1):
+                                    cumulative += points
+                                    progress_data.append({
+                                        'Kolejka': idx,
+                                        'Gracz': player['player_name'],
+                                        'Punkty w kolejce': points,
+                                        'Punkty łącznie': cumulative
+                                    })
+                        
+                        if progress_data:
+                            df_progress = pd.DataFrame(progress_data)
+                            fig = px.line(
+                                df_progress,
+                                x='Kolejka',
+                                y='Punkty łącznie',
+                                color='Gracz',
+                                title="Progress punktów przez kolejki",
+                                markers=True
+                            )
+                            fig.update_layout(height=400)
+                            st.plotly_chart(fig, use_container_width=True, key="login_progress_chart")
+                    
+                    # Heatmapa punktów przez kolejki
+                    if leaderboard and any(p.get('round_points') for p in leaderboard):
+                        st.markdown("#### 🔥 Heatmapa punktów przez kolejki")
+                        heatmap_data = []
+                        max_rounds = max(len(p.get('round_points', [])) for p in leaderboard if p.get('round_points'))
+                        for player in leaderboard:
+                            round_points = player.get('round_points', [])
+                            for idx in range(1, max_rounds + 1):
+                                points = round_points[idx - 1] if idx <= len(round_points) else 0
+                                heatmap_data.append({
+                                    'Gracz': player['player_name'],
+                                    'Kolejka': idx,
+                                    'Punkty': points
+                                })
+                        
+                        if heatmap_data:
+                            df_heatmap = pd.DataFrame(heatmap_data)
+                            pivot_heatmap = df_heatmap.pivot(index='Gracz', columns='Kolejka', values='Punkty')
+                            fig = px.imshow(
+                                pivot_heatmap,
+                                title="Heatmapa punktów przez kolejki",
+                                labels=dict(x="Kolejka", y="Gracz", color="Punkty"),
+                                color_continuous_scale='YlOrRd'
+                            )
+                            fig.update_layout(height=400)
+                            st.plotly_chart(fig, use_container_width=True, key="login_heatmap_chart")
+                    
+                    # Box plot rozkładu punktów
+                    if leaderboard and any(p.get('round_points') for p in leaderboard):
+                        st.markdown("#### 📦 Rozkład punktów")
+                        box_data = []
+                        for player in leaderboard:
+                            round_points = player.get('round_points', [])
+                            if round_points:
+                                for points in round_points:
+                                    box_data.append({
+                                        'Gracz': player['player_name'],
+                                        'Punkty': points
+                                    })
+                        
+                        if box_data:
+                            df_box = pd.DataFrame(box_data)
+                            fig = px.box(
+                                df_box,
+                                x='Gracz',
+                                y='Punkty',
+                                title="Rozkład punktów graczy",
+                                color='Gracz'
+                            )
+                            fig.update_layout(xaxis_tickangle=-45, height=400, showlegend=False)
+                            st.plotly_chart(fig, use_container_width=True, key="login_boxplot_chart")
+                    
+                    # Consistency score (odchylenie standardowe)
+                    if leaderboard and any(p.get('round_points') for p in leaderboard):
+                        st.markdown("#### 📊 Consistency (stabilność wyników)")
+                        consistency_data = []
+                        for player in leaderboard:
+                            round_points = player.get('round_points', [])
+                            if round_points and len(round_points) > 1:
+                                std_dev = np.std(round_points)
+                                consistency_data.append({
+                                    'Gracz': player['player_name'],
+                                    'Odchylenie standardowe': round(std_dev, 2),
+                                    'Średnia': round(np.mean(round_points), 2)
+                                })
+                        
+                        if consistency_data:
+                            df_consistency = pd.DataFrame(consistency_data)
+                            df_consistency = df_consistency.sort_values('Odchylenie standardowe')
+                            fig = px.bar(
+                                df_consistency,
+                                x='Gracz',
+                                y='Odchylenie standardowe',
+                                title="Consistency - niższe = bardziej stabilne wyniki",
+                                color='Odchylenie standardowe',
+                                color_continuous_scale='RdYlGn_r'
+                            )
+                            fig.update_layout(xaxis_tickangle=-45, height=400)
+                            st.plotly_chart(fig, use_container_width=True, key="login_consistency_chart")
+                            st.dataframe(df_consistency, use_container_width=True, hide_index=True)
             else:
                 st.info("📊 Brak danych do wyświetlenia")
         
@@ -465,6 +581,67 @@ def login_page() -> bool:
                                 )
                                 fig.update_layout(xaxis_tickangle=-45, height=400)
                                 st.plotly_chart(fig, use_container_width=True, key=f"login_ranking_round_{round_number}_chart")
+                                
+                                # Rozbudowane raporty dla kolejki
+                                st.markdown("---")
+                                st.markdown("### 📊 Szczegółowe raporty kolejki")
+                                
+                                # Statystyki kolejki
+                                col1, col2, col3, col4 = st.columns(4)
+                                with col1:
+                                    avg_points = np.mean([p['total_points'] for p in round_leaderboard]) if round_leaderboard else 0
+                                    st.metric("Średnia punktów", f"{avg_points:.1f}")
+                                with col2:
+                                    max_points = max([p['total_points'] for p in round_leaderboard]) if round_leaderboard else 0
+                                    st.metric("Najwięcej punktów", max_points)
+                                with col3:
+                                    min_points = min([p['total_points'] for p in round_leaderboard]) if round_leaderboard else 0
+                                    st.metric("Najmniej punktów", min_points)
+                                with col4:
+                                    st.metric("Liczba graczy", len(round_leaderboard))
+                                
+                                # Porównanie z poprzednimi kolejkami
+                                if len(round_options) > 1 and selected_round_idx > 0:
+                                    st.markdown("#### 📈 Porównanie z poprzednimi kolejkami")
+                                    comparison_data = []
+                                    # Pobierz dane z ostatnich 5 kolejek
+                                    for i in range(max(0, selected_round_idx - 4), selected_round_idx + 1):
+                                        round_id_comp, date_comp, _ = round_options[i]
+                                        round_lb = storage.get_round_leaderboard(round_id_comp)
+                                        round_num_comp = date_to_round_number.get(round_id_comp, '?')
+                                        
+                                        for player in round_lb:
+                                            comparison_data.append({
+                                                'Kolejka': f"K{round_num_comp}",
+                                                'Gracz': player['player_name'],
+                                                'Punkty': player['total_points']
+                                            })
+                                    
+                                    if comparison_data:
+                                        df_comp = pd.DataFrame(comparison_data)
+                                        fig = px.line(
+                                            df_comp,
+                                            x='Kolejka',
+                                            y='Punkty',
+                                            color='Gracz',
+                                            title="Trend punktów przez ostatnie kolejki",
+                                            markers=True
+                                        )
+                                        fig.update_layout(height=400)
+                                        st.plotly_chart(fig, use_container_width=True, key=f"login_round_comparison_{round_number}")
+                                
+                                # Histogram rozkładu punktów
+                                st.markdown("#### 📊 Rozkład punktów w kolejce")
+                                points_list = [p['total_points'] for p in round_leaderboard]
+                                if points_list:
+                                    fig = px.histogram(
+                                        x=points_list,
+                                        title="Rozkład punktów w kolejce",
+                                        labels={'x': 'Punkty', 'y': 'Liczba graczy'},
+                                        nbins=20
+                                    )
+                                    fig.update_layout(height=300)
+                                    st.plotly_chart(fig, use_container_width=True, key=f"login_round_histogram_{round_number}")
                         else:
                             st.info("📊 Brak danych do wyświetlenia dla tej kolejki")
                 else:
@@ -530,6 +707,154 @@ def login_page() -> bool:
                         if all_time_leaderboard:
                             total_seasons = sum(p['seasons_played'] for p in all_time_leaderboard)
                             st.metric("Łącznie sezonów", total_seasons)
+                    
+                    # Rozbudowane raporty wszechczasów
+                    st.markdown("---")
+                    st.markdown("### 📊 Szczegółowe raporty wszechczasów")
+                    
+                    # Wykres liniowy - punkty przez sezony dla każdego gracza
+                    st.markdown("#### 📈 Progress przez sezony")
+                    seasons_progress_data = []
+                    all_seasons = set()
+                    for player in all_time_leaderboard:
+                        for season_id, points in player['seasons_data'].items():
+                            season_num = int(season_id.replace('season_', ''))
+                            all_seasons.add(season_num)
+                            seasons_progress_data.append({
+                                'Sezon': season_num,
+                                'Gracz': player['player_name'],
+                                'Punkty': points
+                            })
+                    
+                    if seasons_progress_data:
+                        df_seasons_progress = pd.DataFrame(seasons_progress_data)
+                        df_seasons_progress = df_seasons_progress.sort_values('Sezon')
+                        fig = px.line(
+                            df_seasons_progress,
+                            x='Sezon',
+                            y='Punkty',
+                            color='Gracz',
+                            title="Punkty graczy przez sezony",
+                            markers=True
+                        )
+                        fig.update_layout(height=400)
+                        st.plotly_chart(fig, use_container_width=True, key="login_alltime_progress_chart")
+                    
+                    # Heatmapa punktów przez sezony
+                    st.markdown("#### 🔥 Heatmapa punktów przez sezony")
+                    heatmap_seasons_data = []
+                    sorted_seasons = sorted(all_seasons)
+                    for player in all_time_leaderboard:
+                        for season_num in sorted_seasons:
+                            season_id = f"season_{season_num}"
+                            points = player['seasons_data'].get(season_id, 0)
+                            heatmap_seasons_data.append({
+                                'Gracz': player['player_name'],
+                                'Sezon': season_num,
+                                'Punkty': points
+                            })
+                    
+                    if heatmap_seasons_data:
+                        df_heatmap_seasons = pd.DataFrame(heatmap_seasons_data)
+                        pivot_heatmap_seasons = df_heatmap_seasons.pivot(index='Gracz', columns='Sezon', values='Punkty')
+                        fig = px.imshow(
+                            pivot_heatmap_seasons,
+                            title="Heatmapa punktów przez sezony",
+                            labels=dict(x="Sezon", y="Gracz", color="Punkty"),
+                            color_continuous_scale='YlOrRd'
+                        )
+                        fig.update_layout(height=400)
+                        st.plotly_chart(fig, use_container_width=True, key="login_alltime_heatmap_chart")
+                    
+                    # Najlepsze sezony (top 10)
+                    st.markdown("#### 🏆 Najlepsze sezony graczy")
+                    best_seasons_data = []
+                    for player in all_time_leaderboard:
+                        for season_id, points in player['seasons_data'].items():
+                            season_num = int(season_id.replace('season_', ''))
+                            best_seasons_data.append({
+                                'Gracz': player['player_name'],
+                                'Sezon': season_num,
+                                'Punkty': points
+                            })
+                    
+                    if best_seasons_data:
+                        df_best_seasons = pd.DataFrame(best_seasons_data)
+                        df_best_seasons = df_best_seasons.nlargest(10, 'Punkty')
+                        fig = px.bar(
+                            df_best_seasons,
+                            x='Gracz',
+                            y='Punkty',
+                            color='Sezon',
+                            title="Top 10 najlepszych sezonów",
+                            labels={'Punkty': 'Punkty', 'Gracz': 'Gracz'}
+                        )
+                        fig.update_layout(xaxis_tickangle=-45, height=400)
+                        st.plotly_chart(fig, use_container_width=True, key="login_best_seasons_chart")
+                    
+                    # Consistency score przez sezony
+                    st.markdown("#### 📊 Consistency przez sezony (stabilność)")
+                    consistency_seasons_data = []
+                    for player in all_time_leaderboard:
+                        season_points = list(player['seasons_data'].values())
+                        if season_points and len(season_points) > 1:
+                            std_dev = np.std(season_points)
+                            consistency_seasons_data.append({
+                                'Gracz': player['player_name'],
+                                'Odchylenie standardowe': round(std_dev, 2),
+                                'Średnia punktów/sezon': round(np.mean(season_points), 2),
+                                'Liczba sezonów': len(season_points)
+                            })
+                    
+                    if consistency_seasons_data:
+                        df_consistency_seasons = pd.DataFrame(consistency_seasons_data)
+                        df_consistency_seasons = df_consistency_seasons.sort_values('Odchylenie standardowe')
+                        fig = px.bar(
+                            df_consistency_seasons,
+                            x='Gracz',
+                            y='Odchylenie standardowe',
+                            title="Consistency przez sezony - niższe = bardziej stabilne",
+                            color='Odchylenie standardowe',
+                            color_continuous_scale='RdYlGn_r'
+                        )
+                        fig.update_layout(xaxis_tickangle=-45, height=400)
+                        st.plotly_chart(fig, use_container_width=True, key="login_alltime_consistency_chart")
+                        st.dataframe(df_consistency_seasons, use_container_width=True, hide_index=True)
+                    
+                    # Porównanie graczy (wybór 2-3 graczy)
+                    if len(all_time_leaderboard) >= 2:
+                        st.markdown("#### 🔀 Porównanie graczy")
+                        selected_players = st.multiselect(
+                            "Wybierz graczy do porównania:",
+                            options=[p['player_name'] for p in all_time_leaderboard],
+                            default=[p['player_name'] for p in all_time_leaderboard[:3]] if len(all_time_leaderboard) >= 3 else [p['player_name'] for p in all_time_leaderboard],
+                            key="login_compare_players"
+                        )
+                        
+                        if selected_players:
+                            comparison_players_data = []
+                            for player in all_time_leaderboard:
+                                if player['player_name'] in selected_players:
+                                    for season_id, points in sorted(player['seasons_data'].items(), key=lambda x: int(x[0].replace('season_', ''))):
+                                        season_num = int(season_id.replace('season_', ''))
+                                        comparison_players_data.append({
+                                            'Sezon': season_num,
+                                            'Gracz': player['player_name'],
+                                            'Punkty': points
+                                        })
+                            
+                            if comparison_players_data:
+                                df_comparison = pd.DataFrame(comparison_players_data)
+                                fig = px.line(
+                                    df_comparison,
+                                    x='Sezon',
+                                    y='Punkty',
+                                    color='Gracz',
+                                    title="Porównanie graczy przez sezony",
+                                    markers=True
+                                )
+                                fig.update_layout(height=400)
+                                st.plotly_chart(fig, use_container_width=True, key="login_players_comparison_chart")
             else:
                 st.info("📊 Brak danych do wyświetlenia")
         
