@@ -532,13 +532,13 @@ def login_page() -> bool:
                                     # Sortuj mecze według daty
                                     sorted_match_ids = sorted(
                                         player_predictions.keys(),
-                                        key=lambda mid: matches_map.get(mid, {}).get('match_date', '')
+                                        key=lambda mid: matches_map.get(str(mid), {}).get('match_date', '')
                                     )
                                     
                                     # Przygotuj dane do tabeli
                                     types_table_data = []
                                     for match_id in sorted_match_ids:
-                                        match = matches_map.get(match_id, {})
+                                        match = matches_map.get(str(match_id), {})
                                         pred = player_predictions[match_id]
                                         home_team = match.get('home_team_name', '?')
                                         away_team = match.get('away_team_name', '?')

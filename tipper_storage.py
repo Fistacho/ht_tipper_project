@@ -887,11 +887,15 @@ class TipperStorage:
             # Sumuj punkty z meczów (w kolejności meczów)
             if player_name in match_points:
                 # Sortuj mecze według daty lub kolejności
-                sorted_match_ids = sorted(match_points[player_name].keys(), 
-                                         key=lambda mid: matches_map.get(mid, {}).get('match_date', ''))
+                # Upewnij się, że match_id jest stringiem dla zgodności z matches_map
+                # Konwertuj wszystkie klucze na stringi dla spójności
+                player_match_points = match_points[player_name]
+                sorted_match_ids = sorted(player_match_points.keys(), 
+                                         key=lambda mid: matches_map.get(str(mid), {}).get('match_date', ''))
                 
                 for match_id in sorted_match_ids:
-                    points = match_points[player_name][match_id]
+                    # Użyj oryginalnego klucza (może być string lub int) do dostępu do danych
+                    points = player_match_points[match_id]
                     total_points += points
                     matches_count += 1
                     match_points_list.append(points)
