@@ -7585,10 +7585,10 @@
           "away_team_name": "Dotmk",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": 6,
-          "away_goals": 0,
+          "home_goals": "6",
+          "away_goals": "0",
           "league_id": 32612,
-          "result_updated": "2025-11-16T12:46:43.560392"
+          "result_updated": "2025-11-16T12:47:40.969856"
         },
         {
           "match_id": "753891428",
