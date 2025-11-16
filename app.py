@@ -58,6 +58,7 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
     players_total = {}  # {player_name: {'total': int, 'seasons': int, 'rounds': int, 'seasons_data': {season_id: points}}}
     
     # Przejdź przez wszystkie pliki sezonów
+    logger.info(f"get_all_time_leaderboard: Znaleziono {len(files)} plików sezonów")
     for file_path in files:
         try:
             filename = os.path.basename(file_path)
@@ -68,34 +69,23 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
             season_num = int(match.group(1))
             season_id = f"season_{season_num}"
             
+            logger.info(f"get_all_time_leaderboard: Przetwarzam sezon {season_id} z pliku {filename}")
+            
             # Wczytaj dane sezonu
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            # Pobierz graczy z sezonu
-            # Dla sezonów archiwalnych (77, 78, 79) używamy players (stara struktura)
-            # Dla sezonu 80 używamy seasons[season_80].players (nowa struktura), ale jeśli nie ma, to players
+            # Pobierz graczy z sezonu (najpierw sprawdź w seasons, potem w players)
+            # Ta sama logika jak w auth.py
             players_data = {}
-            
-            # Sprawdź czy sezon jest archiwalny
-            is_archived = False
             if season_id in data.get('seasons', {}):
-                is_archived = data['seasons'][season_id].get('archived', False)
+                season_data = data['seasons'][season_id]
+                if 'players' in season_data and season_data['players']:
+                    players_data = season_data['players']
             
-            # Dla sezonów archiwalnych używamy players (stara struktura)
-            if is_archived:
-                if 'players' in data and data['players']:
-                    players_data = data['players']
-            else:
-                # Dla aktywnych sezonów najpierw sprawdź seasons[season_id].players
-                if season_id in data.get('seasons', {}):
-                    season_data = data['seasons'][season_id]
-                    if 'players' in season_data and season_data['players']:
-                        players_data = season_data['players']
-                
-                # Jeśli nie ma w seasons, sprawdź starą strukturę players
-                if not players_data and 'players' in data and data['players']:
-                    players_data = data['players']
+            # Jeśli nie ma w sezonie, sprawdź starą strukturę
+            if not players_data and 'players' in data and data['players']:
+                players_data = data['players']
             
             # Przetwarzaj graczy z tego sezonu
             for player_name, player_data in players_data.items():
@@ -112,13 +102,13 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
                 worst_score = player_data.get('worst_score', 0)
                 rounds_played = player_data.get('rounds_played', 0)
                 
-                logger.debug(f"get_all_time_leaderboard: {player_name} w {season_id}: total_points={total_points}, worst_score={worst_score}, is_archived={is_archived}")
-                
                 # Odrzuć najgorszy wynik jeśli exclude_worst=True
                 if exclude_worst and worst_score > 0:
                     season_points = total_points - worst_score
                 else:
                     season_points = total_points
+                
+                logger.info(f"get_all_time_leaderboard: {player_name} w {season_id}: total_points={total_points}, worst_score={worst_score}, season_points={season_points}")
                 
                 # Dodaj punkty do sumy
                 players_total[player_name]['total'] += season_points
