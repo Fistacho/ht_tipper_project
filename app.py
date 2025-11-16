@@ -911,7 +911,8 @@ def main():
                                 
                                 # Pobierz punkty dla tego meczu
                                 match_points_dict = round_data.get('match_points', {}).get(player_name, {})
-                                points = match_points_dict.get(match_id, 0)
+                                # Sprawdź zarówno string jak i int jako klucz
+                                points = match_points_dict.get(str(match_id), match_points_dict.get(match_id, 0))
                                 
                                 # Pobierz wynik meczu jeśli rozegrany
                                 home_goals = match.get('home_goals')

@@ -645,8 +645,16 @@ class TipperStorage:
         predictions = self.data['rounds'][round_id].get('predictions', {})
         
         for player_name, player_predictions in predictions.items():
+            # Sprawdź zarówno string jak i int jako klucz
+            pred = None
             if match_id in player_predictions:
                 pred = player_predictions[match_id]
+            elif str(match_id) in player_predictions:
+                pred = player_predictions[str(match_id)]
+            elif match_id.isdigit() and int(match_id) in player_predictions:
+                pred = player_predictions[int(match_id)]
+            
+            if pred:
                 prediction_tuple = (pred['home'], pred['away'])
                 points = Tipper.calculate_points(prediction_tuple, (home_goals, away_goals))
                 
@@ -666,7 +674,8 @@ class TipperStorage:
                 if player_name not in self.data['rounds'][round_id]['match_points']:
                     self.data['rounds'][round_id]['match_points'][player_name] = {}
                 
-                self.data['rounds'][round_id]['match_points'][player_name][match_id] = points
+                # Użyj string jako klucz dla spójności
+                self.data['rounds'][round_id]['match_points'][player_name][str(match_id)] = points
         
         self._save_data()
         self._recalculate_player_totals(season_id=season_id)
