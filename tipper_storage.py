@@ -780,6 +780,14 @@ class TipperStorage:
         if season_id is None:
             season_id = self.season_id
         
+        # Jeśli podano round_id, najpierw sprawdź w rounds[round_id]['predictions']
+        # (to jest główne źródło danych dla rundy)
+        if round_id and round_id in self.data.get('rounds', {}):
+            round_predictions = self.data['rounds'][round_id].get('predictions', {})
+            if player_name in round_predictions:
+                return round_predictions[player_name]
+        
+        # Fallback: sprawdź w players[player_name]['predictions']
         # Pobierz graczy dla sezonu
         players = self._get_season_players(season_id)
         

@@ -901,6 +901,14 @@ def main():
                             
                             # Przygotuj dane do tabeli
                             types_table_data = []
+                            # Pobierz match_points_dict raz przed pętlą
+                            match_points_dict = round_data.get('match_points', {}).get(player_name, {})
+                            
+                            logger.debug(f"DEBUG Ranking per kolejka: Gracz {player_name}, round_id={round_id}")
+                            logger.debug(f"  sorted_match_ids={sorted_match_ids}, types={[type(mid) for mid in sorted_match_ids]}")
+                            logger.debug(f"  match_points_dict keys={list(match_points_dict.keys())}, types={[type(k) for k in match_points_dict.keys()]}")
+                            logger.debug(f"  match_points_dict={match_points_dict}")
+                            
                             for match_id in sorted_match_ids:
                                 match = matches_map.get(str(match_id), {})
                                 pred = player_predictions[match_id]
@@ -910,7 +918,6 @@ def main():
                                 pred_away = pred.get('away', 0)
                                 
                                 # Pobierz punkty dla tego meczu
-                                match_points_dict = round_data.get('match_points', {}).get(player_name, {})
                                 # Sprawdź zarówno string jak i int jako klucz (używamy get z domyślną wartością None, żeby odróżnić 0 od braku klucza)
                                 points = None
                                 if str(match_id) in match_points_dict:
@@ -922,12 +929,16 @@ def main():
                                 else:
                                     points = 0
                                 
+                                logger.debug(f"  match_id={match_id} (type={type(match_id)}), str(match_id)={str(match_id)}, "
+                                           f"str(match_id) in dict={str(match_id) in match_points_dict}, "
+                                           f"match_id in dict={match_id in match_points_dict}, points={points}")
+                                
                                 # Debug: loguj jeśli nie znaleziono punktów
                                 if points == 0 and match_id in player_predictions:
-                                    logger.debug(f"DEBUG: Gracz {player_name}, match_id={match_id} (type={type(match_id)}), "
-                                               f"match_points_dict keys={list(match_points_dict.keys())}, "
-                                               f"match_points_dict={match_points_dict}, "
-                                               f"str(match_id)={str(match_id)}, str(match_id) in keys={str(match_id) in match_points_dict}")
+                                    logger.warning(f"WARNING: Gracz {player_name}, match_id={match_id} (type={type(match_id)}), "
+                                                 f"match_points_dict keys={list(match_points_dict.keys())}, "
+                                                 f"match_points_dict={match_points_dict}, "
+                                                 f"str(match_id)={str(match_id)}, str(match_id) in keys={str(match_id) in match_points_dict}")
                                 
                                 # Pobierz wynik meczu jeśli rozegrany
                                 home_goals = match.get('home_goals')
