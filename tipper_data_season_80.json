@@ -7585,10 +7585,10 @@
           "away_team_name": "Dotmk",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": 6,
-          "away_goals": 0,
+          "home_goals": "6",
+          "away_goals": "0",
           "league_id": 32612,
-          "result_updated": "2025-11-16T11:32:34.416224"
+          "result_updated": "2025-11-16T15:42:36.212236"
         },
         {
           "match_id": "753891428",
@@ -7598,9 +7598,10 @@
           "away_team_name": "Borciuchy International",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": "3",
+          "away_goals": "0",
+          "league_id": 32612,
+          "result_updated": "2025-11-16T15:42:14.172758"
         },
         {
           "match_id": "753891429",
@@ -7610,9 +7611,10 @@
           "away_team_name": "ks Jastrowie",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": "2",
+          "away_goals": "1",
+          "league_id": 32612,
+          "result_updated": "2025-11-16T15:42:14.172758"
         },
         {
           "match_id": "753891430",
@@ -7622,9 +7624,10 @@
           "away_team_name": "LegiaWawa",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": "2",
+          "away_goals": "7",
+          "league_id": 32612,
+          "result_updated": "2025-11-16T15:42:14.172758"
         },
         {
           "match_id": "753850099",
@@ -7634,9 +7637,10 @@
           "away_team_name": "FC Paralityks",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 9399
+          "home_goals": "0",
+          "away_goals": "2",
+          "league_id": 9399,
+          "result_updated": "2025-11-16T15:42:14.172758"
         },
         {
           "match_id": "753850100",
@@ -7646,9 +7650,10 @@
           "away_team_name": "Leszczers",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 9399
+          "home_goals": "1",
+          "away_goals": "1",
+          "league_id": 9399,
+          "result_updated": "2025-11-16T15:42:14.172758"
         }
       ],
       "start_date": "2025-11-16",
@@ -7848,22 +7853,52 @@
       },
       "match_points": {
         "Sonne": {
-          "753891427": 8
+          "753891427": 8,
+          "753891428": 1,
+          "753891429": 4,
+          "753891430": 8,
+          "753850099": 3,
+          "753850100": 12
         },
         "Wilk": {
-          "753891427": 9
+          "753891427": 9,
+          "753891428": 2,
+          "753891429": 9,
+          "753891430": 7,
+          "753850099": 8,
+          "753850100": 3
         },
         "Fistach": {
-          "753891427": 8
+          "753891427": 8,
+          "753891428": 9,
+          "753891429": 12,
+          "753891430": 6,
+          "753850099": 9,
+          "753850100": 4
         },
         "Manvers": {
-          "753891427": 8
+          "753891427": 8,
+          "753891428": 8,
+          "753891429": 12,
+          "753891430": 7,
+          "753850099": 7,
+          "753850100": 8
         },
         "Adi": {
-          "753891427": 8
+          "753891427": 8,
+          "753891428": 8,
+          "753891429": 4,
+          "753891430": 6,
+          "753850099": 8,
+          "753850100": 4
         },
         "Sokół": {
-          "753891427": 9
+          "753891427": 9,
+          "753891428": 8,
+          "753891429": 3,
+          "753891430": 5,
+          "753850099": 3,
+          "753850100": 8
         }
       }
     }
@@ -8305,7 +8340,7 @@
               }
             }
           },
-          "total_points": 441,
+          "total_points": 469,
           "rounds_played": 13,
           "best_score": 46,
           "worst_score": 23,
@@ -8323,7 +8358,7 @@
             "round_2025-10-19": 43,
             "round_2025-10-26": 46,
             "round_2025-11-02": 23,
-            "round_2025-11-16": 8
+            "round_2025-11-16": 36
           }
         },
         "Wilk": {
@@ -8740,7 +8775,7 @@
               }
             }
           },
-          "total_points": 399,
+          "total_points": 428,
           "rounds_played": 13,
           "best_score": 40,
           "worst_score": 20,
@@ -8758,7 +8793,7 @@
             "round_2025-10-19": 36,
             "round_2025-10-26": 29,
             "round_2025-11-02": 32,
-            "round_2025-11-16": 9
+            "round_2025-11-16": 38
           }
         },
         "Fistach": {
@@ -9175,7 +9210,7 @@
               }
             }
           },
-          "total_points": 434,
+          "total_points": 474,
           "rounds_played": 13,
           "best_score": 53,
           "worst_score": 24,
@@ -9193,7 +9228,7 @@
             "round_2025-10-19": 37,
             "round_2025-10-26": 47,
             "round_2025-11-02": 32,
-            "round_2025-11-16": 8
+            "round_2025-11-16": 48
           }
         },
         "Adi": {
@@ -9610,7 +9645,7 @@
               }
             }
           },
-          "total_points": 423,
+          "total_points": 453,
           "rounds_played": 13,
           "best_score": 54,
           "worst_score": 16,
@@ -9628,7 +9663,7 @@
             "round_2025-10-19": 35,
             "round_2025-10-26": 37,
             "round_2025-11-02": 22,
-            "round_2025-11-16": 8
+            "round_2025-11-16": 38
           }
         },
         "Manvers": {
@@ -10045,7 +10080,7 @@
               }
             }
           },
-          "total_points": 442,
+          "total_points": 484,
           "rounds_played": 13,
           "best_score": 50,
           "worst_score": 21,
@@ -10063,7 +10098,7 @@
             "round_2025-10-19": 45,
             "round_2025-10-26": 40,
             "round_2025-11-02": 21,
-            "round_2025-11-16": 8
+            "round_2025-11-16": 50
           }
         },
         "Sokół": {
@@ -10416,7 +10451,7 @@
               }
             }
           },
-          "total_points": 326,
+          "total_points": 353,
           "rounds_played": 11,
           "best_score": 45,
           "worst_score": 0,
@@ -10434,7 +10469,7 @@
             "round_2025-10-19": 37,
             "round_2025-10-26": 45,
             "round_2025-11-02": 44,
-            "round_2025-11-16": 9
+            "round_2025-11-16": 36
           }
         },
         "Moli": {
