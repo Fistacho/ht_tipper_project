@@ -7817,7 +7817,7 @@
           "753891427": {
             "home": 5,
             "away": 0,
-            "timestamp": "2025-11-16T11:12:35.505704"
+            "timestamp": "2025-11-16T11:13:33.248426"
           },
           "753891428": {
             "home": 2,
@@ -8305,7 +8305,7 @@
               }
             }
           },
-          "total_points": 433,
+          "total_points": 441,
           "rounds_played": 13,
           "best_score": 46,
           "worst_score": 23,
@@ -8323,7 +8323,7 @@
             "round_2025-10-19": 43,
             "round_2025-10-26": 46,
             "round_2025-11-02": 23,
-            "round_2025-11-16": 0
+            "round_2025-11-16": 8
           }
         },
         "Wilk": {
@@ -8740,8 +8740,8 @@
               }
             }
           },
-          "total_points": 390,
-          "rounds_played": 12,
+          "total_points": 399,
+          "rounds_played": 13,
           "best_score": 40,
           "worst_score": 20,
           "round_scores": {
@@ -8758,7 +8758,7 @@
             "round_2025-10-19": 36,
             "round_2025-10-26": 29,
             "round_2025-11-02": 32,
-            "round_2025-11-16": 0
+            "round_2025-11-16": 9
           }
         },
         "Fistach": {
@@ -9175,8 +9175,8 @@
               }
             }
           },
-          "total_points": 426,
-          "rounds_played": 12,
+          "total_points": 434,
+          "rounds_played": 13,
           "best_score": 53,
           "worst_score": 24,
           "round_scores": {
@@ -9193,7 +9193,7 @@
             "round_2025-10-19": 37,
             "round_2025-10-26": 47,
             "round_2025-11-02": 32,
-            "round_2025-11-16": 0
+            "round_2025-11-16": 8
           }
         },
         "Adi": {
@@ -9610,8 +9610,8 @@
               }
             }
           },
-          "total_points": 415,
-          "rounds_played": 12,
+          "total_points": 423,
+          "rounds_played": 13,
           "best_score": 54,
           "worst_score": 16,
           "round_scores": {
@@ -9628,7 +9628,7 @@
             "round_2025-10-19": 35,
             "round_2025-10-26": 37,
             "round_2025-11-02": 22,
-            "round_2025-11-16": 0
+            "round_2025-11-16": 8
           }
         },
         "Manvers": {
@@ -10045,8 +10045,8 @@
               }
             }
           },
-          "total_points": 434,
-          "rounds_played": 12,
+          "total_points": 442,
+          "rounds_played": 13,
           "best_score": 50,
           "worst_score": 21,
           "round_scores": {
@@ -10063,7 +10063,7 @@
             "round_2025-10-19": 45,
             "round_2025-10-26": 40,
             "round_2025-11-02": 21,
-            "round_2025-11-16": 0
+            "round_2025-11-16": 8
           }
         },
         "Sokół": {
@@ -10387,7 +10387,7 @@
               "753891427": {
                 "home": 5,
                 "away": 0,
-                "timestamp": "2025-11-16T11:12:35.505713"
+                "timestamp": "2025-11-16T11:13:33.248435"
               },
               "753891428": {
                 "home": 2,
@@ -10416,8 +10416,8 @@
               }
             }
           },
-          "total_points": 317,
-          "rounds_played": 10,
+          "total_points": 326,
+          "rounds_played": 11,
           "best_score": 45,
           "worst_score": 0,
           "round_scores": {
@@ -10434,7 +10434,7 @@
             "round_2025-10-19": 37,
             "round_2025-10-26": 45,
             "round_2025-11-02": 44,
-            "round_2025-11-16": 0
+            "round_2025-11-16": 9
           }
         },
         "Moli": {
