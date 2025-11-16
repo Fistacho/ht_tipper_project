@@ -547,8 +547,16 @@ def login_page() -> bool:
                                         
                                         # Pobierz punkty dla tego meczu
                                         match_points_dict = round_data.get('match_points', {}).get(player_name, {})
-                                        # Sprawdź zarówno string jak i int jako klucz
-                                        points = match_points_dict.get(str(match_id), match_points_dict.get(match_id, 0))
+                                        # Sprawdź zarówno string jak i int jako klucz (używamy get z domyślną wartością None, żeby odróżnić 0 od braku klucza)
+                                        points = None
+                                        if str(match_id) in match_points_dict:
+                                            points = match_points_dict[str(match_id)]
+                                        elif match_id in match_points_dict:
+                                            points = match_points_dict[match_id]
+                                        elif str(match_id).isdigit() and int(match_id) in match_points_dict:
+                                            points = match_points_dict[int(match_id)]
+                                        else:
+                                            points = 0
                                         
                                         # Pobierz wynik meczu jeśli rozegrany
                                         home_goals = match.get('home_goals')

@@ -902,12 +902,17 @@ class TipperStorage:
                 sorted_match_ids = sorted(player_match_points.keys(), 
                                          key=lambda mid: matches_map.get(str(mid), {}).get('match_date', ''))
                 
+                logger.debug(f"DEBUG get_round_leaderboard: Gracz {player_name}, round_id={round_id}, "
+                           f"player_match_points keys={list(player_match_points.keys())}, "
+                           f"sorted_match_ids={sorted_match_ids}")
+                
                 for match_id in sorted_match_ids:
                     # Użyj oryginalnego klucza (może być string lub int) do dostępu do danych
                     points = player_match_points[match_id]
                     total_points += points
                     matches_count += 1
                     match_points_list.append(points)
+                    logger.debug(f"DEBUG: match_id={match_id} (type={type(match_id)}), points={points}")
             
             # Jeśli gracz nie typował w tej kolejce, ma 0 punktów
             if total_points == 0 and matches_count == 0:

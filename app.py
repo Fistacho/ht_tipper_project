@@ -26,7 +26,7 @@ st.set_page_config(
 
 # Konfiguracja logowania
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('tipper.log'),
@@ -911,8 +911,23 @@ def main():
                                 
                                 # Pobierz punkty dla tego meczu
                                 match_points_dict = round_data.get('match_points', {}).get(player_name, {})
-                                # Sprawdź zarówno string jak i int jako klucz
-                                points = match_points_dict.get(str(match_id), match_points_dict.get(match_id, 0))
+                                # Sprawdź zarówno string jak i int jako klucz (używamy get z domyślną wartością None, żeby odróżnić 0 od braku klucza)
+                                points = None
+                                if str(match_id) in match_points_dict:
+                                    points = match_points_dict[str(match_id)]
+                                elif match_id in match_points_dict:
+                                    points = match_points_dict[match_id]
+                                elif str(match_id).isdigit() and int(match_id) in match_points_dict:
+                                    points = match_points_dict[int(match_id)]
+                                else:
+                                    points = 0
+                                
+                                # Debug: loguj jeśli nie znaleziono punktów
+                                if points == 0 and match_id in player_predictions:
+                                    logger.debug(f"DEBUG: Gracz {player_name}, match_id={match_id} (type={type(match_id)}), "
+                                               f"match_points_dict keys={list(match_points_dict.keys())}, "
+                                               f"match_points_dict={match_points_dict}, "
+                                               f"str(match_id)={str(match_id)}, str(match_id) in keys={str(match_id) in match_points_dict}")
                                 
                                 # Pobierz wynik meczu jeśli rozegrany
                                 home_goals = match.get('home_goals')
