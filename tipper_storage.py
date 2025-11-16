@@ -644,6 +644,8 @@ class TipperStorage:
         from tipper import Tipper
         predictions = self.data['rounds'][round_id].get('predictions', {})
         
+        logger.info(f"update_match_result: round_id={round_id}, match_id={match_id}, wynik={home_goals}-{away_goals}, graczy z typami={len(predictions)}")
+        
         for player_name, player_predictions in predictions.items():
             # Sprawdź zarówno string jak i int jako klucz
             pred = None
@@ -654,9 +656,13 @@ class TipperStorage:
             elif match_id.isdigit() and int(match_id) in player_predictions:
                 pred = player_predictions[int(match_id)]
             
+            logger.info(f"update_match_result: Gracz {player_name}, match_id={match_id}, pred={pred}, player_predictions keys={list(player_predictions.keys())}")
+            
             if pred:
                 prediction_tuple = (pred['home'], pred['away'])
                 points = Tipper.calculate_points(prediction_tuple, (home_goals, away_goals))
+                
+                logger.info(f"update_match_result: Gracz {player_name}, typ={prediction_tuple}, wynik={home_goals}-{away_goals}, punkty={points}")
                 
                 # Aktualizuj punkty gracza (w sezonie)
                 if player_name not in players:
@@ -676,6 +682,9 @@ class TipperStorage:
                 
                 # Użyj string jako klucz dla spójności
                 self.data['rounds'][round_id]['match_points'][player_name][str(match_id)] = points
+                logger.info(f"update_match_result: ✅ Zapisano punkty {points} dla gracza {player_name}, mecz {match_id}")
+            else:
+                logger.warning(f"update_match_result: ⚠️ Gracz {player_name} nie ma typu dla meczu {match_id}")
         
         self._save_data()
         self._recalculate_player_totals(season_id=season_id)
@@ -723,10 +732,45 @@ class TipperStorage:
             for round_id, round_data in season_rounds.items():
                 round_points = 0
                 match_points = round_data.get('match_points', {}).get(player_name, {})
+                matches = round_data.get('matches', [])
+                predictions = round_data.get('predictions', {}).get(player_name, {})
                 
-                # Sumuj punkty z meczów w rundzie (jeśli gracz typował)
-                for match_id, points in match_points.items():
-                    round_points += points
+                # Pobierz wszystkie mecze w rundzie posortowane według daty
+                all_matches_sorted = sorted(matches, key=lambda m: m.get('match_date', ''))
+                
+                # Sumuj punkty z meczów w rundzie (dla wszystkich meczów, dla których gracz ma typ)
+                for match in all_matches_sorted:
+                    match_id = str(match.get('match_id', ''))
+                    
+                    # Sprawdź czy gracz ma typ dla tego meczu
+                    has_prediction = (match_id in predictions or 
+                                    str(match_id) in predictions or
+                                    (match_id.isdigit() and int(match_id) in predictions))
+                    
+                    if has_prediction:
+                        # Sprawdź czy gracz ma punkty dla tego meczu
+                        points = None
+                        if match_id in match_points:
+                            points = match_points[match_id]
+                        elif str(match_id) in match_points:
+                            points = match_points[str(match_id)]
+                        elif match_id.isdigit() and int(match_id) in match_points:
+                            points = match_points[int(match_id)]
+                        else:
+                            # Gracz ma typ, ale nie ma punktów - sprawdź czy mecz ma wynik
+                            home_goals = match.get('home_goals')
+                            away_goals = match.get('away_goals')
+                            
+                            if home_goals is not None and away_goals is not None:
+                                # Mecz ma wynik, ale brak punktów - to błąd, ustaw 0
+                                points = 0
+                                logger.warning(f"_recalculate_player_totals: Gracz {player_name} ma typ dla meczu {match_id}, mecz ma wynik {home_goals}-{away_goals}, ale brak punktów!")
+                            else:
+                                # Mecz nie ma wyniku - ustaw 0
+                                points = 0
+                        
+                        if points is not None:
+                            round_points += points
                 
                 # Zawsze zapisz punkty do round_scores (dla wyświetlania)
                 round_scores[round_id] = round_points
@@ -896,39 +940,66 @@ class TipperStorage:
         
         # Oblicz punkty dla każdego gracza w rundzie
         player_scores = {}
+        
+        # Pobierz wszystkie mecze w rundzie posortowane według daty
+        all_matches_sorted = sorted(matches, key=lambda m: m.get('match_date', ''))
+        all_match_ids_sorted = [str(m.get('match_id', '')) for m in all_matches_sorted]
+        
         for player_name in all_players:
             total_points = 0
             matches_count = 0
             match_points_list = []  # Lista punktów za każdy mecz w kolejności
             
-            # Sumuj punkty z meczów (w kolejności meczów)
-            if player_name in match_points:
-                # Sortuj mecze według daty lub kolejności
-                # Upewnij się, że match_id jest stringiem dla zgodności z matches_map
-                # Konwertuj wszystkie klucze na stringi dla spójności
-                player_match_points = match_points[player_name]
-                sorted_match_ids = sorted(player_match_points.keys(), 
-                                         key=lambda mid: matches_map.get(str(mid), {}).get('match_date', ''))
-                
-                logger.debug(f"DEBUG get_round_leaderboard: Gracz {player_name}, round_id={round_id}, "
-                           f"player_match_points keys={list(player_match_points.keys())}, "
-                           f"sorted_match_ids={sorted_match_ids}")
-                
-                for match_id in sorted_match_ids:
-                    # Użyj oryginalnego klucza (może być string lub int) do dostępu do danych
-                    points = player_match_points[match_id]
-                    total_points += points
-                    matches_count += 1
-                    match_points_list.append(points)
-                    logger.debug(f"DEBUG: match_id={match_id} (type={type(match_id)}), points={points}")
+            # Pobierz punkty gracza (jeśli ma)
+            player_match_points = match_points.get(player_name, {})
             
-            # Jeśli gracz nie typował w tej kolejce, ma 0 punktów
-            if total_points == 0 and matches_count == 0:
-                # Dla każdego meczu w rundzie dodaj 0
-                sorted_match_ids = sorted([str(m.get('match_id', '')) for m in matches],
-                                         key=lambda mid: matches_map.get(mid, {}).get('match_date', ''))
-                for match_id in sorted_match_ids:
-                    match_points_list.append(0)
+            # Pobierz typy gracza (jeśli ma)
+            player_predictions_dict = predictions.get(player_name, {})
+            
+            # Dla każdego meczu w rundzie (w kolejności) sprawdź punkty
+            for match_id in all_match_ids_sorted:
+                # Sprawdź czy gracz ma punkty dla tego meczu
+                points = None
+                if match_id in player_match_points:
+                    points = player_match_points[match_id]
+                elif str(match_id) in player_match_points:
+                    points = player_match_points[str(match_id)]
+                elif match_id.isdigit() and int(match_id) in player_match_points:
+                    points = player_match_points[int(match_id)]
+                else:
+                    # Sprawdź czy gracz ma typ dla tego meczu
+                    has_prediction = (match_id in player_predictions_dict or 
+                                    str(match_id) in player_predictions_dict or
+                                    (match_id.isdigit() and int(match_id) in player_predictions_dict))
+                    
+                    if has_prediction:
+                        # Gracz ma typ, ale nie ma punktów - sprawdź czy mecz ma wynik
+                        match_data = matches_map.get(match_id, {})
+                        home_goals = match_data.get('home_goals')
+                        away_goals = match_data.get('away_goals')
+                        
+                        if home_goals is not None and away_goals is not None:
+                            # Mecz ma wynik, ale brak punktów - to błąd, ustaw 0
+                            points = 0
+                            logger.warning(f"Gracz {player_name} ma typ dla meczu {match_id}, mecz ma wynik {home_goals}-{away_goals}, ale brak punktów!")
+                        else:
+                            # Mecz nie ma wyniku - nie dodawaj do listy (lub dodaj 0)
+                            points = 0
+                    else:
+                        # Gracz nie ma typu - nie dodawaj do listy
+                        points = None
+                
+                # Dodaj punkty do listy tylko jeśli gracz ma typ (lub ma punkty)
+                if points is not None:
+                    match_points_list.append(points)
+                    total_points += points
+                    if points > 0 or (match_id in player_predictions_dict or str(match_id) in player_predictions_dict):
+                        matches_count += 1
+                    logger.info(f"DEBUG: Gracz {player_name}, match_id={match_id}, points={points}, total={total_points}")
+            
+            logger.info(f"DEBUG get_round_leaderboard: Gracz {player_name}, round_id={round_id}, "
+                       f"match_points_list={match_points_list} (count={len(match_points_list)}), "
+                       f"total_points={total_points}, matches_count={matches_count}")
             
             player_scores[player_name] = {
                 'player_name': player_name,
