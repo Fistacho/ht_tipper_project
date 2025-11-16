@@ -7585,10 +7585,10 @@
           "away_team_name": "Dotmk",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": 6,
-          "away_goals": 0,
+          "home_goals": "6",
+          "away_goals": "0",
           "league_id": 32612,
-          "result_updated": "2025-11-16T12:58:47.030042"
+          "result_updated": "2025-11-16T15:42:14.171628"
         },
         {
           "match_id": "753891428",
@@ -7598,10 +7598,10 @@
           "away_team_name": "Borciuchy International",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": 3,
-          "away_goals": 0,
+          "home_goals": "3",
+          "away_goals": "0",
           "league_id": 32612,
-          "result_updated": "2025-11-16T13:10:38.867632"
+          "result_updated": "2025-11-16T15:42:14.172758"
         },
         {
           "match_id": "753891429",
@@ -7611,10 +7611,10 @@
           "away_team_name": "ks Jastrowie",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": 2,
-          "away_goals": 1,
+          "home_goals": "2",
+          "away_goals": "1",
           "league_id": 32612,
-          "result_updated": "2025-11-16T15:36:40.019544"
+          "result_updated": "2025-11-16T15:42:14.172758"
         },
         {
           "match_id": "753891430",
@@ -7624,10 +7624,10 @@
           "away_team_name": "LegiaWawa",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": 2,
-          "away_goals": 7,
+          "home_goals": "2",
+          "away_goals": "7",
           "league_id": 32612,
-          "result_updated": "2025-11-16T15:37:30.808509"
+          "result_updated": "2025-11-16T15:42:14.172758"
         },
         {
           "match_id": "753850099",
@@ -7637,10 +7637,10 @@
           "away_team_name": "FC Paralityks",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": 0,
-          "away_goals": 2,
+          "home_goals": "0",
+          "away_goals": "2",
           "league_id": 9399,
-          "result_updated": "2025-11-16T15:37:47.759209"
+          "result_updated": "2025-11-16T15:42:14.172758"
         },
         {
           "match_id": "753850100",
@@ -7650,10 +7650,10 @@
           "away_team_name": "Leszczers",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": 1,
-          "away_goals": 1,
+          "home_goals": "1",
+          "away_goals": "1",
           "league_id": 9399,
-          "result_updated": "2025-11-16T15:38:45.650026"
+          "result_updated": "2025-11-16T15:42:14.172758"
         }
       ],
       "start_date": "2025-11-16",
