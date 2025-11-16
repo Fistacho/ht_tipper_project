@@ -7624,9 +7624,10 @@
           "away_team_name": "LegiaWawa",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": "2",
+          "away_goals": "7",
+          "league_id": 32612,
+          "result_updated": "2025-11-16T12:47:46.131321"
         },
         {
           "match_id": "753850099",
