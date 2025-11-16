@@ -7585,9 +7585,10 @@
           "away_team_name": "Dotmk",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 6,
+          "away_goals": 0,
+          "league_id": 32612,
+          "result_updated": "2025-11-16T11:12:19.253230"
         },
         {
           "match_id": "753891428",
@@ -7811,6 +7812,23 @@
             "away": 1,
             "timestamp": "2025-11-15T19:05:21.034941"
           }
+        }
+      },
+      "match_points": {
+        "Sonne": {
+          "753891427": 8
+        },
+        "Wilk": {
+          "753891427": 9
+        },
+        "Fistach": {
+          "753891427": 8
+        },
+        "Manvers": {
+          "753891427": 8
+        },
+        "Adi": {
+          "753891427": 8
         }
       }
     }
