@@ -7650,9 +7650,10 @@
           "away_team_name": "Leszczers",
           "match_date": "2025-11-16 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 9399
+          "home_goals": "1",
+          "away_goals": "1",
+          "league_id": 9399,
+          "result_updated": "2025-11-16T12:47:49.393784"
         }
       ],
       "start_date": "2025-11-16",
