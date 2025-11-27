@@ -3414,10 +3414,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "1",
+          "home_goals": 2,
+          "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2025-11-27T08:12:54.066372"
+          "result_updated": "2025-11-27T08:18:00.953124"
         },
         {
           "match_id": "753850102",
@@ -3565,7 +3565,8 @@
         },
         "Sokół": {
           "753891431": 0,
-          "753891432": 2
+          "753891432": 2,
+          "753891434": 3
         }
       }
     },
