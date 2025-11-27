@@ -3388,10 +3388,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "0",
+          "home_goals": 1,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2025-11-27T07:54:39.526326"
+          "result_updated": "2025-11-27T08:06:34.111701"
         },
         {
           "match_id": "753891433",
@@ -3523,6 +3523,9 @@
           "753891434": 12,
           "753850102": 6,
           "753891433": 2
+        },
+        "Wilk": {
+          "753891432": 9
         }
       }
     },
