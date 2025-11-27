@@ -1685,15 +1685,39 @@ def main():
                             updated_count = 0
                             errors = []
                             
+                            # Pobierz wszystkie istniejące typy przed zapisem (aby nie stracić tych, które nie są w session_state)
+                            storage.reload_data()
+                            existing_predictions_before = storage.get_player_predictions(selected_player, round_id, season_id=selected_season_id)
+                            
                             for match in selected_matches:
                                 match_id = str(match.get('match_id', ''))
                                 input_key = f"tipper_pred_{selected_player}_{match_id}"
                                 
+                                # Sprawdź czy jest wartość w session_state (z trybu pojedynczego)
                                 if input_key in st.session_state:
                                     pred_input = st.session_state[input_key]
+                                    
+                                    # Pomiń puste wartości lub "0-0" jeśli typ już istnieje (chroni przed przypadkowym zerowaniem)
+                                    if not pred_input or pred_input.strip() == "":
+                                        # Puste pole - pomiń (zachowaj istniejący typ jeśli istnieje)
+                                        if match_id in existing_predictions_before or str(match_id) in existing_predictions_before:
+                                            continue  # Zachowaj istniejący typ
+                                        else:
+                                            continue  # Pomiń puste pole
+                                    
                                     parsed = tipper.parse_prediction(pred_input)
                                     
                                     if parsed:
+                                        # Sprawdź czy to nie jest "0-0" dla istniejącego typu (chroni przed przypadkowym zerowaniem)
+                                        if parsed == (0, 0):
+                                            # Sprawdź czy typ już istnieje - jeśli tak, pomiń (nie zeruj)
+                                            if match_id in existing_predictions_before or str(match_id) in existing_predictions_before:
+                                                existing_pred = existing_predictions_before.get(match_id) or existing_predictions_before.get(str(match_id))
+                                                if existing_pred and (existing_pred.get('home', 0) != 0 or existing_pred.get('away', 0) != 0):
+                                                    # Istniejący typ nie jest "0-0" - nie zeruj go
+                                                    logger.info(f"Pomijam zapis '0-0' dla meczu {match_id} - istnieje typ {existing_pred.get('home', 0)}-{existing_pred.get('away', 0)}")
+                                                    continue
+                                        
                                         # Sprawdź czy mecz już się rozpoczął
                                         match_date = match.get('match_date')
                                         can_add = True
@@ -1710,7 +1734,9 @@ def main():
                                         
                                         if can_add:
                                             # Sprawdź czy typ już istnieje
-                                            is_update = match_id in existing_predictions
+                                            is_update = (match_id in existing_predictions_before or 
+                                                       str(match_id) in existing_predictions_before or
+                                                       (match_id.isdigit() and int(match_id) in existing_predictions_before))
                                             
                                             storage.add_prediction(round_id, selected_player, match_id, parsed)
                                             
@@ -1720,6 +1746,12 @@ def main():
                                                 saved_count += 1
                                     else:
                                         errors.append(f"Nieprawidłowy format dla {match.get('home_team_name')} vs {match.get('away_team_name')}")
+                                else:
+                                    # Jeśli nie ma wartości w session_state, ale istnieje typ w danych, zachowaj go
+                                    # (to chroni przed utratą typów z bulk, które nie są w session_state)
+                                    if match_id in existing_predictions_before or str(match_id) in existing_predictions_before:
+                                        # Typ istnieje, ale nie ma wartości w session_state - nie rób nic (zachowaj istniejący)
+                                        pass
                             
                             total_saved = saved_count + updated_count
                             if total_saved > 0:
@@ -1841,6 +1873,108 @@ def main():
                                         st.warning("⚠️ Wszystkie mecze już rozpoczęte")
                             else:
                                 st.error("❌ Nie można sparsować typów. Sprawdź format:\n- Nazwa drużyny1 - Nazwa drużyny2 Wynik\n- Przykład: Borciuchy International - WKS BRONEK 50 7:0")
+                
+                # Sekcja korekty punktów (dla wybranego gracza i rundy)
+                st.markdown("---")
+                st.markdown("### ✏️ Korekta punktów")
+                st.caption("💡 Możesz ręcznie ustawić punkty dla każdego meczu (w tym ujemne wartości)")
+                
+                # Pobierz aktualne punkty dla gracza w tej rundzie
+                storage.reload_data()
+                round_data = storage.data['rounds'].get(round_id, {})
+                match_points_dict = round_data.get('match_points', {}).get(selected_player, {})
+                player_predictions = storage.get_player_predictions(selected_player, round_id, season_id=selected_season_id)
+                
+                if player_predictions:
+                    # Sortuj mecze według daty
+                    matches_map = {str(m.get('match_id', '')): m for m in selected_matches}
+                    sorted_match_ids = sorted(
+                        player_predictions.keys(),
+                        key=lambda mid: matches_map.get(str(mid), {}).get('match_date', '')
+                    )
+                    
+                    # Przygotuj dane do edycji
+                    manual_points_data = {}
+                    for match_id in sorted_match_ids:
+                        match = matches_map.get(str(match_id), {})
+                        home_team = match.get('home_team_name', '?')
+                        away_team = match.get('away_team_name', '?')
+                        
+                        # Pobierz aktualne punkty
+                        current_points = None
+                        if str(match_id) in match_points_dict:
+                            current_points = match_points_dict[str(match_id)]
+                        elif match_id in match_points_dict:
+                            current_points = match_points_dict[match_id]
+                        elif str(match_id).isdigit() and int(match_id) in match_points_dict:
+                            current_points = match_points_dict[int(match_id)]
+                        else:
+                            current_points = 0
+                        
+                        # Sprawdź czy punkty są ręcznie ustawione
+                        is_manual = storage.is_manual_points(round_id, match_id, selected_player)
+                        
+                        # Pobierz typ i wynik
+                        pred = player_predictions[match_id]
+                        pred_home = pred.get('home', 0)
+                        pred_away = pred.get('away', 0)
+                        home_goals = match.get('home_goals')
+                        away_goals = match.get('away_goals')
+                        result = f"{home_goals}-{away_goals}" if home_goals is not None and away_goals is not None else "—"
+                        
+                        col_match, col_type, col_result, col_points, col_manual = st.columns([3, 1.5, 1.5, 2, 1])
+                        with col_match:
+                            st.write(f"**{home_team} vs {away_team}**")
+                        with col_type:
+                            st.caption(f"Typ: {pred_home}-{pred_away}")
+                        with col_result:
+                            st.caption(f"Wynik: {result}")
+                        with col_points:
+                            new_points = st.number_input(
+                                "Punkty:",
+                                value=int(current_points),
+                                min_value=None,  # Pozwól na ujemne wartości
+                                max_value=None,
+                                step=1,
+                                key=f"manual_points_correction_{selected_player}_{round_id}_{match_id}",
+                                label_visibility="collapsed"
+                            )
+                            # Zapisz wartość do słownika
+                            manual_points_data[match_id] = new_points
+                        with col_manual:
+                            if is_manual:
+                                st.caption("✏️")
+                            else:
+                                st.caption("🤖")
+                    
+                    # Przycisk zapisu wszystkich punktów
+                    if st.button("💾 Zapisz wszystkie punkty", type="primary", key=f"save_all_points_correction_{selected_player}_{round_id}", use_container_width=True):
+                        saved_count = 0
+                        for match_id, new_points in manual_points_data.items():
+                            # Pobierz aktualne punkty
+                            current_points = None
+                            if str(match_id) in match_points_dict:
+                                current_points = match_points_dict[str(match_id)]
+                            elif match_id in match_points_dict:
+                                current_points = match_points_dict[match_id]
+                            elif str(match_id).isdigit() and int(match_id) in match_points_dict:
+                                current_points = match_points_dict[int(match_id)]
+                            else:
+                                current_points = 0
+                            
+                            # Zapisz tylko jeśli wartość się zmieniła
+                            if new_points != current_points:
+                                storage.set_manual_points(round_id, match_id, selected_player, new_points, season_id=selected_season_id)
+                                saved_count += 1
+                        
+                        if saved_count > 0:
+                            storage.flush_save()
+                            st.success(f"✅ Zapisano punkty dla {saved_count} meczów")
+                            st.rerun()
+                        else:
+                            st.info("ℹ️ Brak zmian do zapisania")
+                else:
+                    st.info("ℹ️ Brak typów dla tego gracza w tej rundzie")
             
     
     except Exception as e:
