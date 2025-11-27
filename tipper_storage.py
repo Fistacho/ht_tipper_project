@@ -967,13 +967,17 @@ class TipperStorage:
                 round_points = round_scores.get(round_id, 0)
                 round_points_list.append(round_points)
                 
-                # Zbierz punkty tylko z rozegranych kolejek (dla odrzucania najgorszego)
-                if self._is_round_finished(round_data):
-                    # Jeśli gracz nie typował w rozegranej kolejce, ma 0 punktów
-                    if round_points == 0 and player_name not in round_data.get('predictions', {}):
-                        finished_round_points.append(0)
-                    elif round_points > 0:
-                        finished_round_points.append(round_points)
+                # Zbierz punkty z kolejek, w których gracz typował (dla odrzucania najgorszego)
+                # Uwzględnij kolejkę jeśli gracz typował w tej rundzie (niezależnie od tego, czy runda jest w pełni rozegrana)
+                has_predictions = player_name in round_data.get('predictions', {})
+                
+                if has_predictions:
+                    # Gracz typował w tej rundzie - zawsze dodaj punkty (nawet jeśli 0, np. przez ręczną korektę)
+                    # To uwzględnia wszystkie kolejki, w których gracz typował, nawet jeśli nie wszystkie mecze są rozegrane
+                    finished_round_points.append(round_points)
+                elif self._is_round_finished(round_data):
+                    # Gracz nie typował, ale runda jest rozegrana - ma 0 punktów
+                    finished_round_points.append(0)
             
             # Odrzuć najgorszy wynik jeśli exclude_worst=True
             # WAŻNE: Odrzucamy tylko z rozegranych kolejek
