@@ -1072,7 +1072,7 @@ def main():
                                 })
                             
                             if types_table_data:
-                                with st.expander(f"👤 {player_name} - Typy i wyniki", expanded=False):
+                                with st.expander(f"👤 {player_name} - Typy i wyniki", expanded=True):
                                     df_types = pd.DataFrame(types_table_data)
                                     st.dataframe(df_types, use_container_width=True, hide_index=True)
                                     total_points = sum(row['Punkty'] for row in types_table_data)
@@ -1773,6 +1773,9 @@ def main():
                             # Parsuj typy z dopasowaniem do meczów
                             parsed = tipper.parse_match_predictions(predictions_text, selected_matches)
                             
+                            logger.info(f"Bulk mode: Sparsowano {len(parsed)} typów z {len(selected_matches)} dostępnych meczów")
+                            logger.info(f"Bulk mode: Sparsowane typy: {list(parsed.keys())}")
+                            
                             if parsed:
                                 saved_count = 0
                                 updated_count = 0
@@ -1798,10 +1801,14 @@ def main():
                                                 pass
                                         
                                         if can_add:
-                                            # Sprawdź czy typ już istnieje
-                                            is_update = match_id in existing_predictions
+                                            # Sprawdź czy typ już istnieje (sprawdź zarówno string jak i int)
+                                            match_id_str = str(match_id)
+                                            is_update = (match_id in existing_predictions or 
+                                                        match_id_str in existing_predictions or
+                                                        (match_id_str.isdigit() and int(match_id_str) in existing_predictions))
                                             
-                                            storage.add_prediction(round_id, selected_player, match_id, prediction)
+                                            # Użyj string jako match_id dla spójności
+                                            storage.add_prediction(round_id, selected_player, match_id_str, prediction)
                                             
                                             if is_update:
                                                 updated_count += 1

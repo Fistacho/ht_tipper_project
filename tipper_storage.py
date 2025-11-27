@@ -537,8 +537,11 @@ class TipperStorage:
         if player_name not in self.data['rounds'][round_id]['predictions']:
             self.data['rounds'][round_id]['predictions'][player_name] = {}
         
+        # Użyj string jako klucz dla spójności
+        match_id_str = str(match_id)
+        
         # Nadpisz istniejący typ (lub dodaj nowy)
-        self.data['rounds'][round_id]['predictions'][player_name][match_id] = {
+        self.data['rounds'][round_id]['predictions'][player_name][match_id_str] = {
             'home': prediction[0],
             'away': prediction[1],
             'timestamp': datetime.now().isoformat()
@@ -549,7 +552,7 @@ class TipperStorage:
             players[player_name]['predictions'][round_id] = {}
         
         # Nadpisz istniejący typ (lub dodaj nowy)
-        players[player_name]['predictions'][round_id][match_id] = {
+        players[player_name]['predictions'][round_id][match_id_str] = {
             'home': prediction[0],
             'away': prediction[1],
             'timestamp': datetime.now().isoformat()
@@ -560,7 +563,7 @@ class TipperStorage:
             # Sprawdź czy mecz jest rozegrany
             matches = self.data['rounds'][round_id].get('matches', [])
             for match in matches:
-                if str(match.get('match_id')) == str(match_id):
+                if str(match.get('match_id')) == match_id_str:
                     home_goals = match.get('home_goals')
                     away_goals = match.get('away_goals')
                     if home_goals is not None and away_goals is not None:
@@ -568,13 +571,15 @@ class TipperStorage:
                         from tipper import Tipper
                         points = Tipper.calculate_points(prediction, (int(home_goals), int(away_goals)))
                         
-                        # Aktualizuj punkty w match_points
+                        # Aktualizuj punkty w match_points (tylko jeśli nie są ręcznie ustawione)
                         if 'match_points' not in self.data['rounds'][round_id]:
                             self.data['rounds'][round_id]['match_points'] = {}
                         if player_name not in self.data['rounds'][round_id]['match_points']:
                             self.data['rounds'][round_id]['match_points'][player_name] = {}
                         
-                        self.data['rounds'][round_id]['match_points'][player_name][match_id] = points
+                        # Sprawdź czy punkty są ręcznie ustawione - jeśli tak, nie nadpisuj
+                        if not self.is_manual_points(round_id, match_id_str, player_name):
+                            self.data['rounds'][round_id]['match_points'][player_name][match_id_str] = points
                         
                         # Przelicz całkowite punkty gracza (dla sezonu)
                         self._recalculate_player_totals(season_id=season_id)
