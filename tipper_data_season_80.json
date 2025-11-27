@@ -3375,9 +3375,10 @@
           "away_team_name": "WKS BRONEK 50",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": "6",
+          "away_goals": "2",
+          "league_id": 32612,
+          "result_updated": "2025-11-27T07:49:45.098037"
         },
         {
           "match_id": "753891432",
@@ -3387,9 +3388,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": "1",
+          "away_goals": "0",
+          "league_id": 32612,
+          "result_updated": "2025-11-27T07:49:45.098085"
         },
         {
           "match_id": "753891433",
@@ -3399,9 +3401,10 @@
           "away_team_name": "Szmacianka Szynwałdzianka",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": "1",
+          "away_goals": "0",
+          "league_id": 32612,
+          "result_updated": "2025-11-27T07:49:45.098119"
         },
         {
           "match_id": "753891434",
@@ -3411,9 +3414,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": "2",
+          "away_goals": "1",
+          "league_id": 32612,
+          "result_updated": "2025-11-27T07:49:45.098150"
         },
         {
           "match_id": "753850102",
@@ -3423,9 +3427,10 @@
           "away_team_name": "Legia KG(L)",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 9399
+          "home_goals": "0",
+          "away_goals": "5",
+          "league_id": 9399,
+          "result_updated": "2025-11-27T07:49:45.098179"
         },
         {
           "match_id": "753850104",
