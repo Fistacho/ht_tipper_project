@@ -3388,10 +3388,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "0",
+          "home_goals": 1,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2025-11-27T08:17:51.026712"
+          "result_updated": "2025-11-27T08:20:01.671862"
         },
         {
           "match_id": "753891433",
@@ -3598,7 +3598,8 @@
           "753891433": 8
         },
         "Sonne": {
-          "753891431": 0
+          "753891431": 0,
+          "753891432": 8
         }
       }
     },
