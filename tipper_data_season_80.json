@@ -3375,10 +3375,10 @@
           "away_team_name": "WKS BRONEK 50",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": "6",
-          "away_goals": "2",
+          "home_goals": 6,
+          "away_goals": 2,
           "league_id": 32612,
-          "result_updated": "2025-11-27T07:49:45.098037"
+          "result_updated": "2025-11-27T07:54:15.547991"
         },
         {
           "match_id": "753891432",
@@ -3492,6 +3492,11 @@
             "away": 2,
             "timestamp": "2025-11-27T07:54:03.300788"
           }
+        }
+      },
+      "match_points": {
+        "Fistach": {
+          "753891431": 5
         }
       }
     },
