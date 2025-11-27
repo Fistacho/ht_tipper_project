@@ -873,14 +873,17 @@ class TipperStorage:
                 # WAŻNE: Uwzględnij 0 jako najgorszy wynik TYLKO dla rozegranych kolejek
                 is_finished = self._is_round_finished(round_data)
                 if is_finished:
-                    # Dla rozegranych kolejek: jeśli gracz nie typował, ma 0 punktów
-                    if round_points == 0 and player_name not in round_data.get('predictions', {}):
+                    # Sprawdź czy gracz typował w tej rundzie
+                    has_predictions = player_name in round_data.get('predictions', {})
+                    
+                    if has_predictions:
+                        # Gracz typował w rozegranej kolejce - zawsze dodaj punkty (nawet jeśli 0, np. przez ręczną korektę)
+                        finished_round_scores.append(round_points)
+                        if round_points > 0:
+                            best_score = max(best_score, round_points)
+                    else:
                         # Gracz nie typował w rozegranej kolejce - ma 0 punktów
                         finished_round_scores.append(0)
-                    elif round_points > 0:
-                        # Gracz typował i ma punkty
-                        finished_round_scores.append(round_points)
-                        best_score = max(best_score, round_points)
                 
                 # Aktualizuj best_score dla wszystkich rund (nie tylko rozegranych)
                 if round_points > 0:
