@@ -3388,10 +3388,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "0",
+          "home_goals": 1,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2025-11-27T07:49:45.098085"
+          "result_updated": "2025-11-27T07:54:32.643159"
         },
         {
           "match_id": "753891433",
@@ -3496,7 +3496,8 @@
       },
       "match_points": {
         "Fistach": {
-          "753891431": 5
+          "753891431": 5,
+          "753891432": 8
         }
       }
     },
