@@ -3414,10 +3414,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "1",
+          "home_goals": 2,
+          "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2025-11-27T07:54:51.132325"
+          "result_updated": "2025-11-27T08:07:05.405984"
         },
         {
           "match_id": "753850102",
@@ -3525,7 +3525,8 @@
           "753891433": 2
         },
         "Wilk": {
-          "753891432": 9
+          "753891432": 9,
+          "753891434": 9
         }
       }
     },
