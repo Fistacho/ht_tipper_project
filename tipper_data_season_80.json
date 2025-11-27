@@ -3401,10 +3401,10 @@
           "away_team_name": "Szmacianka Szynwałdzianka",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "0",
+          "home_goals": 1,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2025-11-27T08:16:27.232083"
+          "result_updated": "2025-11-27T08:18:31.666502"
         },
         {
           "match_id": "753891434",
@@ -3572,7 +3572,8 @@
           "753891431": 0,
           "753891432": 2,
           "753891434": 3,
-          "753850102": 0
+          "753850102": 0,
+          "753891433": 8
         }
       }
     },
