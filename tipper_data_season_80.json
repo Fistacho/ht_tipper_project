@@ -8854,13 +8854,13 @@
               }
             }
           },
-          "total_points": 428,
+          "total_points": 437,
           "rounds_played": 14,
           "best_score": 40,
           "worst_score": 20,
           "round_scores": {
             "round_2025-11-09": 32,
-            "round_2025-11-23": 0,
+            "round_2025-11-23": 9,
             "round_2025-08-24": 20,
             "round_2025-08-31": 35,
             "round_2025-09-07": 36,
