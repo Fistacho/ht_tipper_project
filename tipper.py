@@ -180,24 +180,40 @@ class Tipper:
         # Usuń puste linie
         lines = [line for line in lines if line]
         
-        # Normalizuj nazwy drużyn (usuń białe znaki, zamień na małe litery)
+        # Normalizuj nazwy drużyn (usuń białe znaki, zamień na małe litery, usuń dodatkowe spacje)
         def normalize_name(name: str) -> str:
-            return name.strip().lower()
+            # Usuń białe znaki na początku i końcu
+            name = name.strip()
+            # Zamień na małe litery
+            name = name.lower()
+            # Usuń wielokrotne spacje
+            name = re.sub(r'\s+', ' ', name)
+            return name
         
-        # Stwórz mapę nazw drużyn -> mecze
+        # Stwórz mapę nazw drużyn -> mecze (z różnymi wariantami normalizacji)
         matches_by_names = {}
         for match in matches:
-            home_name = normalize_name(match.get('home_team_name', ''))
-            away_name = normalize_name(match.get('away_team_name', ''))
+            home_name_raw = match.get('home_team_name', '')
+            away_name_raw = match.get('away_team_name', '')
             match_id = str(match.get('match_id', ''))
             
-            # Klucz: "home_name - away_name"
+            # Normalizuj nazwy
+            home_name = normalize_name(home_name_raw)
+            away_name = normalize_name(away_name_raw)
+            
+            # Klucz podstawowy: "home_name - away_name"
             key = f"{home_name} - {away_name}"
             matches_by_names[key] = match_id
             
             # Również odwrotna kolejność (na wypadek gdyby ktoś podał odwrotnie)
             key_reverse = f"{away_name} - {home_name}"
             matches_by_names[key_reverse] = match_id
+            
+            # Dodatkowe warianty: bez spacji wokół "-"
+            key_no_spaces = f"{home_name}-{away_name}"
+            matches_by_names[key_no_spaces] = match_id
+            key_reverse_no_spaces = f"{away_name}-{home_name}"
+            matches_by_names[key_reverse_no_spaces] = match_id
         
         for line in lines:
             line = line.strip()
@@ -206,7 +222,7 @@ class Tipper:
             
             # Szukaj wzorca: "Nazwa1 - Nazwa2 Wynik"
             # Wynik może być w formacie: 7:0, 7-0, 7 0
-            # Najpierw spróbuj znaleźć wynik na końcu linii
+            # Najpierw spróbuj znaleźć wynik na końcu linii (obsługuj zarówno ":" jak i "-")
             result_pattern = r'(\d+)\s*[-:]\s*(\d+)\s*$'
             result_match = re.search(result_pattern, line)
             
@@ -217,8 +233,13 @@ class Tipper:
                 # Wyciągnij nazwy drużyn (wszystko przed wynikiem)
                 teams_part = line[:result_match.start()].strip()
                 
-                # Podziel na dwie drużyny (separator: " - " lub " -")
+                # Podziel na dwie drużyny (separator: " - " lub " -" lub "-" bez spacji)
+                # Użyj bardziej elastycznego wzorca
                 team_split = re.split(r'\s*-\s*', teams_part, 1)
+                
+                # Jeśli nie znaleziono separatora z spacjami, spróbuj bez spacji
+                if len(team_split) < 2:
+                    team_split = re.split(r'-', teams_part, 1)
                 
                 if len(team_split) == 2:
                     team1_name = normalize_name(team_split[0])
@@ -226,24 +247,58 @@ class Tipper:
                     
                     # Walidacja: wyniki powinny być nieujemne i rozsądne (max 20)
                     if 0 <= home_goals <= 20 and 0 <= away_goals <= 20:
-                        # Spróbuj dopasować do meczu
+                        # Spróbuj dopasować do meczu (sprawdź różne warianty)
+                        match_id = None
+                        
+                        # Wariant 1: "team1 - team2" (ze spacjami)
                         key = f"{team1_name} - {team2_name}"
                         match_id = matches_by_names.get(key)
                         
-                        if match_id:
-                            result[match_id] = (home_goals, away_goals)
-                        else:
-                            # Spróbuj odwrotną kolejność
+                        # Wariant 2: "team1-team2" (bez spacji)
+                        if not match_id:
+                            key_no_spaces = f"{team1_name}-{team2_name}"
+                            match_id = matches_by_names.get(key_no_spaces)
+                        
+                        # Wariant 3: odwrotna kolejność ze spacjami
+                        if not match_id:
                             key_reverse = f"{team2_name} - {team1_name}"
                             match_id = matches_by_names.get(key_reverse)
                             if match_id:
                                 # Jeśli odwrotna kolejność, zamień wyniki
-                                result[match_id] = (away_goals, home_goals)
-                            else:
-                                logger.warning(f"Nie znaleziono meczu dla: {line}")
-                                # Debug: pokaż dostępne mecze
-                                available_keys = list(matches_by_names.keys())[:5]
-                                logger.debug(f"Dostępne mecze (pierwsze 5): {available_keys}")
+                                home_goals, away_goals = away_goals, home_goals
+                        
+                        # Wariant 4: odwrotna kolejność bez spacji
+                        if not match_id:
+                            key_reverse_no_spaces = f"{team2_name}-{team1_name}"
+                            match_id = matches_by_names.get(key_reverse_no_spaces)
+                            if match_id:
+                                # Jeśli odwrotna kolejność, zamień wyniki
+                                home_goals, away_goals = away_goals, home_goals
+                        
+                        # Wariant 5: częściowe dopasowanie (jeśli dokładne nie działa)
+                        if not match_id:
+                            # Spróbuj znaleźć mecz przez częściowe dopasowanie nazw
+                            for key, mid in matches_by_names.items():
+                                # Sprawdź czy obie nazwy drużyn są w kluczu
+                                if team1_name in key and team2_name in key:
+                                    match_id = mid
+                                    # Sprawdź kolejność
+                                    key_parts = re.split(r'\s*-\s*', key)
+                                    if len(key_parts) == 2:
+                                        if key_parts[0] == team2_name and key_parts[1] == team1_name:
+                                            # Odwrotna kolejność
+                                            home_goals, away_goals = away_goals, home_goals
+                                    break
+                        
+                        if match_id:
+                            result[match_id] = (home_goals, away_goals)
+                            logger.info(f"Znaleziono mecz dla: {line} -> match_id={match_id}, wynik={home_goals}-{away_goals}")
+                        else:
+                            logger.warning(f"Nie znaleziono meczu dla: {line}")
+                            logger.warning(f"  Znormalizowane nazwy: '{team1_name}' - '{team2_name}'")
+                            # Debug: pokaż dostępne mecze (pierwsze 10)
+                            available_keys = list(matches_by_names.keys())[:10]
+                            logger.debug(f"Dostępne mecze (pierwsze 10): {available_keys}")
                 else:
                     logger.warning(f"Nieprawidłowy format linii (brak separatora '-'): {line}")
             else:
