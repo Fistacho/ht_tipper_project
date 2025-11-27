@@ -3414,10 +3414,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "1",
+          "home_goals": 2,
+          "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2025-11-27T07:49:45.098150"
+          "result_updated": "2025-11-27T07:54:41.750829"
         },
         {
           "match_id": "753850102",
@@ -3497,7 +3497,8 @@
       "match_points": {
         "Fistach": {
           "753891431": 5,
-          "753891432": 8
+          "753891432": 8,
+          "753891434": 12
         }
       }
     },
