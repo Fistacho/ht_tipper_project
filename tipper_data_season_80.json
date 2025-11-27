@@ -3375,10 +3375,10 @@
           "away_team_name": "WKS BRONEK 50",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": "6",
-          "away_goals": "2",
+          "home_goals": 6,
+          "away_goals": 2,
           "league_id": 32612,
-          "result_updated": "2025-11-27T07:54:30.306565"
+          "result_updated": "2025-11-27T08:07:28.675078"
         },
         {
           "match_id": "753891432",
@@ -3537,7 +3537,8 @@
         "Wilk": {
           "753891432": 4,
           "753891434": 2,
-          "753850102": 0
+          "753850102": 0,
+          "753891431": 0
         }
       }
     },
