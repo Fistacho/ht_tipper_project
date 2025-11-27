@@ -1808,6 +1808,18 @@ def main():
                             logger.info(f"Bulk mode: Sparsowano {len(parsed)} typów z {len(selected_matches)} dostępnych meczów")
                             logger.info(f"Bulk mode: Sparsowane typy: {list(parsed.keys())}")
                             
+                            # Wyświetl dostępne mecze dla debugowania
+                            if len(parsed) < len(selected_matches):
+                                st.info("💡 **Dostępne mecze w tej kolejce:**")
+                                matches_list = []
+                                for match in selected_matches:
+                                    home = match.get('home_team_name', '?')
+                                    away = match.get('away_team_name', '?')
+                                    match_id = match.get('match_id', '?')
+                                    matches_list.append(f"- {home} vs {away} (ID: {match_id})")
+                                with st.expander("📋 Zobacz wszystkie mecze", expanded=False):
+                                    st.markdown("\n".join(matches_list))
+                            
                             if parsed:
                                 saved_count = 0
                                 updated_count = 0

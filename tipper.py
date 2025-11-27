@@ -192,6 +192,7 @@ class Tipper:
         
         # Stwórz mapę nazw drużyn -> mecze (z różnymi wariantami normalizacji)
         matches_by_names = {}
+        logger.info(f"parse_match_predictions: Przetwarzam {len(matches)} meczów")
         for match in matches:
             home_name_raw = match.get('home_team_name', '')
             away_name_raw = match.get('away_team_name', '')
@@ -200,6 +201,8 @@ class Tipper:
             # Normalizuj nazwy
             home_name = normalize_name(home_name_raw)
             away_name = normalize_name(away_name_raw)
+            
+            logger.debug(f"  Mecz {match_id}: '{home_name_raw}' -> '{home_name}' vs '{away_name_raw}' -> '{away_name}'")
             
             # Klucz podstawowy: "home_name - away_name"
             key = f"{home_name} - {away_name}"
@@ -214,6 +217,8 @@ class Tipper:
             matches_by_names[key_no_spaces] = match_id
             key_reverse_no_spaces = f"{away_name}-{home_name}"
             matches_by_names[key_reverse_no_spaces] = match_id
+        
+        logger.info(f"parse_match_predictions: Utworzono {len(matches_by_names)} kluczy dopasowania")
         
         for line in lines:
             line = line.strip()
@@ -278,27 +283,61 @@ class Tipper:
                         # Wariant 5: częściowe dopasowanie (jeśli dokładne nie działa)
                         if not match_id:
                             # Spróbuj znaleźć mecz przez częściowe dopasowanie nazw
+                            # Najpierw znajdź najlepsze dopasowanie (najwięcej wspólnych słów)
+                            best_match = None
+                            best_score = 0
+                            
                             for key, mid in matches_by_names.items():
-                                # Sprawdź czy obie nazwy drużyn są w kluczu
-                                if team1_name in key and team2_name in key:
-                                    match_id = mid
-                                    # Sprawdź kolejność
-                                    key_parts = re.split(r'\s*-\s*', key)
-                                    if len(key_parts) == 2:
-                                        if key_parts[0] == team2_name and key_parts[1] == team1_name:
-                                            # Odwrotna kolejność
-                                            home_goals, away_goals = away_goals, home_goals
-                                    break
+                                # Podziel klucz na części
+                                key_parts = re.split(r'\s*-\s*', key)
+                                if len(key_parts) != 2:
+                                    continue
+                                
+                                key_team1 = key_parts[0].strip()
+                                key_team2 = key_parts[1].strip()
+                                
+                                # Sprawdź dopasowanie dla pierwszej drużyny (normalna kolejność)
+                                team1_words = set(team1_name.split())
+                                team2_words = set(team2_name.split())
+                                key_team1_words = set(key_team1.split())
+                                key_team2_words = set(key_team2.split())
+                                
+                                # Normalna kolejność: team1 vs team2
+                                team1_match_score = len(team1_words & key_team1_words) / max(len(team1_words), len(key_team1_words), 1)
+                                team2_match_score = len(team2_words & key_team2_words) / max(len(team2_words), len(key_team2_words), 1)
+                                
+                                if team1_match_score > 0.5 and team2_match_score > 0.5:
+                                    total_score = team1_match_score + team2_match_score
+                                    if total_score > best_score:
+                                        best_score = total_score
+                                        best_match = (mid, False)  # False = normalna kolejność
+                                
+                                # Odwrotna kolejność: team1 vs team2 (zamienione)
+                                team1_match_score_rev = len(team1_words & key_team2_words) / max(len(team1_words), len(key_team2_words), 1)
+                                team2_match_score_rev = len(team2_words & key_team1_words) / max(len(team2_words), len(key_team1_words), 1)
+                                
+                                if team1_match_score_rev > 0.5 and team2_match_score_rev > 0.5:
+                                    total_score = team1_match_score_rev + team2_match_score_rev
+                                    if total_score > best_score:
+                                        best_score = total_score
+                                        best_match = (mid, True)  # True = odwrotna kolejność
+                            
+                            if best_match and best_score > 1.0:  # Minimum 50% dopasowania dla każdej drużyny
+                                match_id, is_reversed = best_match
+                                if is_reversed:
+                                    home_goals, away_goals = away_goals, home_goals
+                                logger.info(f"Częściowe dopasowanie dla: {line} -> match_id={match_id}, score={best_score:.2f}")
                         
                         if match_id:
                             result[match_id] = (home_goals, away_goals)
-                            logger.info(f"Znaleziono mecz dla: {line} -> match_id={match_id}, wynik={home_goals}-{away_goals}")
+                            logger.info(f"✅ Znaleziono mecz dla: {line} -> match_id={match_id}, wynik={home_goals}-{away_goals}")
                         else:
-                            logger.warning(f"Nie znaleziono meczu dla: {line}")
+                            logger.warning(f"❌ Nie znaleziono meczu dla: {line}")
                             logger.warning(f"  Znormalizowane nazwy: '{team1_name}' - '{team2_name}'")
-                            # Debug: pokaż dostępne mecze (pierwsze 10)
-                            available_keys = list(matches_by_names.keys())[:10]
-                            logger.debug(f"Dostępne mecze (pierwsze 10): {available_keys}")
+                            # Debug: pokaż wszystkie dostępne mecze
+                            logger.warning(f"  Dostępne mecze ({len(matches_by_names)}):")
+                            for i, (key, mid) in enumerate(list(matches_by_names.items())[:20]):
+                                logger.warning(f"    {i+1}. {key} (match_id={mid})")
                 else:
                     logger.warning(f"Nieprawidłowy format linii (brak separatora '-'): {line}")
             else:
