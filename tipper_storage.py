@@ -659,6 +659,11 @@ class TipperStorage:
             logger.info(f"update_match_result: Gracz {player_name}, match_id={match_id}, pred={pred}, player_predictions keys={list(player_predictions.keys())}")
             
             if pred:
+                # Sprawdź czy punkty są ręcznie ustawione - jeśli tak, nie nadpisuj ich
+                if self.is_manual_points(round_id, match_id, player_name):
+                    logger.info(f"update_match_result: ⏭️ Pomijam automatyczne przeliczanie punktów dla gracza {player_name}, mecz {match_id} - punkty są ręcznie ustawione")
+                    continue
+                
                 prediction_tuple = (pred['home'], pred['away'])
                 points = Tipper.calculate_points(prediction_tuple, (home_goals, away_goals))
                 
@@ -688,6 +693,86 @@ class TipperStorage:
         
         self._save_data()
         self._recalculate_player_totals(season_id=season_id)
+    
+    def set_manual_points(self, round_id: str, match_id: str, player_name: str, points: int, season_id: str = None):
+        """
+        Ręcznie ustawia punkty dla gracza i meczu (może być ujemne)
+        
+        Args:
+            round_id: ID rundy
+            match_id: ID meczu
+            player_name: Nazwa gracza
+            points: Punkty (może być ujemne)
+            season_id: ID sezonu (opcjonalne, domyślnie self.season_id)
+        """
+        if season_id is None:
+            season_id = self.season_id
+        
+        if round_id not in self.data['rounds']:
+            logger.error(f"Runda {round_id} nie istnieje")
+            return False
+        
+        # Pobierz graczy dla sezonu
+        players = self._get_season_players(season_id)
+        
+        # Upewnij się, że gracz istnieje
+        if player_name not in players:
+            logger.warning(f"Gracz {player_name} nie istnieje w sezonie {season_id}")
+            # Możemy utworzyć gracza jeśli nie istnieje
+            players[player_name] = {
+                'predictions': {},
+                'total_points': 0,
+                'rounds_played': 0,
+                'best_score': 0,
+                'worst_score': float('inf')
+            }
+        
+        # Upewnij się, że struktura match_points istnieje
+        if 'match_points' not in self.data['rounds'][round_id]:
+            self.data['rounds'][round_id]['match_points'] = {}
+        if player_name not in self.data['rounds'][round_id]['match_points']:
+            self.data['rounds'][round_id]['match_points'][player_name] = {}
+        
+        # Upewnij się, że struktura manual_points istnieje (flaga oznaczająca ręcznie ustawione punkty)
+        if 'manual_points' not in self.data['rounds'][round_id]:
+            self.data['rounds'][round_id]['manual_points'] = {}
+        if player_name not in self.data['rounds'][round_id]['manual_points']:
+            self.data['rounds'][round_id]['manual_points'][player_name] = {}
+        
+        # Ustaw punkty i oznacz jako ręcznie ustawione
+        match_id_str = str(match_id)
+        self.data['rounds'][round_id]['match_points'][player_name][match_id_str] = points
+        self.data['rounds'][round_id]['manual_points'][player_name][match_id_str] = True
+        
+        logger.info(f"set_manual_points: ✅ Ustawiono ręcznie punkty {points} dla gracza {player_name}, mecz {match_id} w rundzie {round_id}")
+        
+        # Przelicz całkowite punkty gracza
+        self._recalculate_player_totals(season_id=season_id)
+        self._save_data()
+        
+        return True
+    
+    def is_manual_points(self, round_id: str, match_id: str, player_name: str) -> bool:
+        """
+        Sprawdza czy punkty dla meczu są ręcznie ustawione
+        
+        Args:
+            round_id: ID rundy
+            match_id: ID meczu
+            player_name: Nazwa gracza
+            
+        Returns:
+            True jeśli punkty są ręcznie ustawione, False w przeciwnym razie
+        """
+        if round_id not in self.data['rounds']:
+            return False
+        
+        manual_points = self.data['rounds'][round_id].get('manual_points', {})
+        if player_name not in manual_points:
+            return False
+        
+        match_id_str = str(match_id)
+        return manual_points[player_name].get(match_id_str, False)
     
     def _is_round_finished(self, round_data: Dict) -> bool:
         """Sprawdza czy runda jest rozegrana (wszystkie mecze mają wyniki)"""

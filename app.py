@@ -1078,6 +1078,80 @@ def main():
                                     total_points = sum(row['Punkty'] for row in types_table_data)
                                     st.caption(f"**Suma punktów: {total_points}**")
                                     
+                                    # Sekcja ręcznej edycji punktów
+                                    st.markdown("---")
+                                    st.markdown("### ✏️ Ręczna edycja punktów")
+                                    st.caption("💡 Możesz ręcznie ustawić punkty dla każdego meczu (w tym ujemne wartości)")
+                                    
+                                    # Przygotuj dane do edycji
+                                    manual_points_data = {}
+                                    for idx, match_id in enumerate(sorted_match_ids):
+                                        match = matches_map.get(str(match_id), {})
+                                        home_team = match.get('home_team_name', '?')
+                                        away_team = match.get('away_team_name', '?')
+                                        
+                                        # Pobierz aktualne punkty
+                                        current_points = None
+                                        if str(match_id) in match_points_dict:
+                                            current_points = match_points_dict[str(match_id)]
+                                        elif match_id in match_points_dict:
+                                            current_points = match_points_dict[match_id]
+                                        elif str(match_id).isdigit() and int(match_id) in match_points_dict:
+                                            current_points = match_points_dict[int(match_id)]
+                                        else:
+                                            current_points = 0
+                                        
+                                        # Sprawdź czy punkty są ręcznie ustawione
+                                        is_manual = storage.is_manual_points(round_id, match_id, player_name)
+                                        
+                                        col_match, col_points, col_manual = st.columns([3, 2, 1])
+                                        with col_match:
+                                            st.write(f"**{home_team} vs {away_team}**")
+                                        with col_points:
+                                            new_points = st.number_input(
+                                                "Punkty:",
+                                                value=int(current_points),
+                                                min_value=None,  # Pozwól na ujemne wartości
+                                                max_value=None,
+                                                step=1,
+                                                key=f"manual_points_{player_name}_{round_id}_{match_id}",
+                                                label_visibility="collapsed"
+                                            )
+                                            # Zapisz wartość do słownika
+                                            manual_points_data[match_id] = new_points
+                                        with col_manual:
+                                            if is_manual:
+                                                st.caption("✏️ Ręczne")
+                                            else:
+                                                st.caption("🤖 Auto")
+                                    
+                                    # Przycisk zapisu wszystkich punktów
+                                    if st.button("💾 Zapisz wszystkie punkty", type="primary", key=f"save_all_points_{player_name}_{round_id}", use_container_width=True):
+                                        saved_count = 0
+                                        for match_id, new_points in manual_points_data.items():
+                                            # Pobierz aktualne punkty
+                                            current_points = None
+                                            if str(match_id) in match_points_dict:
+                                                current_points = match_points_dict[str(match_id)]
+                                            elif match_id in match_points_dict:
+                                                current_points = match_points_dict[match_id]
+                                            elif str(match_id).isdigit() and int(match_id) in match_points_dict:
+                                                current_points = match_points_dict[int(match_id)]
+                                            else:
+                                                current_points = 0
+                                            
+                                            # Zapisz tylko jeśli wartość się zmieniła
+                                            if new_points != current_points:
+                                                storage.set_manual_points(round_id, match_id, player_name, new_points, season_id=selected_season_id)
+                                                saved_count += 1
+                                        
+                                        if saved_count > 0:
+                                            storage.flush_save()
+                                            st.success(f"✅ Zapisano punkty dla {saved_count} meczów")
+                                            st.rerun()
+                                        else:
+                                            st.info("ℹ️ Brak zmian do zapisania")
+                                    
                                     # Podsumowanie dla logów
                                     zero_points_count = sum(1 for row in types_table_data if row['Punkty'] == 0)
                                     matches_with_results = sum(1 for row in types_table_data if row['Wynik'] != '—')
