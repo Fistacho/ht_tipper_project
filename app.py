@@ -1914,20 +1914,57 @@ def main():
                         
                         # Pobierz aktualne punkty
                         current_points = None
-                        if str(match_id) in match_points_dict:
-                            current_points = match_points_dict[str(match_id)]
+                        match_id_str = str(match_id)
+                        
+                        # Sprawdź różne warianty klucza
+                        if match_id_str in match_points_dict:
+                            current_points = match_points_dict[match_id_str]
                         elif match_id in match_points_dict:
                             current_points = match_points_dict[match_id]
-                        elif str(match_id).isdigit() and int(match_id) in match_points_dict:
-                            current_points = match_points_dict[int(match_id)]
+                        elif match_id_str.isdigit() and int(match_id_str) in match_points_dict:
+                            current_points = match_points_dict[int(match_id_str)]
                         else:
-                            current_points = 0
+                            # Jeśli brak punktów, ale mecz ma wynik i typ, oblicz punkty
+                            home_goals = match.get('home_goals')
+                            away_goals = match.get('away_goals')
+                            if home_goals is not None and away_goals is not None:
+                                # Pobierz typ (sprawdź różne warianty klucza)
+                                pred = None
+                                if match_id in player_predictions:
+                                    pred = player_predictions[match_id]
+                                elif match_id_str in player_predictions:
+                                    pred = player_predictions[match_id_str]
+                                elif match_id_str.isdigit() and int(match_id_str) in player_predictions:
+                                    pred = player_predictions[int(match_id_str)]
+                                
+                                if pred:
+                                    pred_home = pred.get('home', 0)
+                                    pred_away = pred.get('away', 0)
+                                    # Oblicz punkty
+                                    calculated_points = tipper.calculate_points((pred_home, pred_away), (int(home_goals), int(away_goals)))
+                                    current_points = calculated_points
+                                    logger.info(f"Korekta punktów: Obliczono punkty dla meczu {match_id_str}: typ={pred_home}-{pred_away}, wynik={home_goals}-{away_goals}, punkty={calculated_points}")
+                                else:
+                                    current_points = 0
+                            else:
+                                current_points = 0
                         
                         # Sprawdź czy punkty są ręcznie ustawione
                         is_manual = storage.is_manual_points(round_id, match_id, selected_player)
                         
-                        # Pobierz typ i wynik
-                        pred = player_predictions[match_id]
+                        # Pobierz typ i wynik (sprawdź różne warianty klucza)
+                        pred = None
+                        if match_id in player_predictions:
+                            pred = player_predictions[match_id]
+                        elif match_id_str in player_predictions:
+                            pred = player_predictions[match_id_str]
+                        elif match_id_str.isdigit() and int(match_id_str) in player_predictions:
+                            pred = player_predictions[int(match_id_str)]
+                        
+                        if not pred:
+                            # Jeśli nie ma typu, pomiń ten mecz
+                            continue
+                        
                         pred_home = pred.get('home', 0)
                         pred_away = pred.get('away', 0)
                         home_goals = match.get('home_goals')
