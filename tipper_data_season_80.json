@@ -3427,10 +3427,10 @@
           "away_team_name": "Legia KG(L)",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": 0,
-          "away_goals": 5,
+          "home_goals": "0",
+          "away_goals": "5",
           "league_id": 9399,
-          "result_updated": "2025-11-27T08:12:56.191198"
+          "result_updated": "2025-11-27T08:13:52.139766"
         },
         {
           "match_id": "753850104",
