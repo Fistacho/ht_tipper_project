@@ -3375,10 +3375,10 @@
           "away_team_name": "WKS BRONEK 50",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": "6",
-          "away_goals": "2",
+          "home_goals": 6,
+          "away_goals": 2,
           "league_id": 32612,
-          "result_updated": "2025-11-27T08:26:37.387676"
+          "result_updated": "2025-11-27T08:34:50.148133"
         },
         {
           "match_id": "753891432",
@@ -3669,6 +3669,9 @@
           "753891433": 8,
           "753891434": 3,
           "753850102": 9
+        },
+        "Adi": {
+          "753891431": 4
         }
       }
     },
@@ -9958,13 +9961,13 @@
               }
             }
           },
-          "total_points": 453,
+          "total_points": 457,
           "rounds_played": 14,
           "best_score": 54,
           "worst_score": 16,
           "round_scores": {
             "round_2025-11-09": 34,
-            "round_2025-11-23": 0,
+            "round_2025-11-23": 4,
             "round_2025-08-24": 16,
             "round_2025-08-31": 54,
             "round_2025-09-07": 38,
