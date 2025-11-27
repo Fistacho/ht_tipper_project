@@ -3375,10 +3375,10 @@
           "away_team_name": "WKS BRONEK 50",
           "match_date": "2025-11-23 09:00:00",
           "status": null,
-          "home_goals": "6",
-          "away_goals": "2",
+          "home_goals": 6,
+          "away_goals": 2,
           "league_id": 32612,
-          "result_updated": "2025-11-27T08:15:45.563901"
+          "result_updated": "2025-11-27T08:17:12.205731"
         },
         {
           "match_id": "753891432",
@@ -3562,6 +3562,9 @@
           "753850102": 0,
           "753891431": 0,
           "753891433": 2
+        },
+        "Sokół": {
+          "753891431": 0
         }
       }
     },
