@@ -6,7 +6,17 @@
       "rounds": [],
       "start_date": null,
       "end_date": null,
-      "selected_teams": [],
+      "selected_teams": [
+        "Atletik Bimbao",
+        "Borciuchy International",
+        "FC Lokomotywa",
+        "FC Paralityks",
+        "Legia KG(L)",
+        "LegiaWawa",
+        "Moli Team",
+        "Szmacianka Szynwałdzianka",
+        "ks Jastrowie"
+      ],
       "selected_leagues": [],
       "players": {},
       "archived": false
