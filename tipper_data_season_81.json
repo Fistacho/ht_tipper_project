@@ -1,0 +1,19 @@
+{
+  "rounds": {},
+  "seasons": {
+    "season_81": {
+      "league_id": null,
+      "rounds": [],
+      "start_date": null,
+      "end_date": null,
+      "selected_teams": [],
+      "selected_leagues": [],
+      "players": {},
+      "archived": false
+    }
+  },
+  "leagues": {},
+  "settings": {
+    "selected_teams": []
+  }
+}
