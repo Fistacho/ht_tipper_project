@@ -75,7 +75,10 @@
         "Szmacianka Szynwałdzianka",
         "ks Jastrowie"
       ],
-      "selected_leagues": [],
+      "selected_leagues": [
+        32612,
+        9583
+      ],
       "players": {
         "Adi": {
           "predictions": {},
