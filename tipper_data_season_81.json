@@ -76,7 +76,15 @@
         "ks Jastrowie"
       ],
       "selected_leagues": [],
-      "players": {},
+      "players": {
+        "Adi": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        }
+      },
       "archived": false
     }
   },
