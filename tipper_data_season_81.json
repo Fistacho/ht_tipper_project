@@ -425,13 +425,13 @@
               }
             }
           },
-          "total_points": 0,
+          "total_points": 1,
           "rounds_played": 1,
-          "best_score": 0,
-          "worst_score": 0,
+          "best_score": 1,
+          "worst_score": 1,
           "round_scores": {
             "round_2025-12-21": 0,
-            "round_2025-12-14": 0
+            "round_2025-12-14": 1
           }
         },
         "Moli": {
@@ -514,13 +514,13 @@
               }
             }
           },
-          "total_points": 0,
+          "total_points": 7,
           "rounds_played": 1,
-          "best_score": 0,
-          "worst_score": 0,
+          "best_score": 7,
+          "worst_score": 7,
           "round_scores": {
             "round_2025-12-21": 0,
-            "round_2025-12-14": 0
+            "round_2025-12-14": 7
           }
         },
         "Wilk": {
