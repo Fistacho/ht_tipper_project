@@ -1578,6 +1578,11 @@ def main():
                     st.error("❌ Nie udało się usunąć gracza")
             
             if selected_player:
+                # Upewnij się, że runda istnieje w storage (ważne dla nowych sezonów)
+                if round_id not in storage.data.get('rounds', {}):
+                    storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
+                    storage.reload_data()
+                
                 # Sprawdź czy trzeba odświeżyć dane
                 needs_refresh = st.session_state.get('_refresh_predictions', False)
                 if needs_refresh:
@@ -1802,6 +1807,11 @@ def main():
                         if not predictions_text:
                             st.warning("⚠️ Wprowadź typy")
                         else:
+                            # Upewnij się, że runda istnieje w storage (ważne dla nowych sezonów)
+                            if round_id not in storage.data.get('rounds', {}):
+                                storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
+                                storage.reload_data()
+                            
                             # Parsuj typy z dopasowaniem do meczów
                             parsed = tipper.parse_match_predictions(predictions_text, selected_matches)
                             
