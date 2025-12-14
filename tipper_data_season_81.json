@@ -201,6 +201,13 @@
             "away": 0,
             "timestamp": "2025-12-14T11:10:26.880458"
           }
+        },
+        "Manvers": {
+          "758871959": {
+            "home": 2,
+            "away": 2,
+            "timestamp": "2025-12-14T11:11:29.657223"
+          }
         }
       },
       "match_points": {
@@ -329,7 +336,15 @@
           }
         },
         "Manvers": {
-          "predictions": {},
+          "predictions": {
+            "round_2025-12-14": {
+              "758871959": {
+                "home": 2,
+                "away": 2,
+                "timestamp": "2025-12-14T11:11:29.657231"
+              }
+            }
+          },
           "total_points": 0,
           "rounds_played": 0,
           "best_score": 0,
