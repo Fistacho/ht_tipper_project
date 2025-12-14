@@ -147,6 +147,13 @@
             "away": 4,
             "timestamp": "2025-12-14T11:08:09.920819"
           }
+        },
+        "Sonne": {
+          "758871959": {
+            "home": 0,
+            "away": 1,
+            "timestamp": "2025-12-14T11:09:24.287836"
+          }
         }
       },
       "match_points": {
@@ -280,7 +287,15 @@
           }
         },
         "Sonne": {
-          "predictions": {},
+          "predictions": {
+            "round_2025-12-14": {
+              "758871959": {
+                "home": 0,
+                "away": 1,
+                "timestamp": "2025-12-14T11:09:24.287844"
+              }
+            }
+          },
           "total_points": 0,
           "rounds_played": 0,
           "best_score": 0,
