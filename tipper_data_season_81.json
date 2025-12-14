@@ -66,9 +66,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2025-12-14 09:00:00",
           "status": null,
-          "home_goals": "0",
-          "away_goals": "4",
-          "league_id": 32612
+          "home_goals": 0,
+          "away_goals": 4,
+          "league_id": 32612,
+          "result_updated": "2025-12-14T11:13:19.210469"
         },
         {
           "match_id": "758871960",
@@ -264,6 +265,18 @@
           "758871961": 1,
           "758871963": 8,
           "758840936": 8
+        },
+        "Sonne": {
+          "758871959": 7
+        },
+        "Adi": {
+          "758871959": 0
+        },
+        "Manvers": {
+          "758871959": 1
+        },
+        "Moli": {
+          "758871959": 0
         }
       }
     }
