@@ -83,6 +83,55 @@
           "rounds_played": 0,
           "best_score": 0,
           "worst_score": Infinity
+        },
+        "Fistach": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        },
+        "Kali": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        },
+        "Manvers": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        },
+        "Moli": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        },
+        "Sokół": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        },
+        "Sonne": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        },
+        "Wilk": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
         }
       },
       "archived": false
