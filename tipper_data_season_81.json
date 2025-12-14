@@ -54,13 +54,239 @@
       ],
       "start_date": "2025-12-21",
       "predictions": {}
+    },
+    "round_2025-12-14": {
+      "season_id": "season_81",
+      "matches": [
+        {
+          "match_id": "758871959",
+          "home_team_id": "866974",
+          "home_team_name": "Moli Team",
+          "away_team_id": "1299952",
+          "away_team_name": "FC Lokomotywa",
+          "match_date": "2025-12-14 09:00:00",
+          "status": null,
+          "home_goals": "0",
+          "away_goals": "4",
+          "league_id": 32612,
+          "result_updated": "2025-12-14T11:17:04.996529"
+        },
+        {
+          "match_id": "758871960",
+          "home_team_id": "479526",
+          "home_team_name": "ks Jastrowie",
+          "away_team_id": "1825826",
+          "away_team_name": "LegiaWawa",
+          "match_date": "2025-12-14 09:00:00",
+          "status": null,
+          "home_goals": "1",
+          "away_goals": "4",
+          "league_id": 32612
+        },
+        {
+          "match_id": "758871961",
+          "home_team_id": "477994",
+          "home_team_name": "Borciuchy International",
+          "away_team_id": "1816653",
+          "away_team_name": "Szmacianka Szynwałdzianka",
+          "match_date": "2025-12-14 09:00:00",
+          "status": null,
+          "home_goals": "2",
+          "away_goals": "1",
+          "league_id": 32612
+        },
+        {
+          "match_id": "758871963",
+          "home_team_id": "1045897",
+          "home_team_name": "Atletik Bimbao",
+          "away_team_id": "1829983",
+          "away_team_name": "Legia KG(L)",
+          "match_date": "2025-12-14 09:00:00",
+          "status": null,
+          "home_goals": "1",
+          "away_goals": "4",
+          "league_id": 32612
+        },
+        {
+          "match_id": "758840936",
+          "home_team_id": "1823455",
+          "home_team_name": "FC Paralityks",
+          "away_team_id": "1820487",
+          "away_team_name": "Pajace z cyrku",
+          "match_date": "2025-12-14 09:00:00",
+          "status": null,
+          "home_goals": "5",
+          "away_goals": "1",
+          "league_id": 9583
+        }
+      ],
+      "start_date": "2025-12-14",
+      "predictions": {
+        "Fistach": {
+          "758871959": {
+            "home": 1,
+            "away": 3,
+            "timestamp": "2025-12-14T11:08:09.206110"
+          },
+          "758871960": {
+            "home": 2,
+            "away": 3,
+            "timestamp": "2025-12-14T11:08:09.920408"
+          },
+          "758871963": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2025-12-14T11:08:09.921108"
+          },
+          "758840936": {
+            "home": 3,
+            "away": 1,
+            "timestamp": "2025-12-14T11:08:09.921393"
+          },
+          "758871961": {
+            "home": 1,
+            "away": 4,
+            "timestamp": "2025-12-14T11:08:09.920819"
+          }
+        },
+        "Sonne": {
+          "758871959": {
+            "home": 0,
+            "away": 1,
+            "timestamp": "2025-12-14T11:09:24.287836"
+          },
+          "758871960": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2025-12-14T11:09:25.055490"
+          },
+          "758871961": {
+            "home": 3,
+            "away": 2,
+            "timestamp": "2025-12-14T11:09:25.055581"
+          },
+          "758871963": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2025-12-14T11:09:25.055868"
+          },
+          "758840936": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2025-12-14T11:09:25.055958"
+          }
+        },
+        "Adi": {
+          "758871959": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2025-12-14T11:10:26.150028"
+          },
+          "758871960": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2025-12-14T11:10:26.880181"
+          },
+          "758871961": {
+            "home": 1,
+            "away": 3,
+            "timestamp": "2025-12-14T11:10:26.880307"
+          },
+          "758871963": {
+            "home": 1,
+            "away": 3,
+            "timestamp": "2025-12-14T11:10:26.880396"
+          },
+          "758840936": {
+            "home": 2,
+            "away": 0,
+            "timestamp": "2025-12-14T11:10:26.880458"
+          }
+        },
+        "Manvers": {
+          "758871959": {
+            "home": 2,
+            "away": 2,
+            "timestamp": "2025-12-14T11:11:29.657223"
+          },
+          "758871960": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2025-12-14T11:11:30.331795"
+          },
+          "758871961": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2025-12-14T11:11:30.331888"
+          },
+          "758871963": {
+            "home": 1,
+            "away": 4,
+            "timestamp": "2025-12-14T11:11:30.331947"
+          },
+          "758840936": {
+            "home": 2,
+            "away": 2,
+            "timestamp": "2025-12-14T11:11:30.331995"
+          }
+        },
+        "Moli": {
+          "758871959": {
+            "home": 3,
+            "away": 2,
+            "timestamp": "2025-12-14T11:12:30.657971"
+          },
+          "758871960": {
+            "home": 2,
+            "away": 2,
+            "timestamp": "2025-12-14T11:12:31.298176"
+          },
+          "758871961": {
+            "home": 2,
+            "away": 2,
+            "timestamp": "2025-12-14T11:12:31.298295"
+          },
+          "758871963": {
+            "home": 0,
+            "away": 4,
+            "timestamp": "2025-12-14T11:12:31.298365"
+          },
+          "758840936": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2025-12-14T11:12:31.298416"
+          }
+        }
+      },
+      "match_points": {
+        "Fistach": {
+          "758871959": 8,
+          "758871960": 8,
+          "758871961": 1,
+          "758871963": 8,
+          "758840936": 8
+        },
+        "Sonne": {
+          "758871959": 7
+        },
+        "Adi": {
+          "758871959": 0
+        },
+        "Manvers": {
+          "758871959": 1
+        },
+        "Moli": {
+          "758871959": 0
+        }
+      }
     }
   },
   "seasons": {
     "season_81": {
       "league_id": null,
       "rounds": [
-        "round_2025-12-21"
+        "round_2025-12-21",
+        "round_2025-12-14"
       ],
       "start_date": null,
       "end_date": null,
@@ -75,8 +301,240 @@
         "Szmacianka Szynwałdzianka",
         "ks Jastrowie"
       ],
-      "selected_leagues": [],
-      "players": {},
+      "selected_leagues": [
+        32612,
+        9583
+      ],
+      "players": {
+        "Adi": {
+          "predictions": {
+            "round_2025-12-14": {
+              "758871959": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2025-12-14T11:10:26.150039"
+              },
+              "758871960": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2025-12-14T11:10:26.880191"
+              },
+              "758871961": {
+                "home": 1,
+                "away": 3,
+                "timestamp": "2025-12-14T11:10:26.880315"
+              },
+              "758871963": {
+                "home": 1,
+                "away": 3,
+                "timestamp": "2025-12-14T11:10:26.880402"
+              },
+              "758840936": {
+                "home": 2,
+                "away": 0,
+                "timestamp": "2025-12-14T11:10:26.880462"
+              }
+            }
+          },
+          "total_points": 0,
+          "rounds_played": 1,
+          "best_score": 0,
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
+          }
+        },
+        "Fistach": {
+          "predictions": {
+            "round_2025-12-14": {
+              "758871959": {
+                "home": 1,
+                "away": 3,
+                "timestamp": "2025-12-14T11:08:09.206121"
+              },
+              "758871960": {
+                "home": 2,
+                "away": 3,
+                "timestamp": "2025-12-14T11:08:09.920419"
+              },
+              "758871963": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2025-12-14T11:08:09.921113"
+              },
+              "758840936": {
+                "home": 3,
+                "away": 1,
+                "timestamp": "2025-12-14T11:08:09.921398"
+              },
+              "758871961": {
+                "home": 1,
+                "away": 4,
+                "timestamp": "2025-12-14T11:08:09.920825"
+              }
+            }
+          },
+          "total_points": 33,
+          "rounds_played": 1,
+          "best_score": 33,
+          "worst_score": 33,
+          "round_scores": {
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 33
+          }
+        },
+        "Kali": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
+          }
+        },
+        "Manvers": {
+          "predictions": {
+            "round_2025-12-14": {
+              "758871959": {
+                "home": 2,
+                "away": 2,
+                "timestamp": "2025-12-14T11:11:29.657231"
+              },
+              "758871960": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2025-12-14T11:11:30.331805"
+              },
+              "758871961": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2025-12-14T11:11:30.331892"
+              },
+              "758871963": {
+                "home": 1,
+                "away": 4,
+                "timestamp": "2025-12-14T11:11:30.331951"
+              },
+              "758840936": {
+                "home": 2,
+                "away": 2,
+                "timestamp": "2025-12-14T11:11:30.331998"
+              }
+            }
+          },
+          "total_points": 1,
+          "rounds_played": 1,
+          "best_score": 1,
+          "worst_score": 1,
+          "round_scores": {
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 1
+          }
+        },
+        "Moli": {
+          "predictions": {
+            "round_2025-12-14": {
+              "758871959": {
+                "home": 3,
+                "away": 2,
+                "timestamp": "2025-12-14T11:12:30.657981"
+              },
+              "758871960": {
+                "home": 2,
+                "away": 2,
+                "timestamp": "2025-12-14T11:12:31.298188"
+              },
+              "758871961": {
+                "home": 2,
+                "away": 2,
+                "timestamp": "2025-12-14T11:12:31.298301"
+              },
+              "758871963": {
+                "home": 0,
+                "away": 4,
+                "timestamp": "2025-12-14T11:12:31.298369"
+              },
+              "758840936": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2025-12-14T11:12:31.298419"
+              }
+            }
+          },
+          "total_points": 0,
+          "rounds_played": 1,
+          "best_score": 0,
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
+          }
+        },
+        "Sokół": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
+          }
+        },
+        "Sonne": {
+          "predictions": {
+            "round_2025-12-14": {
+              "758871959": {
+                "home": 0,
+                "away": 1,
+                "timestamp": "2025-12-14T11:09:24.287844"
+              },
+              "758871960": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2025-12-14T11:09:25.055503"
+              },
+              "758871961": {
+                "home": 3,
+                "away": 2,
+                "timestamp": "2025-12-14T11:09:25.055586"
+              },
+              "758871963": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2025-12-14T11:09:25.055880"
+              },
+              "758840936": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2025-12-14T11:09:25.055963"
+              }
+            }
+          },
+          "total_points": 7,
+          "rounds_played": 1,
+          "best_score": 7,
+          "worst_score": 7,
+          "round_scores": {
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 7
+          }
+        },
+        "Wilk": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
+          }
+        }
+      },
       "archived": false
     }
   },
