@@ -54,13 +54,81 @@
       ],
       "start_date": "2025-12-21",
       "predictions": {}
+    },
+    "round_2025-12-14": {
+      "season_id": "season_81",
+      "matches": [
+        {
+          "match_id": "758871959",
+          "home_team_id": "866974",
+          "home_team_name": "Moli Team",
+          "away_team_id": "1299952",
+          "away_team_name": "FC Lokomotywa",
+          "match_date": "2025-12-14 09:00:00",
+          "status": null,
+          "home_goals": "0",
+          "away_goals": "4",
+          "league_id": 32612
+        },
+        {
+          "match_id": "758871960",
+          "home_team_id": "479526",
+          "home_team_name": "ks Jastrowie",
+          "away_team_id": "1825826",
+          "away_team_name": "LegiaWawa",
+          "match_date": "2025-12-14 09:00:00",
+          "status": null,
+          "home_goals": "1",
+          "away_goals": "4",
+          "league_id": 32612
+        },
+        {
+          "match_id": "758871961",
+          "home_team_id": "477994",
+          "home_team_name": "Borciuchy International",
+          "away_team_id": "1816653",
+          "away_team_name": "Szmacianka Szynwałdzianka",
+          "match_date": "2025-12-14 09:00:00",
+          "status": null,
+          "home_goals": "2",
+          "away_goals": "1",
+          "league_id": 32612
+        },
+        {
+          "match_id": "758871963",
+          "home_team_id": "1045897",
+          "home_team_name": "Atletik Bimbao",
+          "away_team_id": "1829983",
+          "away_team_name": "Legia KG(L)",
+          "match_date": "2025-12-14 09:00:00",
+          "status": null,
+          "home_goals": "1",
+          "away_goals": "4",
+          "league_id": 32612
+        },
+        {
+          "match_id": "758840936",
+          "home_team_id": "1823455",
+          "home_team_name": "FC Paralityks",
+          "away_team_id": "1820487",
+          "away_team_name": "Pajace z cyrku",
+          "match_date": "2025-12-14 09:00:00",
+          "status": null,
+          "home_goals": "5",
+          "away_goals": "1",
+          "league_id": 9583
+        }
+      ],
+      "start_date": "2025-12-14",
+      "predictions": {}
     }
   },
   "seasons": {
     "season_81": {
       "league_id": null,
       "rounds": [
-        "round_2025-12-21"
+        "round_2025-12-21",
+        "round_2025-12-14"
       ],
       "start_date": null,
       "end_date": null,
