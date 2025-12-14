@@ -82,56 +82,80 @@
           "total_points": 0,
           "rounds_played": 0,
           "best_score": 0,
-          "worst_score": Infinity
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0
+          }
         },
         "Fistach": {
           "predictions": {},
           "total_points": 0,
           "rounds_played": 0,
           "best_score": 0,
-          "worst_score": Infinity
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0
+          }
         },
         "Kali": {
           "predictions": {},
           "total_points": 0,
           "rounds_played": 0,
           "best_score": 0,
-          "worst_score": Infinity
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0
+          }
         },
         "Manvers": {
           "predictions": {},
           "total_points": 0,
           "rounds_played": 0,
           "best_score": 0,
-          "worst_score": Infinity
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0
+          }
         },
         "Moli": {
           "predictions": {},
           "total_points": 0,
           "rounds_played": 0,
           "best_score": 0,
-          "worst_score": Infinity
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0
+          }
         },
         "Sokół": {
           "predictions": {},
           "total_points": 0,
           "rounds_played": 0,
           "best_score": 0,
-          "worst_score": Infinity
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0
+          }
         },
         "Sonne": {
           "predictions": {},
           "total_points": 0,
           "rounds_played": 0,
           "best_score": 0,
-          "worst_score": Infinity
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0
+          }
         },
         "Wilk": {
           "predictions": {},
           "total_points": 0,
           "rounds_played": 0,
           "best_score": 0,
-          "worst_score": Infinity
+          "worst_score": 0,
+          "round_scores": {
+            "round_2025-12-21": 0
+          }
         }
       },
       "archived": false
