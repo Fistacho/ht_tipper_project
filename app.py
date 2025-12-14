@@ -220,12 +220,47 @@ def main():
             step=1,
             key="new_season_num"
         )
+        copy_players = st.checkbox(
+            "📋 Kopiuj graczy z poprzedniego sezonu",
+            value=True,
+            help="Jeśli zaznaczone, gracze z poprzedniego sezonu zostaną automatycznie dodani do nowego sezonu",
+            key="copy_players_checkbox"
+        )
         if st.button("➕ Utwórz nowy sezon", type="primary", key="create_new_season"):
             # Utwórz storage dla nowego sezonu (tylko do utworzenia pliku)
             new_season_id = f"season_{new_season_num}"
             temp_storage = TipperStorage(season_id=new_season_id)
             if temp_storage.create_new_season(new_season_num):
-                st.success(f"✅ Utworzono nowy sezon {new_season_num}")
+                # Jeśli zaznaczono kopiowanie graczy, skopiuj ich z poprzedniego sezonu
+                if copy_players and available_seasons:
+                    # Znajdź poprzedni sezon (najwyższy numer przed nowym)
+                    # available_seasons to lista stringów "season_XX", więc konwertuj na numery
+                    previous_seasons = [int(s.replace("season_", "")) for s in available_seasons if int(s.replace("season_", "")) < new_season_num]
+                    if previous_seasons:
+                        previous_season_num = max(previous_seasons)
+                        previous_season_id = f"season_{previous_season_num}"
+                        
+                        # Załaduj poprzedni sezon i skopiuj graczy
+                        previous_storage = TipperStorage(season_id=previous_season_id)
+                        previous_players = previous_storage.get_season_players_list(season_id=previous_season_id)
+                        
+                        if previous_players:
+                            copied_count = 0
+                            for player_name in previous_players:
+                                if temp_storage.add_player(player_name, season_id=new_season_id):
+                                    copied_count += 1
+                            
+                            if copied_count > 0:
+                                temp_storage.flush_save()
+                                st.success(f"✅ Utworzono nowy sezon {new_season_num} i skopiowano {copied_count} graczy z sezonu {previous_season_num}")
+                            else:
+                                st.success(f"✅ Utworzono nowy sezon {new_season_num}")
+                        else:
+                            st.success(f"✅ Utworzono nowy sezon {new_season_num} (brak graczy w poprzednim sezonie)")
+                    else:
+                        st.success(f"✅ Utworzono nowy sezon {new_season_num}")
+                else:
+                    st.success(f"✅ Utworzono nowy sezon {new_season_num}")
                 st.rerun()
             else:
                 st.error(f"❌ Sezon {new_season_num} już istnieje lub wystąpił błąd")
@@ -1546,7 +1581,7 @@ def main():
             
             with col_player2:
                 st.markdown("<br>", unsafe_allow_html=True)  # Spacing
-                col_add, col_remove = st.columns(2)
+                col_add, col_remove, col_copy = st.columns(3)
                 with col_add:
                     add_new_player = st.button("➕ Dodaj", key="tipper_add_new_player_btn", use_container_width=True)
                 with col_remove:
@@ -1554,6 +1589,9 @@ def main():
                         remove_player = st.button("🗑️ Usuń", key="tipper_remove_player_btn", use_container_width=True)
                     else:
                         remove_player = False
+                with col_copy:
+                    # Przycisk kopiowania graczy z poprzedniego sezonu
+                    copy_players_btn = st.button("📋 Kopiuj", key="tipper_copy_players_btn", use_container_width=True, help="Kopiuj graczy z poprzedniego sezonu")
             
             # Dodawanie nowego gracza
             if add_new_player:
@@ -1567,6 +1605,44 @@ def main():
                                 st.rerun()
                             else:
                                 st.warning("⚠️ Gracz już istnieje w tym sezonie")
+            
+            # Kopiowanie graczy z poprzedniego sezonu
+            if copy_players_btn:
+                # Znajdź poprzedni sezon (najwyższy numer przed obecnym)
+                current_season_num = int(selected_season_id.replace("season_", "")) if selected_season_id.startswith("season_") else 0
+                available_seasons_nums = [int(s.replace("season_", "")) for s in available_seasons if s.startswith("season_")]
+                previous_seasons = [s for s in available_seasons_nums if s < current_season_num]
+                
+                if previous_seasons:
+                    previous_season_num = max(previous_seasons)
+                    previous_season_id = f"season_{previous_season_num}"
+                    
+                    # Załaduj poprzedni sezon i skopiuj graczy
+                    previous_storage = TipperStorage(season_id=previous_season_id)
+                    previous_players = previous_storage.get_season_players_list(season_id=previous_season_id)
+                    
+                    if previous_players:
+                        copied_count = 0
+                        skipped_count = 0
+                        for player_name in previous_players:
+                            if storage.add_player(player_name, season_id=selected_season_id):
+                                copied_count += 1
+                            else:
+                                skipped_count += 1  # Gracz już istnieje
+                        
+                        if copied_count > 0:
+                            storage.flush_save()
+                            if skipped_count > 0:
+                                st.success(f"✅ Skopiowano {copied_count} graczy z sezonu {previous_season_num} ({skipped_count} już istnieje)")
+                            else:
+                                st.success(f"✅ Skopiowano {copied_count} graczy z sezonu {previous_season_num}")
+                            st.rerun()
+                        else:
+                            st.warning(f"⚠️ Wszyscy gracze z sezonu {previous_season_num} już istnieją w tym sezonie")
+                    else:
+                        st.warning(f"⚠️ Brak graczy w sezonie {previous_season_num}")
+                else:
+                    st.warning("⚠️ Nie znaleziono poprzedniego sezonu")
             
             # Usuwanie gracza
             if remove_player and selected_player:
