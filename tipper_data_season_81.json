@@ -228,6 +228,13 @@
             "away": 2,
             "timestamp": "2025-12-14T11:11:30.331995"
           }
+        },
+        "Moli": {
+          "758871959": {
+            "home": 3,
+            "away": 2,
+            "timestamp": "2025-12-14T11:12:30.657971"
+          }
         }
       },
       "match_points": {
@@ -395,7 +402,15 @@
           }
         },
         "Moli": {
-          "predictions": {},
+          "predictions": {
+            "round_2025-12-14": {
+              "758871959": {
+                "home": 3,
+                "away": 2,
+                "timestamp": "2025-12-14T11:12:30.657981"
+              }
+            }
+          },
           "total_points": 0,
           "rounds_played": 0,
           "best_score": 0,
