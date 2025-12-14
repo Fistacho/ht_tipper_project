@@ -178,7 +178,8 @@
           "best_score": 0,
           "worst_score": 0,
           "round_scores": {
-            "round_2025-12-21": 0
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
           }
         },
         "Fistach": {
@@ -207,11 +208,12 @@
             }
           },
           "total_points": 0,
-          "rounds_played": 0,
+          "rounds_played": 1,
           "best_score": 0,
           "worst_score": 0,
           "round_scores": {
-            "round_2025-12-21": 0
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
           }
         },
         "Kali": {
@@ -221,7 +223,8 @@
           "best_score": 0,
           "worst_score": 0,
           "round_scores": {
-            "round_2025-12-21": 0
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
           }
         },
         "Manvers": {
@@ -231,7 +234,8 @@
           "best_score": 0,
           "worst_score": 0,
           "round_scores": {
-            "round_2025-12-21": 0
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
           }
         },
         "Moli": {
@@ -241,7 +245,8 @@
           "best_score": 0,
           "worst_score": 0,
           "round_scores": {
-            "round_2025-12-21": 0
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
           }
         },
         "Sokół": {
@@ -251,7 +256,8 @@
           "best_score": 0,
           "worst_score": 0,
           "round_scores": {
-            "round_2025-12-21": 0
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
           }
         },
         "Sonne": {
@@ -261,7 +267,8 @@
           "best_score": 0,
           "worst_score": 0,
           "round_scores": {
-            "round_2025-12-21": 0
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
           }
         },
         "Wilk": {
@@ -271,7 +278,8 @@
           "best_score": 0,
           "worst_score": 0,
           "round_scores": {
-            "round_2025-12-21": 0
+            "round_2025-12-21": 0,
+            "round_2025-12-14": 0
           }
         }
       },
