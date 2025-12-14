@@ -558,32 +558,31 @@ class TipperStorage:
             'timestamp': datetime.now().isoformat()
         }
         
-        # Jeśli typ już istniał i mecz jest rozegrany, przelicz punkty
-        if existing_prediction:
-            # Sprawdź czy mecz jest rozegrany
-            matches = self.data['rounds'][round_id].get('matches', [])
-            for match in matches:
-                if str(match.get('match_id')) == match_id_str:
-                    home_goals = match.get('home_goals')
-                    away_goals = match.get('away_goals')
-                    if home_goals is not None and away_goals is not None:
-                        # Przelicz punkty dla nowego typu
-                        from tipper import Tipper
-                        points = Tipper.calculate_points(prediction, (int(home_goals), int(away_goals)))
-                        
-                        # Aktualizuj punkty w match_points (tylko jeśli nie są ręcznie ustawione)
-                        if 'match_points' not in self.data['rounds'][round_id]:
-                            self.data['rounds'][round_id]['match_points'] = {}
-                        if player_name not in self.data['rounds'][round_id]['match_points']:
-                            self.data['rounds'][round_id]['match_points'][player_name] = {}
-                        
-                        # Sprawdź czy punkty są ręcznie ustawione - jeśli tak, nie nadpisuj
-                        if not self.is_manual_points(round_id, match_id_str, player_name):
-                            self.data['rounds'][round_id]['match_points'][player_name][match_id_str] = points
-                        
-                        # Przelicz całkowite punkty gracza (dla sezonu)
-                        self._recalculate_player_totals(season_id=season_id)
-                    break
+        # Sprawdź czy mecz jest rozegrany i przelicz punkty (zarówno dla nowych jak i zaktualizowanych typów)
+        matches = self.data['rounds'][round_id].get('matches', [])
+        for match in matches:
+            if str(match.get('match_id')) == match_id_str:
+                home_goals = match.get('home_goals')
+                away_goals = match.get('away_goals')
+                if home_goals is not None and away_goals is not None:
+                    # Przelicz punkty dla typu (zarówno nowego jak i zaktualizowanego)
+                    from tipper import Tipper
+                    points = Tipper.calculate_points(prediction, (int(home_goals), int(away_goals)))
+                    
+                    # Aktualizuj punkty w match_points (tylko jeśli nie są ręcznie ustawione)
+                    if 'match_points' not in self.data['rounds'][round_id]:
+                        self.data['rounds'][round_id]['match_points'] = {}
+                    if player_name not in self.data['rounds'][round_id]['match_points']:
+                        self.data['rounds'][round_id]['match_points'][player_name] = {}
+                    
+                    # Sprawdź czy punkty są ręcznie ustawione - jeśli tak, nie nadpisuj
+                    if not self.is_manual_points(round_id, match_id_str, player_name):
+                        self.data['rounds'][round_id]['match_points'][player_name][match_id_str] = points
+                        logger.info(f"add_prediction: Przeliczono punkty {points} dla gracza {player_name}, mecz {match_id_str}, typ {prediction}, wynik {home_goals}-{away_goals}")
+                    
+                    # Przelicz całkowite punkty gracza (dla sezonu)
+                    self._recalculate_player_totals(season_id=season_id)
+                break
         
         self._save_data()
         return True

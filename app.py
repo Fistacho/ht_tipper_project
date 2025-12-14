@@ -1836,6 +1836,21 @@ def main():
                             
                             total_saved = saved_count + updated_count
                             if total_saved > 0:
+                                # Przelicz punkty dla wszystkich meczów z wynikami w tej rundzie
+                                storage.reload_data()
+                                round_data = storage.data['rounds'].get(round_id, {})
+                                round_matches = round_data.get('matches', [])
+                                for match in round_matches:
+                                    match_id = str(match.get('match_id', ''))
+                                    home_goals = match.get('home_goals')
+                                    away_goals = match.get('away_goals')
+                                    if home_goals is not None and away_goals is not None:
+                                        # Przelicz punkty dla tego meczu (dla wszystkich graczy z typami)
+                                        try:
+                                            storage.update_match_result(round_id, match_id, int(home_goals), int(away_goals))
+                                        except Exception as e:
+                                            logger.error(f"Błąd przeliczania punktów dla meczu {match_id}: {e}")
+                                
                                 if updated_count > 0 and saved_count > 0:
                                     st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
                                 elif updated_count > 0:
@@ -1949,6 +1964,21 @@ def main():
                                 
                                 total_saved = saved_count + updated_count
                                 if total_saved > 0:
+                                    # Przelicz punkty dla wszystkich meczów z wynikami w tej rundzie
+                                    storage.reload_data()
+                                    round_data = storage.data['rounds'].get(round_id, {})
+                                    round_matches = round_data.get('matches', [])
+                                    for match in round_matches:
+                                        match_id = str(match.get('match_id', ''))
+                                        home_goals = match.get('home_goals')
+                                        away_goals = match.get('away_goals')
+                                        if home_goals is not None and away_goals is not None:
+                                            # Przelicz punkty dla tego meczu (dla wszystkich graczy z typami)
+                                            try:
+                                                storage.update_match_result(round_id, match_id, int(home_goals), int(away_goals))
+                                            except Exception as e:
+                                                logger.error(f"Błąd przeliczania punktów dla meczu {match_id}: {e}")
+                                    
                                     if updated_count > 0 and saved_count > 0:
                                         st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
                                     elif updated_count > 0:
