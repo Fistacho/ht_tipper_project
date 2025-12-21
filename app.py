@@ -830,7 +830,7 @@ def main():
                         color_continuous_scale='plasma'
                     )
                     fig.update_layout(xaxis_tickangle=-45, height=400)
-                    st.plotly_chart(fig, width='stretch', key="ranking_overall_chart_main")
+                    st.plotly_chart(fig, use_container_width=True, key="ranking_overall_chart_main")
                     
                     # Statystyki
                     col1, col2, col3, col4 = st.columns(4)
@@ -1213,7 +1213,7 @@ def main():
                             color_continuous_scale='viridis'
                         )
                         fig.update_layout(xaxis_tickangle=-45, height=400)
-                        st.plotly_chart(fig, width='stretch', key=f"ranking_round_{round_number}_chart")
+                        st.plotly_chart(fig, use_container_width=True, key=f"ranking_round_{round_number}_chart")
                 else:
                     st.info("📊 Brak danych do wyświetlenia dla tej kolejki")
         
@@ -1265,7 +1265,7 @@ def main():
                         color_continuous_scale='YlOrRd'
                     )
                     fig.update_layout(xaxis_tickangle=-45, height=400)
-                    st.plotly_chart(fig, width='stretch', key="ranking_alltime_chart")
+                    st.plotly_chart(fig, use_container_width=True, key="ranking_alltime_chart")
                     
                     # Statystyki
                     col1, col2, col3, col4 = st.columns(4)
