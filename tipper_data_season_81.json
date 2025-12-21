@@ -463,7 +463,8 @@
           "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 0,
-            "round_2025-12-14": 18
+            "round_2025-12-14": 18,
+            "round_2025-12-28": 0
           }
         },
         "Fistach": {
@@ -502,7 +503,8 @@
           "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 0,
-            "round_2025-12-14": 33
+            "round_2025-12-14": 33,
+            "round_2025-12-28": 0
           }
         },
         "Kali": {
@@ -513,7 +515,8 @@
           "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 0,
-            "round_2025-12-14": 0
+            "round_2025-12-14": 0,
+            "round_2025-12-28": 0
           }
         },
         "Manvers": {
@@ -552,7 +555,8 @@
           "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 0,
-            "round_2025-12-14": 25
+            "round_2025-12-14": 25,
+            "round_2025-12-28": 0
           }
         },
         "Moli": {
@@ -591,7 +595,8 @@
           "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 0,
-            "round_2025-12-14": 22
+            "round_2025-12-14": 22,
+            "round_2025-12-28": 0
           }
         },
         "Sokół": {
@@ -602,7 +607,8 @@
           "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 0,
-            "round_2025-12-14": 0
+            "round_2025-12-14": 0,
+            "round_2025-12-28": 0
           }
         },
         "Sonne": {
@@ -648,7 +654,8 @@
           "worst_score": 4,
           "round_scores": {
             "round_2025-12-21": 4,
-            "round_2025-12-14": 38
+            "round_2025-12-14": 38,
+            "round_2025-12-28": 0
           }
         },
         "Wilk": {
@@ -672,7 +679,8 @@
           "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 13,
-            "round_2025-12-14": 0
+            "round_2025-12-14": 0,
+            "round_2025-12-28": 0
           }
         }
       },
