@@ -8158,6 +8158,61 @@
           "753850100": 8
         }
       }
+    },
+    "round_2025-12-21": {
+      "season_id": "season_80",
+      "matches": [
+        {
+          "match_id": "758871962",
+          "home_team_id": "1816653",
+          "home_team_name": "Szmacianka Szynwałdzianka",
+          "away_team_id": "479526",
+          "away_team_name": "ks Jastrowie",
+          "match_date": "2025-12-21 09:00:00",
+          "status": null,
+          "home_goals": "1",
+          "away_goals": "2",
+          "league_id": 32612
+        },
+        {
+          "match_id": "758871964",
+          "home_team_id": "1299952",
+          "home_team_name": "FC Lokomotywa",
+          "away_team_id": "477994",
+          "away_team_name": "Borciuchy International",
+          "match_date": "2025-12-21 09:00:00",
+          "status": null,
+          "home_goals": "4",
+          "away_goals": "0",
+          "league_id": 32612
+        },
+        {
+          "match_id": "758871965",
+          "home_team_id": "1825826",
+          "home_team_name": "LegiaWawa",
+          "away_team_id": "1045897",
+          "away_team_name": "Atletik Bimbao",
+          "match_date": "2025-12-21 09:00:00",
+          "status": null,
+          "home_goals": "3",
+          "away_goals": "1",
+          "league_id": 32612
+        },
+        {
+          "match_id": "758871966",
+          "home_team_id": "1829983",
+          "home_team_name": "Legia KG(L)",
+          "away_team_id": "866974",
+          "away_team_name": "Moli Team",
+          "match_date": "2025-12-21 09:00:00",
+          "status": null,
+          "home_goals": "3",
+          "away_goals": "0",
+          "league_id": 32612
+        }
+      ],
+      "start_date": "2025-12-21",
+      "predictions": {}
     }
   },
   "seasons": {
@@ -8177,7 +8232,8 @@
         "round_2025-10-19",
         "round_2025-10-26",
         "round_2025-11-02",
-        "round_2025-11-16"
+        "round_2025-11-16",
+        "round_2025-12-21"
       ],
       "start_date": null,
       "end_date": null,
