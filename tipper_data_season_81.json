@@ -580,12 +580,12 @@
               }
             }
           },
-          "total_points": 0,
+          "total_points": 12,
           "rounds_played": 1,
-          "best_score": 0,
+          "best_score": 12,
           "worst_score": 0,
           "round_scores": {
-            "round_2025-12-21": 0,
+            "round_2025-12-21": 12,
             "round_2025-12-14": 0
           }
         }
