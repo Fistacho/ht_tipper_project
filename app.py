@@ -1186,20 +1186,20 @@ def main():
                                             # NIE odświeżamy - użytkownik może kontynuować pracę
                                         else:
                                             st.info("ℹ️ Brak zmian do zapisania")
-                        
-                        # Podsumowanie dla logów
-                        zero_points_count = sum(1 for row in types_table_data if row['Punkty'] == 0)
-                        matches_with_results = sum(1 for row in types_table_data if row['Wynik'] != '—')
-                        logger.info(f"PODSUMOWANIE dla {player_name} w {round_id}:")
-                        logger.info(f"  Łącznie meczów: {len(types_table_data)}")
-                        logger.info(f"  Mecze z wynikami: {matches_with_results}")
-                        logger.info(f"  Mecze z 0 punktami: {zero_points_count}")
-                        logger.info(f"  Suma punktów: {total_points}")
-                        logger.info(f"  Szczegóły wszystkich meczów:")
-                        for row in types_table_data:
-                            logger.info(f"    {row['Mecz']}: Typ {row['Typ']}, Wynik {row['Wynik']}, Punkty {row['Punkty']}")
-                        if zero_points_count > 0 and matches_with_results < len(types_table_data):
-                            logger.warning(f"  UWAGA: {zero_points_count} meczów ma 0 punktów, ale tylko {matches_with_results} meczów ma wyniki")
+                                    
+                                    # Podsumowanie dla logów (wewnątrz bloku gdzie types_table_data jest zdefiniowane)
+                                    zero_points_count = sum(1 for row in types_table_data if row['Punkty'] == 0)
+                                    matches_with_results = sum(1 for row in types_table_data if row['Wynik'] != '—')
+                                    logger.info(f"PODSUMOWANIE dla {player_name} w {round_id}:")
+                                    logger.info(f"  Łącznie meczów: {len(types_table_data)}")
+                                    logger.info(f"  Mecze z wynikami: {matches_with_results}")
+                                    logger.info(f"  Mecze z 0 punktami: {zero_points_count}")
+                                    logger.info(f"  Suma punktów: {total_points}")
+                                    logger.info(f"  Szczegóły wszystkich meczów:")
+                                    for row in types_table_data:
+                                        logger.info(f"    {row['Mecz']}: Typ {row['Typ']}, Wynik {row['Wynik']}, Punkty {row['Punkty']}")
+                                    if zero_points_count > 0 and matches_with_results < len(types_table_data):
+                                        logger.warning(f"  UWAGA: {zero_points_count} meczów ma 0 punktów, ale tylko {matches_with_results} meczów ma wyniki")
                     
                     # Wykres rankingu per kolejka
                     if len(round_leaderboard) > 0:
@@ -1744,10 +1744,10 @@ def main():
                                 if bulk_value:
                                     # Użyj wartości z bulk (nadpisuje wszystko)
                                     initial_value = bulk_value
-                                    # Zapisz do głównego klucza PRZED utworzeniem widgetu (tylko jeśli klucz nie istnieje)
-                                    # To pozwoli na dostęp do wartości przy zapisie
-                                    if input_key not in st.session_state:
-                                        st.session_state[input_key] = bulk_value
+                                    # ZAWSZE zapisz do głównego klucza PRZED utworzeniem widgetu
+                                    # To pozwoli na dostęp do wartości przy zapisie i wypełni pole
+                                    st.session_state[input_key] = bulk_value
+                                    logger.info(f"Bulk fill: Zapisano wartość '{bulk_value}' do {input_key} dla meczu {match_id_str}")
                                     
                                     # Usuń dane z bulk po użyciu
                                     if match_id_str in bulk_fill_data:
@@ -1811,7 +1811,7 @@ def main():
                             errors = []
                             
                             # Pobierz wszystkie istniejące typy przed zapisem (aby nie stracić tych, które nie są w session_state)
-                            storage.reload_data()
+                            # NIE przeładowujemy danych - używamy aktualnych danych z storage
                             existing_predictions_before = storage.get_player_predictions(selected_player, round_id, season_id=selected_season_id)
                             
                             logger.info(f"Zapis typów: Sprawdzam {len(selected_matches)} meczów dla gracza {selected_player}")
@@ -2026,7 +2026,8 @@ def main():
                                 
                                 if filled_count > 0:
                                     st.success(f"✅ Przygotowano {filled_count} pól. Kliknij '💾 Zapisz typy' aby zapisać.")
-                                    # NIE odświeżamy - pola będą wypełnione przy następnym renderowaniu
+                                    # Odśwież ekran, aby pola zostały wypełnione wartościami z bulk
+                                    st.rerun()
                                 else:
                                     st.warning("⚠️ Nie znaleziono dopasowanych meczów")
                             else:
