@@ -300,20 +300,35 @@ class TipperStorage:
         """Wykonuje faktyczny zapis danych"""
         # Próbuj najpierw zapisać przez GitHub API (jeśli skonfigurowane)
         if self.github_config:
+            logger.info(f"_do_save: Próbuję zapisać przez GitHub API do pliku {os.path.basename(self.data_file)}")
             if self._save_to_github():
-                logger.debug("Zapisano dane do GitHub przez API")
+                logger.info("_do_save: Zapisano dane do GitHub przez API")
                 return
+            else:
+                logger.warning("_do_save: Nie udało się zapisać przez GitHub API, używam zapisu lokalnego")
         
         # Fallback: zapis lokalny (dla lokalnego rozwoju)
         try:
             # Użyj bezwzględnej ścieżki dla pewności (szczególnie na Streamlit Cloud)
             abs_path = os.path.abspath(self.data_file)
             
+            logger.info(f"_do_save: Zapisuję lokalnie do pliku {abs_path}")
+            
             # Zapisuj do pliku z trybem 'w' (nadpisuje istniejący)
             with open(abs_path, 'w', encoding='utf-8') as f:
                 json.dump(self.data, f, ensure_ascii=False, indent=2)
             
-            logger.debug(f"Zapisano dane do pliku {abs_path}: {len(self.data.get('players', {}))} graczy, {len(self.data.get('rounds', {}))} rund")
+            # Loguj szczegóły zapisu
+            rounds_count = len(self.data.get('rounds', {}))
+            total_predictions = 0
+            for round_id, round_data in self.data.get('rounds', {}).items():
+                predictions = round_data.get('predictions', {})
+                for player_name, player_predictions in predictions.items():
+                    total_predictions += len(player_predictions)
+                    logger.info(f"_do_save: Runda {round_id}, gracz {player_name}: {len(player_predictions)} typów, match_ids: {list(player_predictions.keys())[:5]}")
+            
+            logger.info(f"_do_save: Zapisano dane do pliku {abs_path}: {rounds_count} rund, {total_predictions} typów")
+            logger.info(f"_do_save: Szczegóły: {len(self.data.get('seasons', {}))} sezonów")
             
             # Sprawdź czy plik rzeczywiście istnieje po zapisie
             if os.path.exists(abs_path):
@@ -331,8 +346,24 @@ class TipperStorage:
         # Zawsze zapisz, nawet jeśli nie ma pending_save (może być opóźnienie w debounce)
         self._pending_save = False
         self._last_save_time = time.time()
+        
+        # Loguj przed zapisem - sprawdź ile typów jest w każdej rundzie
+        logger.info(f"flush_save: Zapisuję do pliku {self.data_file}")
+        logger.info(f"flush_save: Absolutna ścieżka: {os.path.abspath(self.data_file)}")
+        for round_id, round_data in self.data.get('rounds', {}).items():
+            predictions = round_data.get('predictions', {})
+            for player_name, player_predictions in predictions.items():
+                logger.info(f"flush_save: Runda {round_id}, gracz {player_name}: {len(player_predictions)} typów, match_ids: {list(player_predictions.keys())}")
+        
         self._do_save()
         logger.info("flush_save: Wymuszono natychmiastowy zapis danych")
+        
+        # Sprawdź czy plik został zapisany
+        if os.path.exists(self.data_file):
+            file_size = os.path.getsize(self.data_file)
+            logger.info(f"flush_save: Plik zapisany, rozmiar: {file_size} bajtów")
+        else:
+            logger.error(f"flush_save: BŁĄD - plik {self.data_file} nie istnieje po zapisie!")
     
     def _save_to_github(self) -> bool:
         """Zapisuje dane do GitHub przez API (używa REST API bezpośrednio dla lepszej kompatybilności)"""
@@ -374,7 +405,8 @@ class TipperStorage:
                 response = requests.put(url, headers=headers, json=data)
                 
                 if response.status_code == 200:
-                    logger.info(f"Zaktualizowano plik {file_path} w GitHub")
+                    logger.info(f"✅ Zaktualizowano plik {file_path} w GitHub (repo: {self.github_config['repo_owner']}/{self.github_config['repo_name']})")
+                    logger.info(f"📦 Dane zapisane do repozytorium GitHub, nie lokalnie. Pobierz z GitHub aby zobaczyć zmiany.")
                     return True
                 else:
                     error_msg = response.text
@@ -396,7 +428,8 @@ class TipperStorage:
                 response = requests.put(url, headers=headers, json=data)
                 
                 if response.status_code == 201:
-                    logger.info(f"Utworzono plik {file_path} w GitHub")
+                    logger.info(f"✅ Utworzono plik {file_path} w GitHub (repo: {self.github_config['repo_owner']}/{self.github_config['repo_name']})")
+                    logger.info(f"📦 Dane zapisane do repozytorium GitHub, nie lokalnie. Pobierz z GitHub aby zobaczyć zmiany.")
                     return True
                 else:
                     error_msg = response.text
@@ -547,6 +580,8 @@ class TipperStorage:
             'away': prediction[1],
             'timestamp': datetime.now().isoformat()
         }
+        logger.info(f"add_prediction: Zapisano typ {prediction} dla gracza {player_name}, mecz {match_id_str}, runda {round_id}")
+        logger.info(f"add_prediction: Łącznie typów w rundzie dla {player_name}: {len(self.data['rounds'][round_id]['predictions'][player_name])}, match_ids: {list(self.data['rounds'][round_id]['predictions'][player_name].keys())}")
         
         # Dodaj lub aktualizuj typ do gracza (w sezonie)
         if round_id not in players[player_name]['predictions']:
@@ -558,6 +593,7 @@ class TipperStorage:
             'away': prediction[1],
             'timestamp': datetime.now().isoformat()
         }
+        logger.info(f"add_prediction: Zapisano typ do struktury gracza, łącznie typów w rundzie: {len(self.data['rounds'][round_id]['predictions'][player_name])}")
         
         # Sprawdź czy mecz jest rozegrany i przelicz punkty (zarówno dla nowych jak i zaktualizowanych typów)
         matches = self.data['rounds'][round_id].get('matches', [])
@@ -585,7 +621,9 @@ class TipperStorage:
                     self._recalculate_player_totals(season_id=season_id)
                 break
         
-        self._save_data()
+        # NIE zapisuj od razu przez _save_data() (używa debounce) - zapis będzie przez flush_save() po wszystkich typach
+        # self._save_data()  # Wyłączone - zapis będzie przez flush_save() po wszystkich typach
+        logger.info(f"add_prediction: Typ zapisany do pamięci, czekam na flush_save()")
         return True
     
     def delete_player_predictions(self, round_id: str, player_name: str):

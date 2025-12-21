@@ -1664,8 +1664,17 @@ def main():
                 if needs_refresh:
                     storage.reload_data()
                 
-                # Przeładuj dane przed pobraniem typów (aby mieć aktualne dane)
-                storage.reload_data()
+                # Sprawdź czy trzeba odświeżyć dane (po zapisie typów)
+                needs_refresh = st.session_state.get('_refresh_predictions', False)
+                if needs_refresh:
+                    # Przeładuj dane przed pobraniem typów (aby mieć aktualne dane po zapisie)
+                    storage.reload_data()
+                    logger.info("Odświeżam dane po zapisie typów")
+                    # Wyczyść flagę po użyciu
+                    st.session_state['_refresh_predictions'] = False
+                else:
+                    # Przeładuj dane przed pobraniem typów (aby mieć aktualne dane)
+                    storage.reload_data()
                 
                 # Pobierz istniejące typy gracza dla tej rundy
                 existing_predictions = storage.get_player_predictions(selected_player, round_id, season_id=selected_season_id)
@@ -1744,10 +1753,7 @@ def main():
                                 if bulk_value:
                                     # Użyj wartości z bulk (nadpisuje wszystko)
                                     initial_value = bulk_value
-                                    # ZAWSZE zapisz do głównego klucza PRZED utworzeniem widgetu
-                                    # To pozwoli na dostęp do wartości przy zapisie i wypełni pole
-                                    st.session_state[input_key] = bulk_value
-                                    logger.info(f"Bulk fill: Zapisano wartość '{bulk_value}' do {input_key} dla meczu {match_id_str}")
+                                    logger.info(f"Bulk fill: Użyję wartość '{bulk_value}' dla meczu {match_id_str}")
                                     
                                     # Usuń dane z bulk po użyciu
                                     if match_id_str in bulk_fill_data:
@@ -1761,16 +1767,17 @@ def main():
                                     else:
                                         st.session_state[bulk_fill_key] = bulk_fill_data
                                 elif input_key in st.session_state:
-                                    # Jeśli nie ma bulk, użyj istniejącej wartości
+                                    # Jeśli nie ma bulk, użyj istniejącej wartości z session_state
                                     initial_value = st.session_state[input_key]
-                                
                                 # Jeśli flaga odświeżenia jest ustawiona, użyj wartości domyślnej
-                                if needs_refresh:
+                                elif needs_refresh:
                                     initial_value = default_value
+                                    # Usuń wartość z session_state jeśli istnieje
                                     if input_key in st.session_state:
                                         del st.session_state[input_key]
                                 
-                                # Użyj value w st.text_input - Streamlit zaktualizuje session_state gdy użytkownik zmieni wartość
+                                # Użyj value w st.text_input - Streamlit automatycznie zsynchronizuje to z session_state
+                                # NIE ustawiaj session_state[input_key] przed utworzeniem widgetu - to powoduje konflikt
                                 pred_input = st.text_input(
                                     f"Typ:",
                                     value=initial_value,
@@ -1949,8 +1956,8 @@ def main():
                                 # Ustaw flagę odświeżenia w session_state (będzie użyta przy następnym renderowaniu)
                                 st.session_state['_refresh_predictions'] = True
                                 
-                                # NIE odświeżamy ekranu - użytkownik może kontynuować pracę
-                                # Dane są zapisane, tylko odświeżymy widok przy następnej interakcji
+                                # Odśwież ekran, aby zaktualizować ikony statusu (✅/❌)
+                                st.rerun()
                             else:
                                 if errors:
                                     st.error("❌ Nie udało się zapisać typów:\n" + "\n".join(errors[:5]))
