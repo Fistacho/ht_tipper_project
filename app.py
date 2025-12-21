@@ -275,7 +275,7 @@ def main():
         # Sekcja użytkownika
         st.header("👤 Użytkownik")
         st.info(f"Zalogowany jako: **{username}**")
-        if st.button("🚪 Wyloguj się", use_container_width=True):
+        if st.button("🚪 Wyloguj się", width='stretch'):
             logout()
             return
         
@@ -326,7 +326,7 @@ def main():
         # Przycisk dodawania nowej ligi
         col_add, col_save = st.columns(2)
         with col_add:
-            if st.button("➕ Dodaj ligę", key=f"add_league_{selected_season_id}", use_container_width=True):
+            if st.button("➕ Dodaj ligę", key=f"add_league_{selected_season_id}", width='stretch'):
                 # Dodaj domyślną ligę (najwyższe ID + 1 lub 1)
                 if st.session_state[leagues_key]:
                     new_league_id = max(st.session_state[leagues_key]) + 1
@@ -337,7 +337,7 @@ def main():
         
         with col_save:
             # Przycisk zapisu lig
-            if st.button("💾 Zapisz ligi", type="primary", key=f"save_leagues_{selected_season_id}", use_container_width=True):
+            if st.button("💾 Zapisz ligi", type="primary", key=f"save_leagues_{selected_season_id}", width='stretch'):
                 TIPPER_LEAGUES = st.session_state[leagues_key].copy()
                 storage.set_selected_leagues(TIPPER_LEAGUES, season_id=selected_season_id)
                 storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
@@ -365,7 +365,7 @@ def main():
         )
         
         if archived_status != is_archived:
-            if st.button("💾 Zapisz status", type="primary", key=f"save_archived_{selected_season_id}", use_container_width=True):
+            if st.button("💾 Zapisz status", type="primary", key=f"save_archived_{selected_season_id}", width='stretch'):
                 storage.set_season_archived(archived_status, season_id=selected_season_id)
                 storage.flush_save()
                 if archived_status:
@@ -390,7 +390,7 @@ def main():
         # Storage jest już utworzony w głównym widoku - użyj go
         
         # Eksport danych
-        if st.button("📥 Pobierz backup danych", use_container_width=True, help="Pobierz aktualny plik tipper_data.json"):
+        if st.button("📥 Pobierz backup danych", width='stretch', help="Pobierz aktualny plik tipper_data.json"):
             import json
             data_str = json.dumps(storage.data, ensure_ascii=False, indent=2)
             st.download_button(
@@ -398,7 +398,7 @@ def main():
                 data=data_str,
                 file_name="tipper_data.json",
                 mime="application/json",
-                use_container_width=True
+                width='stretch'
             )
         
         # Import danych
@@ -428,7 +428,7 @@ def main():
                         st.info(f"📊 Dane w pliku:\n- Gracze: {players_count}\n- Rundy: {rounds_count}")
                         
                         # Przycisk importu
-                        if st.button("💾 Zaimportuj dane", type="primary", use_container_width=True):
+                        if st.button("💾 Zaimportuj dane", type="primary", width='stretch'):
                             # Zrób backup przed importem
                             backup_data = storage.data.copy()
                             
@@ -592,7 +592,7 @@ def main():
                     
                     if leaderboard_data:
                         df_leaderboard = pd.DataFrame(leaderboard_data)
-                        st.dataframe(df_leaderboard[['Pozycja', 'Gracz', 'Punkty', 'Suma', 'Rundy']], use_container_width=True, hide_index=True)
+                        st.dataframe(df_leaderboard[['Pozycja', 'Gracz', 'Punkty', 'Suma', 'Rundy']], width='stretch', hide_index=True)
                     else:
                         st.info("📊 Brak danych rankingowych")
                 else:
@@ -722,7 +722,7 @@ def main():
                     new_selected_teams.append(team_name)
             
             # Przycisk zapisu ustawień
-            if st.button("💾 Zapisz wybór drużyn", type="primary", use_container_width=True):
+            if st.button("💾 Zapisz wybór drużyn", type="primary", width='stretch'):
                 storage.set_selected_teams(new_selected_teams, season_id=selected_season_id)
                 storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
                 st.success(f"✅ Zapisano wybór {len(new_selected_teams)} drużyn dla sezonu {selected_season_id.replace('season_', '')}")
@@ -816,7 +816,7 @@ def main():
                     })
                 
                 df_leaderboard = pd.DataFrame(leaderboard_data)
-                st.dataframe(df_leaderboard, use_container_width=True, hide_index=True)
+                st.dataframe(df_leaderboard, width='stretch', hide_index=True)
                 
                 # Wykres rankingu całości
                 if len(leaderboard) > 0:
@@ -830,7 +830,7 @@ def main():
                         color_continuous_scale='plasma'
                     )
                     fig.update_layout(xaxis_tickangle=-45, height=400)
-                    st.plotly_chart(fig, use_container_width=True, key="ranking_overall_chart_main")
+                    st.plotly_chart(fig, width='stretch', key="ranking_overall_chart_main")
                     
                     # Statystyki
                     col1, col2, col3, col4 = st.columns(4)
@@ -1020,7 +1020,7 @@ def main():
                         })
                     
                     df_round_leaderboard = pd.DataFrame(round_leaderboard_data)
-                    st.dataframe(df_round_leaderboard, use_container_width=True, hide_index=True)
+                    st.dataframe(df_round_leaderboard, width='stretch', hide_index=True)
                     
                     # Dodaj expandery z typami dla każdego gracza
                     st.markdown("### 📋 Szczegóły typów")
@@ -1109,7 +1109,7 @@ def main():
                             if types_table_data:
                                 with st.expander(f"👤 {player_name} - Typy i wyniki", expanded=True):
                                     df_types = pd.DataFrame(types_table_data)
-                                    st.dataframe(df_types, use_container_width=True, hide_index=True)
+                                    st.dataframe(df_types, width='stretch', hide_index=True)
                                     total_points = sum(row['Punkty'] for row in types_table_data)
                                     st.caption(f"**Suma punktów: {total_points}**")
                                     
@@ -1161,7 +1161,7 @@ def main():
                                                 st.caption("🤖 Auto")
                                     
                                     # Przycisk zapisu wszystkich punktów
-                                    if st.button("💾 Zapisz wszystkie punkty", type="primary", key=f"save_all_points_{player_name}_{round_id}", use_container_width=True):
+                                    if st.button("💾 Zapisz wszystkie punkty", type="primary", key=f"save_all_points_{player_name}_{round_id}", width='stretch'):
                                         saved_count = 0
                                         for match_id, new_points in manual_points_data.items():
                                             # Pobierz aktualne punkty
@@ -1183,23 +1183,23 @@ def main():
                                         if saved_count > 0:
                                             storage.flush_save()
                                             st.success(f"✅ Zapisano punkty dla {saved_count} meczów")
-                                            st.rerun()
+                                            # NIE odświeżamy - użytkownik może kontynuować pracę
                                         else:
                                             st.info("ℹ️ Brak zmian do zapisania")
-                                    
-                                    # Podsumowanie dla logów
-                                    zero_points_count = sum(1 for row in types_table_data if row['Punkty'] == 0)
-                                    matches_with_results = sum(1 for row in types_table_data if row['Wynik'] != '—')
-                                    logger.info(f"PODSUMOWANIE dla {player_name} w {round_id}:")
-                                    logger.info(f"  Łącznie meczów: {len(types_table_data)}")
-                                    logger.info(f"  Mecze z wynikami: {matches_with_results}")
-                                    logger.info(f"  Mecze z 0 punktami: {zero_points_count}")
-                                    logger.info(f"  Suma punktów: {total_points}")
-                                    logger.info(f"  Szczegóły wszystkich meczów:")
-                                    for row in types_table_data:
-                                        logger.info(f"    {row['Mecz']}: Typ {row['Typ']}, Wynik {row['Wynik']}, Punkty {row['Punkty']}")
-                                    if zero_points_count > 0 and matches_with_results < len(types_table_data):
-                                        logger.warning(f"  UWAGA: {zero_points_count} meczów ma 0 punktów, ale tylko {matches_with_results} meczów ma wyniki")
+                        
+                        # Podsumowanie dla logów
+                        zero_points_count = sum(1 for row in types_table_data if row['Punkty'] == 0)
+                        matches_with_results = sum(1 for row in types_table_data if row['Wynik'] != '—')
+                        logger.info(f"PODSUMOWANIE dla {player_name} w {round_id}:")
+                        logger.info(f"  Łącznie meczów: {len(types_table_data)}")
+                        logger.info(f"  Mecze z wynikami: {matches_with_results}")
+                        logger.info(f"  Mecze z 0 punktami: {zero_points_count}")
+                        logger.info(f"  Suma punktów: {total_points}")
+                        logger.info(f"  Szczegóły wszystkich meczów:")
+                        for row in types_table_data:
+                            logger.info(f"    {row['Mecz']}: Typ {row['Typ']}, Wynik {row['Wynik']}, Punkty {row['Punkty']}")
+                        if zero_points_count > 0 and matches_with_results < len(types_table_data):
+                            logger.warning(f"  UWAGA: {zero_points_count} meczów ma 0 punktów, ale tylko {matches_with_results} meczów ma wyniki")
                     
                     # Wykres rankingu per kolejka
                     if len(round_leaderboard) > 0:
@@ -1213,7 +1213,7 @@ def main():
                             color_continuous_scale='viridis'
                         )
                         fig.update_layout(xaxis_tickangle=-45, height=400)
-                        st.plotly_chart(fig, use_container_width=True, key=f"ranking_round_{round_number}_chart")
+                        st.plotly_chart(fig, width='stretch', key=f"ranking_round_{round_number}_chart")
                 else:
                     st.info("📊 Brak danych do wyświetlenia dla tej kolejki")
         
@@ -1251,7 +1251,7 @@ def main():
                     })
                 
                 df_leaderboard = pd.DataFrame(leaderboard_data)
-                st.dataframe(df_leaderboard, use_container_width=True, hide_index=True)
+                st.dataframe(df_leaderboard, width='stretch', hide_index=True)
                 
                 # Wykres rankingu wszechczasów
                 if len(all_time_leaderboard) > 0:
@@ -1265,7 +1265,7 @@ def main():
                         color_continuous_scale='YlOrRd'
                     )
                     fig.update_layout(xaxis_tickangle=-45, height=400)
-                    st.plotly_chart(fig, use_container_width=True, key="ranking_alltime_chart")
+                    st.plotly_chart(fig, width='stretch', key="ranking_alltime_chart")
                     
                     # Statystyki
                     col1, col2, col3, col4 = st.columns(4)
@@ -1331,7 +1331,7 @@ def main():
             # Przycisk do przeliczania punktów
             col_refresh, col_info = st.columns([1, 4])
             with col_refresh:
-                if st.button("🔄 Przelicz punkty", type="primary", use_container_width=True, key=f"recalculate_{round_id}"):
+                if st.button("🔄 Przelicz punkty", type="primary", width='stretch', key=f"recalculate_{round_id}"):
                     with st.spinner("Pobieranie wyników i przeliczanie punktów..."):
                         # Przeładuj dane
                         storage.reload_data()
@@ -1555,7 +1555,7 @@ def main():
             # Wyświetl tabelę z meczami
             if matches_table_data:
                 df_matches = pd.DataFrame(matches_table_data)
-                st.dataframe(df_matches, use_container_width=True, hide_index=True)
+                st.dataframe(df_matches, width='stretch', hide_index=True)
             
             
             # Sekcja wprowadzania i korygowania typów - wszystko w jednym miejscu
@@ -1583,15 +1583,15 @@ def main():
                 st.markdown("<br>", unsafe_allow_html=True)  # Spacing
                 col_add, col_remove, col_copy = st.columns(3)
                 with col_add:
-                    add_new_player = st.button("➕ Dodaj", key="tipper_add_new_player_btn", use_container_width=True)
+                    add_new_player = st.button("➕ Dodaj", key="tipper_add_new_player_btn", width='stretch')
                 with col_remove:
                     if all_players_list and selected_player:
-                        remove_player = st.button("🗑️ Usuń", key="tipper_remove_player_btn", use_container_width=True)
+                        remove_player = st.button("🗑️ Usuń", key="tipper_remove_player_btn", width='stretch')
                     else:
                         remove_player = False
                 with col_copy:
                     # Przycisk kopiowania graczy z poprzedniego sezonu
-                    copy_players_btn = st.button("📋 Kopiuj", key="tipper_copy_players_btn", use_container_width=True, help="Kopiuj graczy z poprzedniego sezonu")
+                    copy_players_btn = st.button("📋 Kopiuj", key="tipper_copy_players_btn", width='stretch', help="Kopiuj graczy z poprzedniego sezonu")
             
             # Dodawanie nowego gracza
             if add_new_player:
@@ -1805,7 +1805,7 @@ def main():
                     with col_save_single:
                         # Użyj unikalnego klucza z round_id i selected_player, aby uniknąć duplikatów
                         save_button_key = f"tipper_save_all_{selected_player}_{round_id}"
-                        if st.button("💾 Zapisz typy", type="primary", key=save_button_key, use_container_width=True):
+                        if st.button("💾 Zapisz typy", type="primary", key=save_button_key, width='stretch'):
                             saved_count = 0
                             updated_count = 0
                             errors = []
@@ -1918,7 +1918,7 @@ def main():
                             total_saved = saved_count + updated_count
                             if total_saved > 0:
                                 # Przelicz punkty dla wszystkich meczów z wynikami w tej rundzie
-                                storage.reload_data()
+                                # NIE przeładowujemy danych - używamy aktualnych danych z storage
                                 round_data = storage.data['rounds'].get(round_id, {})
                                 round_matches = round_data.get('matches', [])
                                 for match in round_matches:
@@ -1942,18 +1942,15 @@ def main():
                                 if errors:
                                     st.warning(f"⚠️ {len(errors)} typów nie zostało zapisanych:\n" + "\n".join(errors[:5]))
                                 
-                                # Wymuś natychmiastowy zapis przed rerun
+                                # Wymuś natychmiastowy zapis
                                 logger.info("Zapis typów (pojedyncze): Wymuszam zapis danych")
                                 storage.flush_save()
                                 
-                                # Wyczyść cache i wymuś odświeżenie danych
-                                st.cache_data.clear()
-                                
-                                # Ustaw flagę odświeżenia w session_state
+                                # Ustaw flagę odświeżenia w session_state (będzie użyta przy następnym renderowaniu)
                                 st.session_state['_refresh_predictions'] = True
                                 
-                                # Odśwież ekran
-                                st.rerun()
+                                # NIE odświeżamy ekranu - użytkownik może kontynuować pracę
+                                # Dane są zapisane, tylko odświeżymy widok przy następnej interakcji
                             else:
                                 if errors:
                                     st.error("❌ Nie udało się zapisać typów:\n" + "\n".join(errors[:5]))
@@ -1966,11 +1963,11 @@ def main():
                     with col_delete_single:
                         # Użyj unikalnego klucza z round_id i selected_player, aby uniknąć duplikatów
                         delete_button_key = f"tipper_delete_all_{selected_player}_{round_id}"
-                        if st.button("🗑️ Usuń typy", key=delete_button_key, use_container_width=True):
+                        if st.button("🗑️ Usuń typy", key=delete_button_key, width='stretch'):
                             if storage.delete_player_predictions(round_id, selected_player):
-                                storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
+                                storage.flush_save()  # Wymuś natychmiastowy zapis
                                 st.success("✅ Usunięto wszystkie typy")
-                                st.rerun()
+                                # NIE odświeżamy - użytkownik może kontynuować pracę
                             else:
                                 st.error("❌ Nie udało się usunąć typów")
                 
@@ -2029,7 +2026,7 @@ def main():
                                 
                                 if filled_count > 0:
                                     st.success(f"✅ Przygotowano {filled_count} pól. Kliknij '💾 Zapisz typy' aby zapisać.")
-                                    st.rerun()
+                                    # NIE odświeżamy - pola będą wypełnione przy następnym renderowaniu
                                 else:
                                     st.warning("⚠️ Nie znaleziono dopasowanych meczów")
                             else:
@@ -2146,7 +2143,7 @@ def main():
                                 st.caption("🤖")
                     
                     # Przycisk zapisu wszystkich punktów
-                    if st.button("💾 Zapisz wszystkie punkty", type="primary", key=f"save_all_points_correction_{selected_player}_{round_id}", use_container_width=True):
+                    if st.button("💾 Zapisz wszystkie punkty", type="primary", key=f"save_all_points_correction_{selected_player}_{round_id}", width='stretch'):
                         saved_count = 0
                         for match_id, new_points in manual_points_data.items():
                             # Pobierz aktualne punkty
@@ -2168,7 +2165,7 @@ def main():
                         if saved_count > 0:
                             storage.flush_save()
                             st.success(f"✅ Zapisano punkty dla {saved_count} meczów")
-                            st.rerun()
+                            # NIE odświeżamy - użytkownik może kontynuować pracę
                         else:
                             st.info("ℹ️ Brak zmian do zapisania")
                 else:
