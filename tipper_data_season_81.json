@@ -11,9 +11,10 @@
           "away_team_name": "ks Jastrowie",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": "1",
+          "away_goals": "2",
+          "league_id": 32612,
+          "result_updated": "2025-12-21T09:51:42.178414"
         },
         {
           "match_id": "758871964",
@@ -23,9 +24,10 @@
           "away_team_name": "Borciuchy International",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": "4",
+          "away_goals": "0",
+          "league_id": 32612,
+          "result_updated": "2025-12-21T09:51:42.178557"
         },
         {
           "match_id": "758871965",
@@ -35,9 +37,10 @@
           "away_team_name": "Atletik Bimbao",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": "3",
+          "away_goals": "1",
+          "league_id": 32612,
+          "result_updated": "2025-12-21T09:51:42.178675"
         },
         {
           "match_id": "758871966",
@@ -47,9 +50,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": "3",
+          "away_goals": "0",
+          "league_id": 32612,
+          "result_updated": "2025-12-21T09:51:42.178788"
         }
       ],
       "start_date": "2025-12-21",
