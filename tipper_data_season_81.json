@@ -69,11 +69,21 @@
             "away": 2,
             "timestamp": "2025-12-21T09:38:39.955651"
           }
+        },
+        "Sonne": {
+          "758871962": {
+            "home": 1,
+            "away": 1,
+            "timestamp": "2025-12-21T09:52:45.232896"
+          }
         }
       },
       "match_points": {
         "Wilk": {
           "758871962": 12
+        },
+        "Sonne": {
+          "758871962": 4
         }
       }
     },
@@ -554,14 +564,21 @@
                 "away": 1,
                 "timestamp": "2025-12-14T11:09:25.055963"
               }
+            },
+            "round_2025-12-21": {
+              "758871962": {
+                "home": 1,
+                "away": 1,
+                "timestamp": "2025-12-21T09:52:45.232904"
+              }
             }
           },
-          "total_points": 38,
-          "rounds_played": 1,
+          "total_points": 42,
+          "rounds_played": 2,
           "best_score": 38,
-          "worst_score": 0,
+          "worst_score": 4,
           "round_scores": {
-            "round_2025-12-21": 0,
+            "round_2025-12-21": 4,
             "round_2025-12-14": 38
           }
         },
