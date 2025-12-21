@@ -1736,19 +1736,18 @@ def main():
                                 if input_key not in st.session_state:
                                     st.session_state[input_key] = default_value
                                 
-                                # Użyj value z session_state - Streamlit zaktualizuje session_state gdy użytkownik zmieni wartość
-                                # WAŻNE: Streamlit aktualizuje session_state[key] automatycznie gdy używamy key
+                                # WAŻNE: W Streamlit, gdy używamy tylko key (bez value), Streamlit automatycznie
+                                # zarządza wartością w session_state[key]. Gdy użytkownik zmienia wartość,
+                                # Streamlit automatycznie aktualizuje session_state[key].
+                                # Jeśli podamy value, Streamlit może nie aktualizować session_state poprawnie.
                                 pred_input = st.text_input(
                                     f"Typ:",
-                                    value=st.session_state.get(input_key, default_value),
                                     key=input_key,
                                     label_visibility="collapsed"
                                 )
                                 
-                                # Upewnij się, że wartość jest zsynchronizowana z session_state
-                                # (Streamlit powinien to robić automatycznie, ale na wszelki wypadek)
-                                if pred_input != st.session_state.get(input_key):
-                                    st.session_state[input_key] = pred_input
+                                # Streamlit automatycznie aktualizuje session_state[input_key] gdy użytkownik zmienia wartość
+                                # Wartość zwracana przez st.text_input jest zawsze zsynchronizowana z session_state[input_key]
                             else:
                                 if is_historical:
                                     st.info("⏰ Rozegrany")
@@ -1772,7 +1771,9 @@ def main():
                     # Przyciski zapisu i usuwania pod wszystkimi meczami
                     col_save_single, col_delete_single = st.columns(2)
                     with col_save_single:
-                        if st.button("💾 Zapisz typy", type="primary", key="tipper_save_all", use_container_width=True):
+                        # Użyj unikalnego klucza z round_id i selected_player, aby uniknąć duplikatów
+                        save_button_key = f"tipper_save_all_{selected_player}_{round_id}"
+                        if st.button("💾 Zapisz typy", type="primary", key=save_button_key, use_container_width=True):
                             saved_count = 0
                             updated_count = 0
                             errors = []
@@ -1786,6 +1787,10 @@ def main():
                             # Loguj wszystkie klucze w session_state związane z typami
                             all_prediction_keys = [k for k in st.session_state.keys() if k.startswith(f"tipper_pred_{selected_player}_")]
                             logger.info(f"Zapis typów: Znaleziono {len(all_prediction_keys)} kluczy w session_state: {all_prediction_keys}")
+                            
+                            # Loguj wartości dla każdego klucza
+                            for key in all_prediction_keys:
+                                logger.info(f"Zapis typów: Klucz '{key}' ma wartość: '{st.session_state.get(key, 'BRAK')}'")
                             
                             for match in selected_matches:
                                 match_id = str(match.get('match_id', ''))
@@ -1917,7 +1922,9 @@ def main():
                                 storage.reload_data()
                     
                     with col_delete_single:
-                        if st.button("🗑️ Usuń typy", key="tipper_delete_all", use_container_width=True):
+                        # Użyj unikalnego klucza z round_id i selected_player, aby uniknąć duplikatów
+                        delete_button_key = f"tipper_delete_all_{selected_player}_{round_id}"
+                        if st.button("🗑️ Usuń typy", key=delete_button_key, use_container_width=True):
                             if storage.delete_player_predictions(round_id, selected_player):
                                 storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
                                 st.success("✅ Usunięto wszystkie typy")
