@@ -11,10 +11,10 @@
           "away_team_name": "ks Jastrowie",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "2",
+          "home_goals": 1,
+          "away_goals": 2,
           "league_id": 32612,
-          "result_updated": "2025-12-21T11:33:37.279696"
+          "result_updated": "2025-12-21T11:57:20.994004"
         },
         {
           "match_id": "758871964",
@@ -24,10 +24,10 @@
           "away_team_name": "Borciuchy International",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": "4",
-          "away_goals": "0",
+          "home_goals": 4,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2025-12-21T11:33:37.281515"
+          "result_updated": "2025-12-21T11:57:20.994985"
         },
         {
           "match_id": "758871965",
@@ -37,10 +37,10 @@
           "away_team_name": "Atletik Bimbao",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": "3",
-          "away_goals": "1",
+          "home_goals": 3,
+          "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2025-12-21T11:33:37.281827"
+          "result_updated": "2025-12-21T11:57:20.996063"
         },
         {
           "match_id": "758871966",
@@ -50,10 +50,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": "3",
-          "away_goals": "0",
+          "home_goals": 3,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2025-12-21T11:33:37.282425"
+          "result_updated": "2025-12-21T11:57:20.996063"
         }
       ],
       "start_date": "2025-12-21",
@@ -67,7 +67,22 @@
           "758871964": {
             "home": 2,
             "away": 2,
-            "timestamp": "2025-12-21T11:20:45.164679"
+            "timestamp": "2025-12-21T11:57:20.991402"
+          },
+          "758871965": {
+            "home": 3,
+            "away": 1,
+            "timestamp": "2025-12-21T11:57:20.991977"
+          },
+          "758871966": {
+            "home": 3,
+            "away": 2,
+            "timestamp": "2025-12-21T11:57:20.993070"
+          },
+          "758840941": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2025-12-21T11:57:20.994004"
           }
         },
         "Sonne": {
@@ -81,7 +96,9 @@
       "match_points": {
         "Wilk": {
           "758871962": 12,
-          "758871964": 1
+          "758871964": 1,
+          "758871965": 12,
+          "758871966": 8
         },
         "Sonne": {
           "758871962": 4
@@ -669,16 +686,31 @@
               "758871964": {
                 "home": 2,
                 "away": 2,
-                "timestamp": "2025-12-21T11:20:45.164679"
+                "timestamp": "2025-12-21T11:57:20.991402"
+              },
+              "758871965": {
+                "home": 3,
+                "away": 1,
+                "timestamp": "2025-12-21T11:57:20.991977"
+              },
+              "758871966": {
+                "home": 3,
+                "away": 2,
+                "timestamp": "2025-12-21T11:57:20.993070"
+              },
+              "758840941": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2025-12-21T11:57:20.994004"
               }
             }
           },
-          "total_points": 13,
+          "total_points": 33,
           "rounds_played": 1,
-          "best_score": 13,
+          "best_score": 33,
           "worst_score": 0,
           "round_scores": {
-            "round_2025-12-21": 13,
+            "round_2025-12-21": 33,
             "round_2025-12-14": 0,
             "round_2025-12-28": 0
           }
