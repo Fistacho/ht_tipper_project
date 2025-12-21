@@ -376,7 +376,7 @@
           "total_points": 18,
           "rounds_played": 1,
           "best_score": 18,
-          "worst_score": 18,
+          "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 0,
             "round_2025-12-14": 18
@@ -415,7 +415,7 @@
           "total_points": 33,
           "rounds_played": 1,
           "best_score": 33,
-          "worst_score": 33,
+          "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 0,
             "round_2025-12-14": 33
@@ -465,7 +465,7 @@
           "total_points": 25,
           "rounds_played": 1,
           "best_score": 25,
-          "worst_score": 25,
+          "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 0,
             "round_2025-12-14": 25
@@ -504,7 +504,7 @@
           "total_points": 22,
           "rounds_played": 1,
           "best_score": 22,
-          "worst_score": 22,
+          "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 0,
             "round_2025-12-14": 22
@@ -554,7 +554,7 @@
           "total_points": 38,
           "rounds_played": 1,
           "best_score": 38,
-          "worst_score": 38,
+          "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 0,
             "round_2025-12-14": 38
