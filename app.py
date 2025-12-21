@@ -1754,18 +1754,8 @@ def main():
                                     # Użyj wartości z bulk (nadpisuje wszystko)
                                     initial_value = bulk_value
                                     logger.info(f"Bulk fill: Użyję wartość '{bulk_value}' dla meczu {match_id_str}")
-                                    
-                                    # Usuń dane z bulk po użyciu
-                                    if match_id_str in bulk_fill_data:
-                                        del bulk_fill_data[match_id_str]
-                                    if match_id in bulk_fill_data:
-                                        del bulk_fill_data[match_id]
-                                    # Jeśli bulk_fill_data jest puste, usuń klucz
-                                    if not bulk_fill_data:
-                                        if bulk_fill_key in st.session_state:
-                                            del st.session_state[bulk_fill_key]
-                                    else:
-                                        st.session_state[bulk_fill_key] = bulk_fill_data
+                                    # NIE usuwaj danych z bulk tutaj - zostaną użyte do wypełnienia wszystkich pól
+                                    # Dane będą usunięte po wyświetleniu wszystkich pól (na końcu sekcji)
                                 elif input_key in st.session_state:
                                     # Jeśli nie ma bulk, użyj istniejącej wartości z session_state
                                     initial_value = st.session_state[input_key]
@@ -1802,6 +1792,30 @@ def main():
                                 st.metric("Punkty", points)
                             else:
                                 st.empty()
+                    
+                    # Wyczyść dane z bulk po wyświetleniu wszystkich pól
+                    bulk_fill_key = f"bulk_fill_{selected_player}_{round_id}"
+                    if bulk_fill_key in st.session_state:
+                        bulk_fill_data = st.session_state[bulk_fill_key]
+                        # Sprawdź które mecze zostały już wyświetlone i użyte
+                        used_match_ids = set()
+                        for match in selected_matches:
+                            match_id_str = str(match.get('match_id', ''))
+                            if match_id_str in bulk_fill_data:
+                                used_match_ids.add(match_id_str)
+                        
+                        # Usuń użyte klucze z bulk_fill_data
+                        for match_id in used_match_ids:
+                            if match_id in bulk_fill_data:
+                                del bulk_fill_data[match_id]
+                        
+                        # Jeśli bulk_fill_data jest puste, usuń klucz
+                        if not bulk_fill_data:
+                            del st.session_state[bulk_fill_key]
+                            logger.info(f"Bulk fill: Usunięto dane z bulk po wypełnieniu wszystkich pól")
+                        else:
+                            # Zaktualizuj session_state z pozostałymi danymi (jeśli jakieś zostały)
+                            st.session_state[bulk_fill_key] = bulk_fill_data
                     
                     # Wyczyść flagę odświeżenia po zaktualizowaniu wszystkich wartości
                     if needs_refresh:
