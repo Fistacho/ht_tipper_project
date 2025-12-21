@@ -11,10 +11,10 @@
           "away_team_name": "ks Jastrowie",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "2",
+          "home_goals": 1,
+          "away_goals": 2,
           "league_id": 32612,
-          "result_updated": "2025-12-21T11:32:17.447263"
+          "result_updated": "2025-12-21T11:32:21.153558"
         },
         {
           "match_id": "758871964",
@@ -24,10 +24,10 @@
           "away_team_name": "Borciuchy International",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": "4",
-          "away_goals": "0",
+          "home_goals": 4,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2025-12-21T11:32:17.447379"
+          "result_updated": "2025-12-21T11:32:21.154138"
         },
         {
           "match_id": "758871965",
@@ -37,10 +37,10 @@
           "away_team_name": "Atletik Bimbao",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": "3",
-          "away_goals": "1",
+          "home_goals": 3,
+          "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2025-12-21T11:32:17.447594"
+          "result_updated": "2025-12-21T11:32:21.154755"
         },
         {
           "match_id": "758871966",
@@ -50,10 +50,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": "3",
-          "away_goals": "0",
+          "home_goals": 3,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2025-12-21T11:32:17.447722"
+          "result_updated": "2025-12-21T11:32:21.155363"
         }
       ],
       "start_date": "2025-12-21",
@@ -202,22 +202,22 @@
           "758871964": {
             "home": 1,
             "away": 0,
-            "timestamp": "2025-12-21T11:32:08.343352"
+            "timestamp": "2025-12-21T11:32:21.151340"
           },
           "758871965": {
             "home": 4,
             "away": 1,
-            "timestamp": "2025-12-21T11:32:08.344283"
+            "timestamp": "2025-12-21T11:32:21.151941"
           },
           "758871966": {
             "home": 4,
             "away": 0,
-            "timestamp": "2025-12-21T11:32:08.345391"
+            "timestamp": "2025-12-21T11:32:21.152387"
           },
           "758840941": {
             "home": 1,
             "away": 3,
-            "timestamp": "2025-12-21T11:32:08.346461"
+            "timestamp": "2025-12-21T11:32:21.153318"
           }
         }
       },
@@ -850,22 +850,22 @@
               "758871964": {
                 "home": 1,
                 "away": 0,
-                "timestamp": "2025-12-21T11:32:08.343464"
+                "timestamp": "2025-12-21T11:32:21.151395"
               },
               "758871965": {
                 "home": 4,
                 "away": 1,
-                "timestamp": "2025-12-21T11:32:08.344365"
+                "timestamp": "2025-12-21T11:32:21.151987"
               },
               "758871966": {
                 "home": 4,
                 "away": 0,
-                "timestamp": "2025-12-21T11:32:08.345497"
+                "timestamp": "2025-12-21T11:32:21.152474"
               },
               "758840941": {
                 "home": 1,
                 "away": 3,
-                "timestamp": "2025-12-21T11:32:08.346541"
+                "timestamp": "2025-12-21T11:32:21.153376"
               }
             }
           },
