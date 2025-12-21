@@ -1754,6 +1754,9 @@ def main():
                                     # Użyj wartości z bulk (nadpisuje wszystko)
                                     initial_value = bulk_value
                                     logger.info(f"Bulk fill: Użyję wartość '{bulk_value}' dla meczu {match_id_str}")
+                                    # Zapisuj wartość do session_state PRZED utworzeniem widgetu
+                                    # To zapewni, że widget będzie miał poprawną wartość
+                                    st.session_state[input_key] = bulk_value
                                     # NIE usuwaj danych z bulk tutaj - zostaną użyte do wypełnienia wszystkich pól
                                     # Dane będą usunięte po wyświetleniu wszystkich pól (na końcu sekcji)
                                 elif input_key in st.session_state:
@@ -1767,13 +1770,23 @@ def main():
                                         del st.session_state[input_key]
                                 
                                 # Użyj value w st.text_input - Streamlit automatycznie zsynchronizuje to z session_state
-                                # NIE ustawiaj session_state[input_key] przed utworzeniem widgetu - to powoduje konflikt
-                                pred_input = st.text_input(
-                                    f"Typ:",
-                                    value=initial_value,
-                                    key=input_key,
-                                    label_visibility="collapsed"
-                                )
+                                # Jeśli wartość jest w session_state (np. z bulk), użyj jej zamiast initial_value
+                                if input_key in st.session_state:
+                                    # Użyj wartości z session_state (może być z bulk lub z poprzedniego wprowadzenia)
+                                    pred_input = st.text_input(
+                                        f"Typ:",
+                                        value=st.session_state[input_key],
+                                        key=input_key,
+                                        label_visibility="collapsed"
+                                    )
+                                else:
+                                    # Użyj initial_value (domyślna wartość)
+                                    pred_input = st.text_input(
+                                        f"Typ:",
+                                        value=initial_value,
+                                        key=input_key,
+                                        label_visibility="collapsed"
+                                    )
                                 
                                 # Streamlit automatycznie aktualizuje session_state[input_key] gdy użytkownik zmienia wartość
                                 # Wartość zwracana przez st.text_input jest zawsze zsynchronizowana z session_state[input_key]
