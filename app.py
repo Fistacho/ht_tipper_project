@@ -1726,22 +1726,54 @@ def main():
                             if can_edit:
                                 input_key = f"tipper_pred_{selected_player}_{match_id}"
                                 
-                                # Jeśli flaga odświeżenia jest ustawiona, usuń klucz z session_state
-                                # aby wymusić użycie nowej wartości default_value
-                                if needs_refresh and input_key in st.session_state:
-                                    del st.session_state[input_key]
+                                # Sprawdź czy są dane z bulk do wypełnienia
+                                bulk_fill_key = f"bulk_fill_{selected_player}_{round_id}"
+                                bulk_fill_data = st.session_state.get(bulk_fill_key, {})
                                 
-                                # Streamlit automatycznie zarządza wartością w session_state przez key
-                                # Jeśli klucz nie istnieje, inicjalizuj go wartością domyślną
-                                if input_key not in st.session_state:
-                                    st.session_state[input_key] = default_value
+                                # Określ wartość początkową - priorytet: bulk > istniejąca wartość > domyślna
+                                initial_value = default_value
                                 
-                                # WAŻNE: W Streamlit, gdy używamy tylko key (bez value), Streamlit automatycznie
-                                # zarządza wartością w session_state[key]. Gdy użytkownik zmienia wartość,
-                                # Streamlit automatycznie aktualizuje session_state[key].
-                                # Jeśli podamy value, Streamlit może nie aktualizować session_state poprawnie.
+                                # Sprawdź czy są dane z bulk dla tego meczu (sprawdź zarówno string jak i int)
+                                match_id_str = str(match_id)
+                                bulk_value = None
+                                if match_id_str in bulk_fill_data:
+                                    bulk_value = bulk_fill_data[match_id_str]
+                                elif match_id in bulk_fill_data:
+                                    bulk_value = bulk_fill_data[match_id]
+                                
+                                if bulk_value:
+                                    # Użyj wartości z bulk (nadpisuje wszystko)
+                                    initial_value = bulk_value
+                                    # Zapisz do głównego klucza PRZED utworzeniem widgetu (tylko jeśli klucz nie istnieje)
+                                    # To pozwoli na dostęp do wartości przy zapisie
+                                    if input_key not in st.session_state:
+                                        st.session_state[input_key] = bulk_value
+                                    
+                                    # Usuń dane z bulk po użyciu
+                                    if match_id_str in bulk_fill_data:
+                                        del bulk_fill_data[match_id_str]
+                                    if match_id in bulk_fill_data:
+                                        del bulk_fill_data[match_id]
+                                    # Jeśli bulk_fill_data jest puste, usuń klucz
+                                    if not bulk_fill_data:
+                                        if bulk_fill_key in st.session_state:
+                                            del st.session_state[bulk_fill_key]
+                                    else:
+                                        st.session_state[bulk_fill_key] = bulk_fill_data
+                                elif input_key in st.session_state:
+                                    # Jeśli nie ma bulk, użyj istniejącej wartości
+                                    initial_value = st.session_state[input_key]
+                                
+                                # Jeśli flaga odświeżenia jest ustawiona, użyj wartości domyślnej
+                                if needs_refresh:
+                                    initial_value = default_value
+                                    if input_key in st.session_state:
+                                        del st.session_state[input_key]
+                                
+                                # Użyj value w st.text_input - Streamlit zaktualizuje session_state gdy użytkownik zmieni wartość
                                 pred_input = st.text_input(
                                     f"Typ:",
+                                    value=initial_value,
                                     key=input_key,
                                     label_visibility="collapsed"
                                 )
@@ -1909,8 +1941,18 @@ def main():
                                 
                                 if errors:
                                     st.warning(f"⚠️ {len(errors)} typów nie zostało zapisanych:\n" + "\n".join(errors[:5]))
-                                storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
-                                st.cache_data.clear()  # Wyczyść cache Streamlit
+                                
+                                # Wymuś natychmiastowy zapis przed rerun
+                                logger.info("Zapis typów (pojedyncze): Wymuszam zapis danych")
+                                storage.flush_save()
+                                
+                                # Wyczyść cache i wymuś odświeżenie danych
+                                st.cache_data.clear()
+                                
+                                # Ustaw flagę odświeżenia w session_state
+                                st.session_state['_refresh_predictions'] = True
+                                
+                                # Odśwież ekran
                                 st.rerun()
                             else:
                                 if errors:
@@ -1945,15 +1987,11 @@ def main():
                         key="tipper_bulk_text"
                     )
                     
-                    if st.button("💾 Zapisz typy (bulk)", type="primary", key="tipper_bulk_save"):
+                    # Przycisk do wypełnienia pól pojedynczych meczów z bulk (bez zapisu)
+                    if st.button("📋 Wypełnij pola z bulk", key="tipper_bulk_fill"):
                         if not predictions_text:
                             st.warning("⚠️ Wprowadź typy")
                         else:
-                            # Upewnij się, że runda istnieje w storage (ważne dla nowych sezonów)
-                            if round_id not in storage.data.get('rounds', {}):
-                                storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
-                                storage.reload_data()
-                            
                             # Parsuj typy z dopasowaniem do meczów
                             parsed = tipper.parse_match_predictions(predictions_text, selected_matches)
                             
@@ -1973,85 +2011,29 @@ def main():
                                     st.markdown("\n".join(matches_list))
                             
                             if parsed:
-                                saved_count = 0
-                                updated_count = 0
-                                errors = []
+                                # Zapisz typy do specjalnego klucza w session_state, który będzie użyty przy następnym rerun
+                                bulk_fill_key = f"bulk_fill_{selected_player}_{round_id}"
+                                bulk_fill_data = {}
                                 
+                                filled_count = 0
                                 for match_id, prediction in parsed.items():
-                                    # Znajdź mecz
-                                    match = next((m for m in selected_matches if str(m.get('match_id')) == match_id), None)
+                                    match_id_str = str(match_id)
+                                    pred_text = f"{prediction[0]}-{prediction[1]}"
+                                    bulk_fill_data[match_id_str] = pred_text
                                     
-                                    if match:
-                                        # Sprawdź czy mecz już się rozpoczął
-                                        match_date = match.get('match_date')
-                                        can_add = True
-                                        
-                                        if match_date:
-                                            try:
-                                                match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
-                                                if datetime.now() >= match_dt:
-                                                    can_add = allow_historical
-                                                    if not can_add:
-                                                        errors.append(f"Mecz {match.get('home_team_name')} vs {match.get('away_team_name')} już rozegrany")
-                                            except:
-                                                pass
-                                        
-                                        if can_add:
-                                            # Sprawdź czy typ już istnieje (sprawdź zarówno string jak i int)
-                                            match_id_str = str(match_id)
-                                            is_update = (match_id in existing_predictions or 
-                                                        match_id_str in existing_predictions or
-                                                        (match_id_str.isdigit() and int(match_id_str) in existing_predictions))
-                                            
-                                            # Użyj string jako match_id dla spójności
-                                            storage.add_prediction(round_id, selected_player, match_id_str, prediction)
-                                            
-                                            if is_update:
-                                                updated_count += 1
-                                            else:
-                                                saved_count += 1
-                                    else:
-                                        errors.append(f"Nie znaleziono meczu dla ID: {match_id}")
+                                    filled_count += 1
+                                    logger.info(f"Bulk mode: Przygotowano wypełnienie pola dla meczu {match_id_str} wartością {pred_text}")
                                 
-                                total_saved = saved_count + updated_count
-                                if total_saved > 0:
-                                    # Przelicz punkty dla wszystkich meczów z wynikami w tej rundzie
-                                    storage.reload_data()
-                                    round_data = storage.data['rounds'].get(round_id, {})
-                                    round_matches = round_data.get('matches', [])
-                                    for match in round_matches:
-                                        match_id = str(match.get('match_id', ''))
-                                        home_goals = match.get('home_goals')
-                                        away_goals = match.get('away_goals')
-                                        if home_goals is not None and away_goals is not None:
-                                            # Przelicz punkty dla tego meczu (dla wszystkich graczy z typami)
-                                            try:
-                                                storage.update_match_result(round_id, match_id, int(home_goals), int(away_goals))
-                                            except Exception as e:
-                                                logger.error(f"Błąd przeliczania punktów dla meczu {match_id}: {e}")
-                                    
-                                    if updated_count > 0 and saved_count > 0:
-                                        st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
-                                    elif updated_count > 0:
-                                        st.success(f"✅ Zaktualizowano {updated_count} typów")
-                                    else:
-                                        st.success(f"✅ Zapisano {saved_count} typów")
-                                    
-                                    if errors:
-                                        st.warning(f"⚠️ {len(errors)} typów nie zostało zapisanych:\n" + "\n".join(errors[:5]))
-                                    storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
-                                    # Wyczyść cache i wymuś odświeżenie danych
-                                    st.cache_data.clear()
-                                    # Ustaw flagę odświeżenia w session_state
-                                    st.session_state['_refresh_predictions'] = True
+                                # Zapisz dane do session_state (będą użyte przy następnym rerun do wypełnienia pól)
+                                st.session_state[bulk_fill_key] = bulk_fill_data
+                                
+                                if filled_count > 0:
+                                    st.success(f"✅ Przygotowano {filled_count} pól. Kliknij '💾 Zapisz typy' aby zapisać.")
                                     st.rerun()
                                 else:
-                                    if errors:
-                                        st.error("❌ Nie udało się zapisać typów:\n" + "\n".join(errors[:5]))
-                                    else:
-                                        st.warning("⚠️ Wszystkie mecze już rozpoczęte")
+                                    st.warning("⚠️ Nie znaleziono dopasowanych meczów")
                             else:
-                                st.error("❌ Nie można sparsować typów. Sprawdź format:\n- Nazwa drużyny1 - Nazwa drużyny2 Wynik\n- Przykład: Borciuchy International - WKS BRONEK 50 7:0")
+                                st.warning("⚠️ Nie udało się sparsować typów. Sprawdź format.")
                 
                 # Sekcja korekty punktów (dla wybranego gracza i rundy)
                 st.markdown("---")

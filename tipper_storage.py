@@ -327,11 +327,12 @@ class TipperStorage:
     
     def flush_save(self):
         """Wymusza natychmiastowy zapis wszystkich oczekujących zmian"""
-        if self._pending_save:
-            import time
-            self._pending_save = False
-            self._last_save_time = time.time()
-            self._do_save()
+        import time
+        # Zawsze zapisz, nawet jeśli nie ma pending_save (może być opóźnienie w debounce)
+        self._pending_save = False
+        self._last_save_time = time.time()
+        self._do_save()
+        logger.info("flush_save: Wymuszono natychmiastowy zapis danych")
     
     def _save_to_github(self) -> bool:
         """Zapisuje dane do GitHub przez API (używa REST API bezpośrednio dla lepszej kompatybilności)"""
