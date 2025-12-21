@@ -54,6 +54,19 @@
           "away_goals": "0",
           "league_id": 32612,
           "result_updated": "2025-12-21T11:32:29.995865"
+        },
+        {
+          "match_id": "758840941",
+          "home_team_id": "477384",
+          "home_team_name": "WRBL Cavaliers",
+          "away_team_id": "1823455",
+          "away_team_name": "FC Paralityks",
+          "match_date": "2025-12-21 09:00:00",
+          "status": null,
+          "home_goals": "2",
+          "away_goals": "1",
+          "league_id": 9583,
+          "result_updated": "2025-12-21T13:00:14.718876"
         }
       ],
       "start_date": "2025-12-21",
