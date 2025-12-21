@@ -1731,10 +1731,14 @@ def main():
                                 if needs_refresh and input_key in st.session_state:
                                     del st.session_state[input_key]
                                 
-                                # Użyj tylko default_value - Streamlit automatycznie zarządza stanem przez key
+                                # Streamlit automatycznie zarządza wartością w session_state przez key
+                                # Jeśli klucz nie istnieje, inicjalizuj go wartością domyślną
+                                if input_key not in st.session_state:
+                                    st.session_state[input_key] = default_value
+                                
+                                # Użyj key bez value - Streamlit automatycznie użyje wartości z session_state
                                 pred_input = st.text_input(
                                     f"Typ:",
-                                    value=default_value,
                                     key=input_key,
                                     label_visibility="collapsed"
                                 )
@@ -1770,6 +1774,12 @@ def main():
                             storage.reload_data()
                             existing_predictions_before = storage.get_player_predictions(selected_player, round_id, season_id=selected_season_id)
                             
+                            logger.info(f"Zapis typów: Sprawdzam {len(selected_matches)} meczów dla gracza {selected_player}")
+                            
+                            # Loguj wszystkie klucze w session_state związane z typami
+                            all_prediction_keys = [k for k in st.session_state.keys() if k.startswith(f"tipper_pred_{selected_player}_")]
+                            logger.info(f"Zapis typów: Znaleziono {len(all_prediction_keys)} kluczy w session_state: {all_prediction_keys}")
+                            
                             for match in selected_matches:
                                 match_id = str(match.get('match_id', ''))
                                 input_key = f"tipper_pred_{selected_player}_{match_id}"
@@ -1777,16 +1787,20 @@ def main():
                                 # Sprawdź czy jest wartość w session_state (z trybu pojedynczego)
                                 if input_key in st.session_state:
                                     pred_input = st.session_state[input_key]
+                                    logger.info(f"Zapis typów: Mecz {match_id} ({match.get('home_team_name')} vs {match.get('away_team_name')}), wartość w session_state: '{pred_input}'")
                                     
                                     # Pomiń puste wartości lub "0-0" jeśli typ już istnieje (chroni przed przypadkowym zerowaniem)
                                     if not pred_input or pred_input.strip() == "":
                                         # Puste pole - pomiń (zachowaj istniejący typ jeśli istnieje)
                                         if match_id in existing_predictions_before or str(match_id) in existing_predictions_before:
+                                            logger.info(f"Zapis typów: Puste pole dla meczu {match_id}, zachowuję istniejący typ")
                                             continue  # Zachowaj istniejący typ
                                         else:
+                                            logger.info(f"Zapis typów: Puste pole dla meczu {match_id}, pomijam")
                                             continue  # Pomiń puste pole
                                     
                                     parsed = tipper.parse_prediction(pred_input)
+                                    logger.info(f"Zapis typów: Sparsowano '{pred_input}' -> {parsed}")
                                     
                                     if parsed:
                                         # Sprawdź czy to nie jest "0-0" dla istniejącego typu (chroni przed przypadkowym zerowaniem)
@@ -1819,20 +1833,30 @@ def main():
                                                        str(match_id) in existing_predictions_before or
                                                        (match_id.isdigit() and int(match_id) in existing_predictions_before))
                                             
-                                            storage.add_prediction(round_id, selected_player, match_id, parsed)
+                                            logger.info(f"Zapis typów: Zapisuję typ {parsed} dla meczu {match_id}, is_update={is_update}")
+                                            result = storage.add_prediction(round_id, selected_player, match_id, parsed)
                                             
-                                            if is_update:
-                                                updated_count += 1
+                                            if result:
+                                                if is_update:
+                                                    updated_count += 1
+                                                else:
+                                                    saved_count += 1
+                                                logger.info(f"Zapis typów: ✅ Zapisano typ dla meczu {match_id}")
                                             else:
-                                                saved_count += 1
+                                                errors.append(f"Błąd zapisu dla {match.get('home_team_name')} vs {match.get('away_team_name')}")
+                                                logger.error(f"Zapis typów: ❌ Błąd zapisu dla meczu {match_id}")
                                     else:
                                         errors.append(f"Nieprawidłowy format dla {match.get('home_team_name')} vs {match.get('away_team_name')}")
+                                        logger.warning(f"Zapis typów: Nieprawidłowy format '{pred_input}' dla meczu {match_id}")
                                 else:
                                     # Jeśli nie ma wartości w session_state, ale istnieje typ w danych, zachowaj go
                                     # (to chroni przed utratą typów z bulk, które nie są w session_state)
                                     if match_id in existing_predictions_before or str(match_id) in existing_predictions_before:
                                         # Typ istnieje, ale nie ma wartości w session_state - nie rób nic (zachowaj istniejący)
+                                        logger.info(f"Zapis typów: Mecz {match_id} nie ma wartości w session_state, ale typ istnieje - zachowuję")
                                         pass
+                                    else:
+                                        logger.info(f"Zapis typów: Mecz {match_id} nie ma wartości w session_state i nie ma istniejącego typu - pomijam")
                             
                             total_saved = saved_count + updated_count
                             if total_saved > 0:
