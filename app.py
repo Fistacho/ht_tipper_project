@@ -1029,10 +1029,19 @@ def main():
                         player_predictions = storage.get_player_predictions(player_name, round_id)
                         
                         if player_predictions:
-                            # Sortuj mecze według daty
+                            # Sortuj mecze według daty - użyj matches_map lub selected_matches jako fallback
+                            def get_match_date(mid):
+                                match = matches_map.get(str(mid), {})
+                                if not match or not match.get('match_date'):
+                                    # Spróbuj znaleźć w selected_matches
+                                    for api_match in selected_matches:
+                                        if str(api_match.get('match_id', '')) == str(mid):
+                                            return api_match.get('match_date', '')
+                                return match.get('match_date', '')
+                            
                             sorted_match_ids = sorted(
                                 player_predictions.keys(),
-                                key=lambda mid: matches_map.get(str(mid), {}).get('match_date', '')
+                                key=lambda mid: get_match_date(mid)
                             )
                             
                             # Przygotuj dane do tabeli
@@ -1058,7 +1067,17 @@ def main():
                             logger.info(f"  Mecze z punktami w dict: {list(match_points_dict.keys())}")
                             
                             for match_id in sorted_match_ids:
+                                # Spróbuj znaleźć mecz w matches_map
                                 match = matches_map.get(str(match_id), {})
+                                
+                                # Jeśli nie znaleziono w matches_map lub brak nazw drużyn, spróbuj znaleźć w selected_matches z API
+                                if not match or match.get('home_team_name') in [None, '?', ''] or match.get('away_team_name') in [None, '?', '']:
+                                    for api_match in selected_matches:
+                                        if str(api_match.get('match_id', '')) == str(match_id):
+                                            match = api_match
+                                            logger.info(f"Znaleziono mecz {match_id} w selected_matches z API: {match.get('home_team_name')} vs {match.get('away_team_name')}")
+                                            break
+                                
                                 pred = player_predictions[match_id]
                                 home_team = match.get('home_team_name', '?')
                                 away_team = match.get('away_team_name', '?')
