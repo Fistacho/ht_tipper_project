@@ -188,6 +188,8 @@ class Tipper:
             name = name.lower()
             # Usuń wielokrotne spacje
             name = re.sub(r'\s+', ' ', name)
+            # Usuń znaki interpunkcyjne na końcu (np. kropki, przecinki)
+            name = re.sub(r'[.,;:!?]+$', '', name)
             return name
         
         # Stwórz mapę nazw drużyn -> mecze (z różnymi wariantami normalizacji)
@@ -303,30 +305,45 @@ class Tipper:
                                 key_team2_words = set(key_team2.split())
                                 
                                 # Normalna kolejność: team1 vs team2
-                                team1_match_score = len(team1_words & key_team1_words) / max(len(team1_words), len(key_team1_words), 1)
-                                team2_match_score = len(team2_words & key_team2_words) / max(len(team2_words), len(key_team2_words), 1)
+                                # Użyj podobieństwa Jaccard (wspólne słowa / wszystkie słowa)
+                                team1_intersection = len(team1_words & key_team1_words)
+                                team1_union = len(team1_words | key_team1_words)
+                                team1_match_score = team1_intersection / max(team1_union, 1)
                                 
-                                if team1_match_score > 0.5 and team2_match_score > 0.5:
+                                team2_intersection = len(team2_words & key_team2_words)
+                                team2_union = len(team2_words | key_team2_words)
+                                team2_match_score = team2_intersection / max(team2_union, 1)
+                                
+                                # Obniż próg dopasowania do 0.3 (30%) dla każdej drużyny
+                                if team1_match_score >= 0.3 and team2_match_score >= 0.3:
                                     total_score = team1_match_score + team2_match_score
                                     if total_score > best_score:
                                         best_score = total_score
                                         best_match = (mid, False)  # False = normalna kolejność
                                 
                                 # Odwrotna kolejność: team1 vs team2 (zamienione)
-                                team1_match_score_rev = len(team1_words & key_team2_words) / max(len(team1_words), len(key_team2_words), 1)
-                                team2_match_score_rev = len(team2_words & key_team1_words) / max(len(team2_words), len(key_team1_words), 1)
+                                team1_intersection_rev = len(team1_words & key_team2_words)
+                                team1_union_rev = len(team1_words | key_team2_words)
+                                team1_match_score_rev = team1_intersection_rev / max(team1_union_rev, 1)
                                 
-                                if team1_match_score_rev > 0.5 and team2_match_score_rev > 0.5:
+                                team2_intersection_rev = len(team2_words & key_team1_words)
+                                team2_union_rev = len(team2_words | key_team1_words)
+                                team2_match_score_rev = team2_intersection_rev / max(team2_union_rev, 1)
+                                
+                                if team1_match_score_rev >= 0.3 and team2_match_score_rev >= 0.3:
                                     total_score = team1_match_score_rev + team2_match_score_rev
                                     if total_score > best_score:
                                         best_score = total_score
                                         best_match = (mid, True)  # True = odwrotna kolejność
                             
-                            if best_match and best_score > 1.0:  # Minimum 50% dopasowania dla każdej drużyny
+                            # Obniż próg całkowitego dopasowania do 0.6 (zamiast 1.0)
+                            if best_match and best_score >= 0.6:  # Minimum 30% dopasowania dla każdej drużyny, łącznie 60%
                                 match_id, is_reversed = best_match
                                 if is_reversed:
                                     home_goals, away_goals = away_goals, home_goals
-                                logger.info(f"Częściowe dopasowanie dla: {line} -> match_id={match_id}, score={best_score:.2f}")
+                                logger.info(f"✅ Częściowe dopasowanie dla: {line} -> match_id={match_id}, score={best_score:.2f}")
+                            elif best_match:
+                                logger.debug(f"⚠️ Częściowe dopasowanie zbyt niskie: {line} -> score={best_score:.2f} (wymagane >= 0.6)")
                         
                         if match_id:
                             result[match_id] = (home_goals, away_goals)
