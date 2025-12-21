@@ -1736,12 +1736,19 @@ def main():
                                 if input_key not in st.session_state:
                                     st.session_state[input_key] = default_value
                                 
-                                # Użyj key bez value - Streamlit automatycznie użyje wartości z session_state
+                                # Użyj value z session_state - Streamlit zaktualizuje session_state gdy użytkownik zmieni wartość
+                                # WAŻNE: Streamlit aktualizuje session_state[key] automatycznie gdy używamy key
                                 pred_input = st.text_input(
                                     f"Typ:",
+                                    value=st.session_state.get(input_key, default_value),
                                     key=input_key,
                                     label_visibility="collapsed"
                                 )
+                                
+                                # Upewnij się, że wartość jest zsynchronizowana z session_state
+                                # (Streamlit powinien to robić automatycznie, ale na wszelki wypadek)
+                                if pred_input != st.session_state.get(input_key):
+                                    st.session_state[input_key] = pred_input
                             else:
                                 if is_historical:
                                     st.info("⏰ Rozegrany")
@@ -1782,11 +1789,24 @@ def main():
                             
                             for match in selected_matches:
                                 match_id = str(match.get('match_id', ''))
+                                match_id_int = match.get('match_id', '')
+                                
+                                # Spróbuj znaleźć klucz w session_state (może być jako string lub int)
                                 input_key = f"tipper_pred_{selected_player}_{match_id}"
+                                input_key_int = f"tipper_pred_{selected_player}_{match_id_int}" if isinstance(match_id_int, int) else None
                                 
                                 # Sprawdź czy jest wartość w session_state (z trybu pojedynczego)
+                                pred_input = None
                                 if input_key in st.session_state:
                                     pred_input = st.session_state[input_key]
+                                elif input_key_int and input_key_int in st.session_state:
+                                    pred_input = st.session_state[input_key_int]
+                                    # Znormalizuj klucz do string
+                                    st.session_state[input_key] = pred_input
+                                    if input_key_int != input_key:
+                                        del st.session_state[input_key_int]
+                                
+                                if pred_input is not None:
                                     logger.info(f"Zapis typów: Mecz {match_id} ({match.get('home_team_name')} vs {match.get('away_team_name')}), wartość w session_state: '{pred_input}'")
                                     
                                     # Pomiń puste wartości lub "0-0" jeśli typ już istnieje (chroni przed przypadkowym zerowaniem)
