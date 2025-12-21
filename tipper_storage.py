@@ -669,12 +669,36 @@ class TipperStorage:
         
         # Znajdź mecz w rundzie
         matches = self.data['rounds'][round_id]['matches']
+        match_found = False
         for match in matches:
             if str(match.get('match_id')) == str(match_id):
                 match['home_goals'] = home_goals
                 match['away_goals'] = away_goals
                 match['result_updated'] = datetime.now().isoformat()
+                match_found = True
+                logger.info(f"update_match_result: Zaktualizowano wynik meczu {match_id} w storage: {home_goals}-{away_goals}")
                 break
+        
+        # Jeśli mecz nie został znaleziony w storage, ale są typy dla niego, dodaj go
+        if not match_found:
+            predictions = self.data['rounds'][round_id].get('predictions', {})
+            has_predictions = False
+            for player_name, player_predictions in predictions.items():
+                if match_id in player_predictions or str(match_id) in player_predictions:
+                    has_predictions = True
+                    break
+            
+            if has_predictions:
+                logger.warning(f"update_match_result: ⚠️ Mecz {match_id} nie jest w storage, ale gracze mają typy - dodaję mecz do storage")
+                # Dodaj podstawowy mecz do storage (bez pełnych danych, ale z wynikiem)
+                new_match = {
+                    'match_id': str(match_id),
+                    'home_goals': home_goals,
+                    'away_goals': away_goals,
+                    'result_updated': datetime.now().isoformat()
+                }
+                matches.append(new_match)
+                logger.info(f"update_match_result: ✅ Dodano mecz {match_id} do storage z wynikiem {home_goals}-{away_goals}")
         
         # Pobierz sezon z rundy
         round_data = self.data['rounds'][round_id]
@@ -710,7 +734,29 @@ class TipperStorage:
                 prediction_tuple = (pred['home'], pred['away'])
                 points = Tipper.calculate_points(prediction_tuple, (home_goals, away_goals))
                 
-                logger.info(f"update_match_result: Gracz {player_name}, typ={prediction_tuple}, wynik={home_goals}-{away_goals}, punkty={points}")
+                logger.info(f"update_match_result: Gracz {player_name}, typ={prediction_tuple}, wynik={home_goals}-{away_goals}, obliczone punkty={points}")
+                
+                # Debug: sprawdź szczegóły obliczeń
+                pred_home, pred_away = prediction_tuple
+                actual_home, actual_away = home_goals, away_goals
+                home_diff = abs(pred_home - actual_home)
+                away_diff = abs(pred_away - actual_away)
+                
+                # Określ rezultat
+                def get_result(home: int, away: int) -> str:
+                    if home > away:
+                        return 'home_win'
+                    elif home < away:
+                        return 'away_win'
+                    else:
+                        return 'draw'
+                
+                pred_result = get_result(pred_home, pred_away)
+                actual_result_type = get_result(actual_home, actual_away)
+                base_points = 10 if pred_result == actual_result_type else 5
+                total_before_max = base_points - home_diff - away_diff
+                
+                logger.info(f"update_match_result: DEBUG - pred_result={pred_result}, actual_result={actual_result_type}, base_points={base_points}, home_diff={home_diff}, away_diff={away_diff}, total_before_max={total_before_max}, final_points={points}")
                 
                 # Aktualizuj punkty gracza (w sezonie)
                 if player_name not in players:

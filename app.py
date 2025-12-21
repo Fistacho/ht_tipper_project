@@ -640,69 +640,69 @@ def main():
                 return
         else:
             # Dla niearchiwalnych sezonów pobieramy dane z API
-        # Inicjalizuj klienta OAuth
-        client = HattrickOAuthSimple(consumer_key, consumer_secret)
-        client.set_access_tokens(access_token, access_token_secret)
-        
-        # Pobierz mecze z obu lig
-        all_fixtures = []
-        with st.spinner("Pobieranie meczów z lig..."):
-            for league_id in TIPPER_LEAGUES:
-                try:
-                    fixtures = client.get_league_fixtures(league_id)
-                    if fixtures:
-                        # Dodaj informację o lidze
-                        for fixture in fixtures:
-                            fixture['league_id'] = league_id
-                        all_fixtures.extend(fixtures)
-                        logger.info(f"Pobrano {len(fixtures)} meczów z ligi {league_id}")
-                except Exception as e:
-                    logger.error(f"Błąd pobierania meczów z ligi {league_id}: {e}")
-                    st.warning(f"⚠️ Nie udało się pobrać meczów z ligi {league_id}: {e}")
-        
-        if not all_fixtures:
-            st.error("❌ Nie udało się pobrać meczów z API")
-            return
-        
-        # Grupuj mecze według rund (na podstawie daty)
-        rounds = defaultdict(list)
-        
-        for fixture in all_fixtures:
-            match_date = fixture.get('match_date')
-            if match_date:
-                try:
-                    # Parsuj datę i utwórz klucz rundy (np. "2024-10-26")
-                    dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
-                    round_key = dt.strftime("%Y-%m-%d")
-                    rounds[round_key].append(fixture)
-                except ValueError:
-                    continue
-        
-        # Sortuj rundy po dacie (najstarsza pierwsza) dla numeracji
-        sorted_rounds_asc = sorted(rounds.items(), key=lambda x: x[0])
-        
-        if not sorted_rounds_asc:
-            st.warning("⚠️ Brak meczów do wyświetlenia")
-            return
-        
-        # Pobierz wszystkie unikalne nazwy drużyn z meczów
-        all_team_names = set()
-        for _, matches in sorted_rounds_asc:
-            for match in matches:
-                home_team = match.get('home_team_name', '').strip()
-                away_team = match.get('away_team_name', '').strip()
-                if home_team:
-                    all_team_names.add(home_team)
-                if away_team:
-                    all_team_names.add(away_team)
-        
-        all_team_names = sorted(list(all_team_names))
-        
-        # Przeładuj dane z pliku (aby mieć aktualne dane po restarcie)
-        storage.reload_data()
-        
-        # Pobierz zapisane ustawienia dla wybranego sezonu
-        selected_teams = storage.get_selected_teams(season_id=selected_season_id)
+            # Inicjalizuj klienta OAuth
+            client = HattrickOAuthSimple(consumer_key, consumer_secret)
+            client.set_access_tokens(access_token, access_token_secret)
+            
+            # Pobierz mecze z obu lig
+            all_fixtures = []
+            with st.spinner("Pobieranie meczów z lig..."):
+                for league_id in TIPPER_LEAGUES:
+                    try:
+                        fixtures = client.get_league_fixtures(league_id)
+                        if fixtures:
+                            # Dodaj informację o lidze
+                            for fixture in fixtures:
+                                fixture['league_id'] = league_id
+                            all_fixtures.extend(fixtures)
+                            logger.info(f"Pobrano {len(fixtures)} meczów z ligi {league_id}")
+                    except Exception as e:
+                        logger.error(f"Błąd pobierania meczów z ligi {league_id}: {e}")
+                        st.warning(f"⚠️ Nie udało się pobrać meczów z ligi {league_id}: {e}")
+            
+            if not all_fixtures:
+                st.error("❌ Nie udało się pobrać meczów z API")
+                return
+            
+            # Grupuj mecze według rund (na podstawie daty)
+            rounds = defaultdict(list)
+            
+            for fixture in all_fixtures:
+                match_date = fixture.get('match_date')
+                if match_date:
+                    try:
+                        # Parsuj datę i utwórz klucz rundy (np. "2024-10-26")
+                        dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                        round_key = dt.strftime("%Y-%m-%d")
+                        rounds[round_key].append(fixture)
+                    except ValueError:
+                        continue
+            
+            # Sortuj rundy po dacie (najstarsza pierwsza) dla numeracji
+            sorted_rounds_asc = sorted(rounds.items(), key=lambda x: x[0])
+            
+            if not sorted_rounds_asc:
+                st.warning("⚠️ Brak meczów do wyświetlenia")
+                return
+            
+            # Pobierz wszystkie unikalne nazwy drużyn z meczów
+            all_team_names = set()
+            for _, matches in sorted_rounds_asc:
+                for match in matches:
+                    home_team = match.get('home_team_name', '').strip()
+                    away_team = match.get('away_team_name', '').strip()
+                    if home_team:
+                        all_team_names.add(home_team)
+                    if away_team:
+                        all_team_names.add(away_team)
+            
+            all_team_names = sorted(list(all_team_names))
+            
+            # Przeładuj dane z pliku (aby mieć aktualne dane po restarcie)
+            storage.reload_data()
+            
+            # Pobierz zapisane ustawienia dla wybranego sezonu
+            selected_teams = storage.get_selected_teams(season_id=selected_season_id)
         
         # Jeśli nie ma zapisanych ustawień dla tego sezonu, wybierz wszystkie drużyny domyślnie
         if not selected_teams:
@@ -1418,7 +1418,27 @@ def main():
                                         storage_match['result_updated'] = datetime.now().isoformat()
                                         updated_count += 1
                                 else:
-                                    logger.warning(f"⚠️ Mecz {match_id} z API nie został znaleziony w storage_matches_map")
+                                    # Mecz nie jest w storage - sprawdź czy gracze mają typy dla niego
+                                    predictions = round_data.get('predictions', {})
+                                    has_predictions = False
+                                    for player_name, player_predictions in predictions.items():
+                                        if match_id in player_predictions or str(match_id) in player_predictions:
+                                            has_predictions = True
+                                            break
+                                    
+                                    if has_predictions:
+                                        # Dodaj mecz do storage z danymi z API
+                                        logger.warning(f"⚠️ Mecz {match_id} z API nie został znaleziony w storage, ale gracze mają typy - dodaję mecz do storage")
+                                        new_match = api_match.copy()
+                                        new_match['home_goals'] = api_home_goals
+                                        new_match['away_goals'] = api_away_goals
+                                        new_match['result_updated'] = datetime.now().isoformat()
+                                        round_matches.append(new_match)
+                                        storage_matches_map[match_id] = new_match
+                                        updated_count += 1
+                                        logger.info(f"✅ Dodano mecz {match_id} do storage z wynikiem {api_home_goals}-{api_away_goals}")
+                                    else:
+                                        logger.warning(f"⚠️ Mecz {match_id} z API nie został znaleziony w storage i gracze nie mają typów - pomijam")
                             else:
                                 logger.info(f"⏭️ Mecz {match_id} z API nie ma wyniku (home_goals={api_home_goals}, away_goals={api_away_goals})")
                         
@@ -1432,14 +1452,20 @@ def main():
                         round_matches = round_data.get('matches', [])
                         
                         # Przelicz punkty dla wszystkich meczów z wynikami w rundzie
+                        # Użyj zarówno meczów z storage jak i z API (aby nie pominąć żadnego)
                         calculated_count = 0
-                        logger.info(f"Przeliczanie punktów dla rundy {round_id}: {len(round_matches)} meczów w rundzie")
+                        logger.info(f"Przeliczanie punktów dla rundy {round_id}: {len(round_matches)} meczów w storage, {len(selected_matches)} meczów w API")
+                        
+                        # Stwórz zbiór przetworzonych meczów, aby nie przeliczać dwa razy
+                        processed_match_ids = set()
+                        
+                        # Najpierw przelicz mecze z storage
                         for match in round_matches:
                             match_id = str(match.get('match_id', ''))
                             home_goals = match.get('home_goals')
                             away_goals = match.get('away_goals')
                             
-                            logger.info(f"Sprawdzam mecz {match_id}: home_goals={home_goals}, away_goals={away_goals}")
+                            logger.info(f"Sprawdzam mecz z storage {match_id}: home_goals={home_goals}, away_goals={away_goals}")
                             
                             # Jeśli mecz ma wynik, przelicz punkty (update_match_result sprawdzi czy są typy)
                             if home_goals is not None and away_goals is not None:
@@ -1447,11 +1473,38 @@ def main():
                                     logger.info(f"Wywołuję update_match_result dla meczu {match_id} z wynikiem {home_goals}-{away_goals}")
                                     storage.update_match_result(round_id, match_id, int(home_goals), int(away_goals))
                                     calculated_count += 1
+                                    processed_match_ids.add(match_id)
                                     logger.info(f"✅ Przeliczono punkty dla meczu {match_id} w rundzie {round_id} (wynik: {home_goals}-{away_goals})")
                                 except Exception as e:
                                     logger.error(f"❌ Błąd przeliczania punktów dla meczu {match_id}: {e}", exc_info=True)
                             else:
                                 logger.info(f"⏭️ Mecz {match_id} nie ma wyniku (home_goals={home_goals}, away_goals={away_goals}) - pomijam")
+                        
+                        # Teraz przelicz mecze z API, które nie były w storage lub nie zostały jeszcze przeliczone
+                        for api_match in selected_matches:
+                            match_id = str(api_match.get('match_id', ''))
+                            
+                            # Pomiń jeśli już przetworzony
+                            if match_id in processed_match_ids:
+                                continue
+                            
+                            api_home_goals = api_match.get('home_goals')
+                            api_away_goals = api_match.get('away_goals')
+                            
+                            logger.info(f"Sprawdzam mecz z API {match_id}: home_goals={api_home_goals}, away_goals={api_away_goals}")
+                            
+                            # Jeśli mecz z API ma wynik, przelicz punkty
+                            if api_home_goals is not None and api_away_goals is not None:
+                                try:
+                                    logger.info(f"Wywołuję update_match_result dla meczu z API {match_id} z wynikiem {api_home_goals}-{api_away_goals}")
+                                    storage.update_match_result(round_id, match_id, int(api_home_goals), int(api_away_goals))
+                                    calculated_count += 1
+                                    processed_match_ids.add(match_id)
+                                    logger.info(f"✅ Przeliczono punkty dla meczu z API {match_id} w rundzie {round_id} (wynik: {api_home_goals}-{api_away_goals})")
+                                except Exception as e:
+                                    logger.error(f"❌ Błąd przeliczania punktów dla meczu z API {match_id}: {e}", exc_info=True)
+                            else:
+                                logger.info(f"⏭️ Mecz z API {match_id} nie ma wyniku (home_goals={api_home_goals}, away_goals={api_away_goals}) - pomijam")
                         
                         if calculated_count > 0:
                             st.success(f"✅ Przeliczono punkty dla {calculated_count} meczów")
@@ -1820,8 +1873,8 @@ def main():
                                 # Jeśli wartość jest w session_state (np. z bulk), użyj jej zamiast initial_value
                                 if input_key in st.session_state:
                                     # Użyj wartości z session_state (może być z bulk lub z poprzedniego wprowadzenia)
-                                pred_input = st.text_input(
-                                    f"Typ:",
+                                    pred_input = st.text_input(
+                                        f"Typ:",
                                         value=st.session_state[input_key],
                                         key=input_key,
                                         label_visibility="collapsed"
@@ -1887,10 +1940,10 @@ def main():
                         # Użyj unikalnego klucza z round_id i selected_player, aby uniknąć duplikatów
                         save_button_key = f"tipper_save_all_{selected_player}_{round_id}"
                         if st.button("💾 Zapisz typy", type="primary", key=save_button_key, width='stretch'):
-                                saved_count = 0
-                                updated_count = 0
-                                errors = []
-                                
+                            saved_count = 0
+                            updated_count = 0
+                            errors = []
+                            
                             # Pobierz wszystkie istniejące typy przed zapisem (aby nie stracić tych, które nie są w session_state)
                             # NIE przeładowujemy danych - używamy aktualnych danych z storage
                             existing_predictions_before = storage.get_player_predictions(selected_player, round_id, season_id=selected_season_id)
@@ -1975,12 +2028,12 @@ def main():
                                             result = storage.add_prediction(round_id, selected_player, match_id, parsed)
                                             
                                             if result:
-                                            if is_update:
-                                                updated_count += 1
+                                                if is_update:
+                                                    updated_count += 1
+                                                else:
+                                                    saved_count += 1
+                                                    logger.info(f"Zapis typów: ✅ Zapisano typ dla meczu {match_id}")
                                             else:
-                                                saved_count += 1
-                                                logger.info(f"Zapis typów: ✅ Zapisano typ dla meczu {match_id}")
-                                    else:
                                                 errors.append(f"Błąd zapisu dla {match.get('home_team_name')} vs {match.get('away_team_name')}")
                                                 logger.error(f"Zapis typów: ❌ Błąd zapisu dla meczu {match_id}")
                                     else:
@@ -1996,8 +2049,8 @@ def main():
                                     else:
                                         logger.info(f"Zapis typów: Mecz {match_id} nie ma wartości w session_state i nie ma istniejącego typu - pomijam")
                                 
-                                total_saved = saved_count + updated_count
-                                if total_saved > 0:
+                            total_saved = saved_count + updated_count
+                            if total_saved > 0:
                                 # Przelicz punkty dla wszystkich meczów z wynikami w tej rundzie
                                 # NIE przeładowujemy danych - używamy aktualnych danych z storage
                                 round_data = storage.data['rounds'].get(round_id, {})
@@ -2013,15 +2066,15 @@ def main():
                                         except Exception as e:
                                             logger.error(f"Błąd przeliczania punktów dla meczu {match_id}: {e}")
                                 
-                                    if updated_count > 0 and saved_count > 0:
-                                        st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
-                                    elif updated_count > 0:
-                                        st.success(f"✅ Zaktualizowano {updated_count} typów")
-                                    else:
-                                        st.success(f"✅ Zapisano {saved_count} typów")
-                                    
-                                    if errors:
-                                        st.warning(f"⚠️ {len(errors)} typów nie zostało zapisanych:\n" + "\n".join(errors[:5]))
+                                if updated_count > 0 and saved_count > 0:
+                                    st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")
+                                elif updated_count > 0:
+                                    st.success(f"✅ Zaktualizowano {updated_count} typów")
+                                else:
+                                    st.success(f"✅ Zapisano {saved_count} typów")
+                                
+                                if errors:
+                                    st.warning(f"⚠️ {len(errors)} typów nie zostało zapisanych:\n" + "\n".join(errors[:5]))
                                 
                                 # Wymuś natychmiastowy zapis
                                 logger.info("Zapis typów (pojedyncze): Wymuszam zapis danych")
@@ -2031,15 +2084,12 @@ def main():
                                 st.session_state['_refresh_predictions'] = True
                                 
                                 # Odśwież ekran, aby zaktualizować ikony statusu (✅/❌)
-                                    st.rerun()
+                                st.rerun()
+                            else:
+                                if errors:
+                                    st.error("❌ Nie udało się zapisać typów:\n" + "\n".join(errors[:5]))
                                 else:
-                                    if errors:
-                                        st.error("❌ Nie udało się zapisać typów:\n" + "\n".join(errors[:5]))
-                                    else:
                                     st.warning("⚠️ Wprowadź typy przed zapisem")
-                                
-                                # Przeładuj dane po zapisie (nawet jeśli były błędy, niektóre typy mogły zostać zapisane)
-                                storage.reload_data()
                     
                     with col_delete_single:
                         # Użyj unikalnego klucza z round_id i selected_player, aby uniknąć duplikatów
