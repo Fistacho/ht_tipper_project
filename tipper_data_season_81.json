@@ -11,10 +11,10 @@
           "away_team_name": "ks Jastrowie",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": 1,
-          "away_goals": 2,
+          "home_goals": "1",
+          "away_goals": "2",
           "league_id": 32612,
-          "result_updated": "2025-12-21T13:01:10.860516"
+          "result_updated": "2025-12-21T13:01:20.407628"
         },
         {
           "match_id": "758871964",
@@ -24,10 +24,10 @@
           "away_team_name": "Borciuchy International",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": 4,
-          "away_goals": 0,
+          "home_goals": "4",
+          "away_goals": "0",
           "league_id": 32612,
-          "result_updated": "2025-12-21T13:01:10.862522"
+          "result_updated": "2025-12-21T13:01:20.407628"
         },
         {
           "match_id": "758871965",
@@ -37,10 +37,10 @@
           "away_team_name": "Atletik Bimbao",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": 3,
-          "away_goals": 1,
+          "home_goals": "3",
+          "away_goals": "1",
           "league_id": 32612,
-          "result_updated": "2025-12-21T13:01:10.864521"
+          "result_updated": "2025-12-21T13:01:20.409036"
         },
         {
           "match_id": "758871966",
@@ -50,10 +50,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": 3,
-          "away_goals": 0,
+          "home_goals": "3",
+          "away_goals": "0",
           "league_id": 32612,
-          "result_updated": "2025-12-21T13:01:10.866520"
+          "result_updated": "2025-12-21T13:01:20.409036"
         },
         {
           "match_id": "758840941",
@@ -63,10 +63,10 @@
           "away_team_name": "FC Paralityks",
           "match_date": "2025-12-21 09:00:00",
           "status": null,
-          "home_goals": 2,
-          "away_goals": 1,
+          "home_goals": "2",
+          "away_goals": "1",
           "league_id": 9583,
-          "result_updated": "2025-12-21T13:01:10.868520"
+          "result_updated": "2025-12-21T13:01:20.409036"
         }
       ],
       "start_date": "2025-12-21",
