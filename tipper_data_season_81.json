@@ -594,7 +594,20 @@
         }
       ],
       "start_date": "2025-12-28",
-      "predictions": {}
+      "predictions": {
+        "Wilk": {
+          "758871967": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2025-12-29T06:41:40.035845"
+          }
+        }
+      },
+      "match_points": {
+        "Wilk": {
+          "758871967": 3
+        }
+      }
     }
   },
   "seasons": {
@@ -1010,16 +1023,23 @@
                 "away": 1,
                 "timestamp": "2025-12-21T11:57:20.994004"
               }
+            },
+            "round_2025-12-28": {
+              "758871967": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2025-12-29T06:41:40.035941"
+              }
             }
           },
-          "total_points": 45,
-          "rounds_played": 1,
+          "total_points": 48,
+          "rounds_played": 2,
           "best_score": 45,
           "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 45,
             "round_2025-12-14": 0,
-            "round_2025-12-28": 0
+            "round_2025-12-28": 3
           }
         }
       },
