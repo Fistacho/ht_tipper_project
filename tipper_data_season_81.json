@@ -535,10 +535,10 @@
           "away_team_name": "Legia KG(L)",
           "match_date": "2025-12-28 09:00:00",
           "status": null,
-          "home_goals": 2,
-          "away_goals": 1,
+          "home_goals": "2",
+          "away_goals": "1",
           "league_id": 32612,
-          "result_updated": "2025-12-29T06:45:45.215952"
+          "result_updated": "2025-12-29T06:45:54.886529"
         },
         {
           "match_id": "758871968",
@@ -548,10 +548,10 @@
           "away_team_name": "LegiaWawa",
           "match_date": "2025-12-28 09:00:00",
           "status": null,
-          "home_goals": 1,
-          "away_goals": 2,
+          "home_goals": "1",
+          "away_goals": "2",
           "league_id": 32612,
-          "result_updated": "2025-12-29T06:45:45.216804"
+          "result_updated": "2025-12-29T06:45:54.886805"
         },
         {
           "match_id": "758871969",
@@ -561,10 +561,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2025-12-28 09:00:00",
           "status": null,
-          "home_goals": 2,
-          "away_goals": 1,
+          "home_goals": "2",
+          "away_goals": "1",
           "league_id": 32612,
-          "result_updated": "2025-12-29T06:45:45.217623"
+          "result_updated": "2025-12-29T06:45:54.887026"
         },
         {
           "match_id": "758871974",
@@ -574,10 +574,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2025-12-28 09:00:00",
           "status": null,
-          "home_goals": 0,
-          "away_goals": 2,
+          "home_goals": "0",
+          "away_goals": "2",
           "league_id": 32612,
-          "result_updated": "2025-12-29T06:45:45.218472"
+          "result_updated": "2025-12-29T06:45:54.887241"
         },
         {
           "match_id": "758840944",
@@ -587,10 +587,10 @@
           "away_team_name": "Gornik Polkowice",
           "match_date": "2025-12-28 09:00:00",
           "status": null,
-          "home_goals": 2,
-          "away_goals": 0,
+          "home_goals": "2",
+          "away_goals": "0",
           "league_id": 9583,
-          "result_updated": "2025-12-29T06:45:45.219315"
+          "result_updated": "2025-12-29T06:45:54.887443"
         }
       ],
       "start_date": "2025-12-28",
