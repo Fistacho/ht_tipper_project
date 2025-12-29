@@ -729,6 +729,13 @@
             "away": 1,
             "timestamp": "2025-12-29T06:46:52.717797"
           }
+        },
+        "Fistach": {
+          "758871967": {
+            "home": 0,
+            "away": 2,
+            "timestamp": "2025-12-29T06:48:00.295872"
+          }
         }
       },
       "match_points": {
@@ -766,6 +773,9 @@
           "758871969": 4,
           "758871974": 8,
           "758840944": 8
+        },
+        "Fistach": {
+          "758871967": 2
         }
       }
     }
@@ -945,16 +955,23 @@
                 "away": 2,
                 "timestamp": "2025-12-21T12:13:32.611493"
               }
+            },
+            "round_2025-12-28": {
+              "758871967": {
+                "home": 0,
+                "away": 2,
+                "timestamp": "2025-12-29T06:48:00.295973"
+              }
             }
           },
-          "total_points": 65,
-          "rounds_played": 2,
+          "total_points": 67,
+          "rounds_played": 3,
           "best_score": 33,
-          "worst_score": 0,
+          "worst_score": 2,
           "round_scores": {
             "round_2025-12-21": 32,
             "round_2025-12-14": 33,
-            "round_2025-12-28": 0
+            "round_2025-12-28": 2
           }
         },
         "Kali": {
