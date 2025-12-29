@@ -535,10 +535,10 @@
           "away_team_name": "Legia KG(L)",
           "match_date": "2025-12-28 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "1",
+          "home_goals": 2,
+          "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2025-12-28T16:10:18.494016"
+          "result_updated": "2025-12-29T06:41:40.886047"
         },
         {
           "match_id": "758871968",
@@ -548,10 +548,10 @@
           "away_team_name": "LegiaWawa",
           "match_date": "2025-12-28 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "2",
+          "home_goals": 1,
+          "away_goals": 2,
           "league_id": 32612,
-          "result_updated": "2025-12-28T16:02:09.106605"
+          "result_updated": "2025-12-29T06:41:40.886300"
         },
         {
           "match_id": "758871969",
@@ -561,10 +561,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2025-12-28 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "1",
+          "home_goals": 2,
+          "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2025-12-28T16:02:09.106782"
+          "result_updated": "2025-12-29T06:41:40.886664"
         },
         {
           "match_id": "758871974",
@@ -574,10 +574,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2025-12-28 09:00:00",
           "status": null,
-          "home_goals": "0",
-          "away_goals": "2",
+          "home_goals": 0,
+          "away_goals": 2,
           "league_id": 32612,
-          "result_updated": "2025-12-28T16:02:09.106903"
+          "result_updated": "2025-12-29T06:41:40.887060"
         },
         {
           "match_id": "758840944",
@@ -587,10 +587,10 @@
           "away_team_name": "Gornik Polkowice",
           "match_date": "2025-12-28 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "0",
+          "home_goals": 2,
+          "away_goals": 0,
           "league_id": 9583,
-          "result_updated": "2025-12-28T16:02:09.107015"
+          "result_updated": "2025-12-29T06:41:40.887460"
         }
       ],
       "start_date": "2025-12-28",
@@ -600,12 +600,36 @@
             "home": 1,
             "away": 2,
             "timestamp": "2025-12-29T06:41:40.035845"
+          },
+          "758871968": {
+            "home": 2,
+            "away": 3,
+            "timestamp": "2025-12-29T06:41:40.883941"
+          },
+          "758871969": {
+            "home": 2,
+            "away": 0,
+            "timestamp": "2025-12-29T06:41:40.884579"
+          },
+          "758871974": {
+            "home": 1,
+            "away": 3,
+            "timestamp": "2025-12-29T06:41:40.885157"
+          },
+          "758840944": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2025-12-29T06:41:40.885701"
           }
         }
       },
       "match_points": {
         "Wilk": {
-          "758871967": 3
+          "758871967": 3,
+          "758871968": 8,
+          "758871969": 9,
+          "758871974": 8,
+          "758840944": 9
         }
       }
     }
@@ -1029,17 +1053,37 @@
                 "home": 1,
                 "away": 2,
                 "timestamp": "2025-12-29T06:41:40.035941"
+              },
+              "758871968": {
+                "home": 2,
+                "away": 3,
+                "timestamp": "2025-12-29T06:41:40.884003"
+              },
+              "758871969": {
+                "home": 2,
+                "away": 0,
+                "timestamp": "2025-12-29T06:41:40.884631"
+              },
+              "758871974": {
+                "home": 1,
+                "away": 3,
+                "timestamp": "2025-12-29T06:41:40.885203"
+              },
+              "758840944": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2025-12-29T06:41:40.885787"
               }
             }
           },
-          "total_points": 48,
+          "total_points": 82,
           "rounds_played": 2,
           "best_score": 45,
           "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 45,
             "round_2025-12-14": 0,
-            "round_2025-12-28": 3
+            "round_2025-12-28": 37
           }
         }
       },
