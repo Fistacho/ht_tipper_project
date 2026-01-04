@@ -935,7 +935,20 @@
         }
       ],
       "start_date": "2026-01-04",
-      "predictions": {}
+      "predictions": {
+        "Wilk": {
+          "758871970": {
+            "home": 1,
+            "away": 1,
+            "timestamp": "2026-01-04T12:41:01.862769"
+          }
+        }
+      },
+      "match_points": {
+        "Wilk": {
+          "758871970": 6
+        }
+      }
     }
   },
   "seasons": {
@@ -1053,12 +1066,13 @@
           "total_points": 90,
           "rounds_played": 3,
           "best_score": 38,
-          "worst_score": 18,
+          "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 34,
             "round_2025-12-14": 18,
             "round_2025-12-28": 38,
-            "round_2026-01-11": 0
+            "round_2026-01-11": 0,
+            "round_2026-01-04": 0
           }
         },
         "Fistach": {
@@ -1148,12 +1162,13 @@
           "total_points": 102,
           "rounds_played": 3,
           "best_score": 37,
-          "worst_score": 32,
+          "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 32,
             "round_2025-12-14": 33,
             "round_2025-12-28": 37,
-            "round_2026-01-11": 0
+            "round_2026-01-11": 0,
+            "round_2026-01-04": 0
           }
         },
         "Kali": {
@@ -1166,7 +1181,8 @@
             "round_2025-12-21": 0,
             "round_2025-12-14": 0,
             "round_2025-12-28": 0,
-            "round_2026-01-11": 0
+            "round_2026-01-11": 0,
+            "round_2026-01-04": 0
           }
         },
         "Manvers": {
@@ -1256,12 +1272,13 @@
           "total_points": 101,
           "rounds_played": 3,
           "best_score": 45,
-          "worst_score": 25,
+          "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 45,
             "round_2025-12-14": 25,
             "round_2025-12-28": 31,
-            "round_2026-01-11": 0
+            "round_2026-01-11": 0,
+            "round_2026-01-04": 0
           }
         },
         "Moli": {
@@ -1351,12 +1368,13 @@
           "total_points": 74,
           "rounds_played": 3,
           "best_score": 31,
-          "worst_score": 21,
+          "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 31,
             "round_2025-12-14": 22,
             "round_2025-12-28": 21,
-            "round_2026-01-11": 0
+            "round_2026-01-11": 0,
+            "round_2026-01-04": 0
           }
         },
         "Sokół": {
@@ -1369,7 +1387,8 @@
             "round_2025-12-21": 0,
             "round_2025-12-14": 0,
             "round_2025-12-28": 0,
-            "round_2026-01-11": 0
+            "round_2026-01-11": 0,
+            "round_2026-01-04": 0
           }
         },
         "Sonne": {
@@ -1459,12 +1478,13 @@
           "total_points": 110,
           "rounds_played": 3,
           "best_score": 40,
-          "worst_score": 32,
+          "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 32,
             "round_2025-12-14": 38,
             "round_2025-12-28": 40,
-            "round_2026-01-11": 0
+            "round_2026-01-11": 0,
+            "round_2026-01-04": 0
           }
         },
         "Wilk": {
@@ -1522,17 +1542,25 @@
                 "away": 1,
                 "timestamp": "2025-12-29T06:41:40.885787"
               }
+            },
+            "round_2026-01-04": {
+              "758871970": {
+                "home": 1,
+                "away": 1,
+                "timestamp": "2026-01-04T12:41:01.862881"
+              }
             }
           },
-          "total_points": 82,
-          "rounds_played": 2,
+          "total_points": 88,
+          "rounds_played": 3,
           "best_score": 45,
           "worst_score": 0,
           "round_scores": {
             "round_2025-12-21": 45,
             "round_2025-12-14": 0,
             "round_2025-12-28": 37,
-            "round_2026-01-11": 0
+            "round_2026-01-11": 0,
+            "round_2026-01-04": 6
           }
         }
       },
