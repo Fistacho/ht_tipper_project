@@ -814,10 +814,10 @@
           "away_team_name": "Legia KG(L)",
           "match_date": "2026-01-11 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "1",
+          "home_goals": 2,
+          "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2026-01-11T12:00:39.045497"
+          "result_updated": "2026-01-11T12:01:05.657577"
         },
         {
           "match_id": "758871976",
@@ -827,10 +827,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2026-01-11 09:00:00",
           "status": null,
-          "home_goals": "0",
-          "away_goals": "0",
+          "home_goals": 0,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2026-01-11T12:00:39.045700"
+          "result_updated": "2026-01-11T12:01:05.658168"
         },
         {
           "match_id": "758871977",
@@ -840,10 +840,10 @@
           "away_team_name": "Atletik Bimbao",
           "match_date": "2026-01-11 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "0",
+          "home_goals": 1,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2026-01-11T12:00:39.045859"
+          "result_updated": "2026-01-11T12:01:05.658735"
         },
         {
           "match_id": "758871978",
@@ -853,10 +853,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2026-01-11 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "6",
+          "home_goals": 2,
+          "away_goals": 6,
           "league_id": 32612,
-          "result_updated": "2026-01-11T12:00:39.046149"
+          "result_updated": "2026-01-11T12:01:05.659323"
         },
         {
           "match_id": "758840951",
@@ -866,10 +866,10 @@
           "away_team_name": "Nankatsu C.F.",
           "match_date": "2026-01-11 09:00:00",
           "status": null,
-          "home_goals": "4",
-          "away_goals": "0",
+          "home_goals": 4,
+          "away_goals": 0,
           "league_id": 9583,
-          "result_updated": "2026-01-11T12:00:39.046303"
+          "result_updated": "2026-01-11T12:01:05.659874"
         }
       ],
       "start_date": "2026-01-11",
@@ -991,22 +991,22 @@
           "758871976": {
             "home": 3,
             "away": 1,
-            "timestamp": "2026-01-11T12:00:30.265226"
+            "timestamp": "2026-01-11T12:01:05.655550"
           },
           "758871977": {
             "home": 2,
             "away": 0,
-            "timestamp": "2026-01-11T12:00:30.266195"
+            "timestamp": "2026-01-11T12:01:05.656224"
           },
           "758871978": {
             "home": 2,
             "away": 2,
-            "timestamp": "2026-01-11T12:00:30.267107"
+            "timestamp": "2026-01-11T12:01:05.656776"
           },
           "758840951": {
             "home": 3,
             "away": 0,
-            "timestamp": "2026-01-11T12:00:30.267950"
+            "timestamp": "2026-01-11T12:01:05.657300"
           }
         }
       },
@@ -2103,22 +2103,22 @@
               "758871976": {
                 "home": 3,
                 "away": 1,
-                "timestamp": "2026-01-11T12:00:30.265309"
+                "timestamp": "2026-01-11T12:01:05.655606"
               },
               "758871977": {
                 "home": 2,
                 "away": 0,
-                "timestamp": "2026-01-11T12:00:30.266270"
+                "timestamp": "2026-01-11T12:01:05.656315"
               },
               "758871978": {
                 "home": 2,
                 "away": 2,
-                "timestamp": "2026-01-11T12:00:30.267176"
+                "timestamp": "2026-01-11T12:01:05.656819"
               },
               "758840951": {
                 "home": 3,
                 "away": 0,
-                "timestamp": "2026-01-11T12:00:30.268062"
+                "timestamp": "2026-01-11T12:01:05.657345"
               }
             }
           },
