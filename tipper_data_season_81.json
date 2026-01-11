@@ -814,10 +814,10 @@
           "away_team_name": "Legia KG(L)",
           "match_date": "2026-01-11 09:00:00",
           "status": null,
-          "home_goals": 2,
-          "away_goals": 1,
+          "home_goals": "2",
+          "away_goals": "1",
           "league_id": 32612,
-          "result_updated": "2026-01-11T11:55:20.224283"
+          "result_updated": "2026-01-11T11:55:29.146207"
         },
         {
           "match_id": "758871976",
@@ -827,10 +827,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2026-01-11 09:00:00",
           "status": null,
-          "home_goals": 0,
-          "away_goals": 0,
+          "home_goals": "0",
+          "away_goals": "0",
           "league_id": 32612,
-          "result_updated": "2026-01-11T11:55:20.224638"
+          "result_updated": "2026-01-11T11:55:29.146358"
         },
         {
           "match_id": "758871977",
@@ -840,10 +840,10 @@
           "away_team_name": "Atletik Bimbao",
           "match_date": "2026-01-11 09:00:00",
           "status": null,
-          "home_goals": 1,
-          "away_goals": 0,
+          "home_goals": "1",
+          "away_goals": "0",
           "league_id": 32612,
-          "result_updated": "2026-01-11T11:55:20.225007"
+          "result_updated": "2026-01-11T11:55:29.146490"
         },
         {
           "match_id": "758871978",
@@ -853,10 +853,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2026-01-11 09:00:00",
           "status": null,
-          "home_goals": 2,
-          "away_goals": 6,
+          "home_goals": "2",
+          "away_goals": "6",
           "league_id": 32612,
-          "result_updated": "2026-01-11T11:55:20.225386"
+          "result_updated": "2026-01-11T11:55:29.146673"
         },
         {
           "match_id": "758840951",
@@ -866,10 +866,10 @@
           "away_team_name": "Nankatsu C.F.",
           "match_date": "2026-01-11 09:00:00",
           "status": null,
-          "home_goals": 4,
-          "away_goals": 0,
+          "home_goals": "4",
+          "away_goals": "0",
           "league_id": 9583,
-          "result_updated": "2026-01-11T11:55:20.225736"
+          "result_updated": "2026-01-11T11:55:29.146875"
         }
       ],
       "start_date": "2026-01-11",
