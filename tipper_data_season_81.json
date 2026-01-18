@@ -1494,7 +1494,20 @@
         }
       ],
       "start_date": "2026-01-18",
-      "predictions": {}
+      "predictions": {
+        "Fistach": {
+          "758871979": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2026-01-18T11:06:45.691287"
+          }
+        }
+      },
+      "match_points": {
+        "Fistach": {
+          "758871979": 2
+        }
+      }
     }
   },
   "seasons": {
@@ -1815,12 +1828,19 @@
                 "away": 1,
                 "timestamp": "2026-01-11T11:55:20.223917"
               }
+            },
+            "round_2026-01-18": {
+              "758871979": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2026-01-18T11:06:45.691391"
+              }
             }
           },
-          "total_points": 144,
-          "rounds_played": 5,
+          "total_points": 146,
+          "rounds_played": 6,
           "best_score": 37,
-          "worst_score": 0,
+          "worst_score": 2,
           "round_scores": {
             "round_2025-12-21": 32,
             "round_2025-12-14": 33,
@@ -1828,7 +1848,7 @@
             "round_2026-01-11": 19,
             "round_2026-01-04": 23,
             "round_2026-01-25": 0,
-            "round_2026-01-18": 0
+            "round_2026-01-18": 2
           }
         },
         "Kali": {
