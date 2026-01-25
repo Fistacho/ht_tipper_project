@@ -1431,7 +1431,20 @@
         }
       ],
       "start_date": "2026-01-25",
-      "predictions": {}
+      "predictions": {
+        "Adi": {
+          "758871982": {
+            "home": 2,
+            "away": 0,
+            "timestamp": "2026-01-25T10:11:31.886805"
+          }
+        }
+      },
+      "match_points": {
+        "Adi": {
+          "758871982": 2
+        }
+      }
     },
     "round_2026-01-18": {
       "season_id": "season_81",
@@ -1906,19 +1919,26 @@
                 "away": 2,
                 "timestamp": "2026-01-18T11:07:51.556535"
               }
+            },
+            "round_2026-01-25": {
+              "758871982": {
+                "home": 2,
+                "away": 0,
+                "timestamp": "2026-01-25T10:11:31.886881"
+              }
             }
           },
-          "total_points": 151,
-          "rounds_played": 6,
+          "total_points": 153,
+          "rounds_played": 7,
           "best_score": 38,
-          "worst_score": 0,
+          "worst_score": 2,
           "round_scores": {
             "round_2025-12-21": 34,
             "round_2025-12-14": 18,
             "round_2025-12-28": 38,
             "round_2026-01-11": 20,
             "round_2026-01-04": 23,
-            "round_2026-01-25": 0,
+            "round_2026-01-25": 2,
             "round_2026-01-18": 18
           }
         },
