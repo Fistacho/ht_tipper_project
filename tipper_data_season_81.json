@@ -1372,10 +1372,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2026-01-25 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "2",
+          "home_goals": 1,
+          "away_goals": 2,
           "league_id": 32612,
-          "result_updated": "2026-01-25T10:09:56.759963"
+          "result_updated": "2026-01-25T10:10:06.125618"
         },
         {
           "match_id": "758871983",
