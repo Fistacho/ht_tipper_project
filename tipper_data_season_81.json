@@ -1963,10 +1963,10 @@
           "away_team_name": "LegiaWawa",
           "match_date": "2026-02-01 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "0",
+          "home_goals": 2,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2026-02-01T11:13:30.172300"
+          "result_updated": "2026-02-01T11:15:34.569791"
         },
         {
           "match_id": "758871988",
@@ -1976,10 +1976,10 @@
           "away_team_name": "ks Jastrowie",
           "match_date": "2026-02-01 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "1",
+          "home_goals": 1,
+          "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2026-02-01T11:13:30.172526"
+          "result_updated": "2026-02-01T11:15:34.570750"
         },
         {
           "match_id": "758871989",
@@ -1989,10 +1989,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2026-02-01 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "2",
+          "home_goals": 2,
+          "away_goals": 2,
           "league_id": 32612,
-          "result_updated": "2026-02-01T11:13:30.172808"
+          "result_updated": "2026-02-01T11:15:34.571758"
         },
         {
           "match_id": "758871991",
@@ -2002,10 +2002,10 @@
           "away_team_name": "Szmacianka Szynwałdzianka",
           "match_date": "2026-02-01 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "0",
+          "home_goals": 2,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2026-02-01T11:13:30.173024"
+          "result_updated": "2026-02-01T11:15:34.572614"
         },
         {
           "match_id": "758840967",
@@ -2015,10 +2015,10 @@
           "away_team_name": "FC Paralityks",
           "match_date": "2026-02-01 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "1",
+          "home_goals": 1,
+          "away_goals": 1,
           "league_id": 9583,
-          "result_updated": "2026-02-01T11:13:30.173249"
+          "result_updated": "2026-02-01T11:15:34.573799"
         }
       ],
       "start_date": "2026-02-01",
@@ -2163,6 +2163,26 @@
             "home": 1,
             "away": 3,
             "timestamp": "2026-02-01T11:15:33.359687"
+          },
+          "758871988": {
+            "home": 2,
+            "away": 0,
+            "timestamp": "2026-02-01T11:15:34.567114"
+          },
+          "758871989": {
+            "home": 4,
+            "away": 0,
+            "timestamp": "2026-02-01T11:15:34.567947"
+          },
+          "758871991": {
+            "home": 0,
+            "away": 1,
+            "timestamp": "2026-02-01T11:15:34.568615"
+          },
+          "758840967": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2026-02-01T11:15:34.569303"
           }
         }
       },
@@ -2203,7 +2223,11 @@
           "758840967": 4
         },
         "Wilk": {
-          "758871987": 1
+          "758871987": 1,
+          "758871988": 3,
+          "758871989": 1,
+          "758871991": 2,
+          "758840967": 4
         }
       }
     }
@@ -3593,10 +3617,30 @@
                 "home": 1,
                 "away": 3,
                 "timestamp": "2026-02-01T11:15:33.359786"
+              },
+              "758871988": {
+                "home": 2,
+                "away": 0,
+                "timestamp": "2026-02-01T11:15:34.567167"
+              },
+              "758871989": {
+                "home": 4,
+                "away": 0,
+                "timestamp": "2026-02-01T11:15:34.567996"
+              },
+              "758871991": {
+                "home": 0,
+                "away": 1,
+                "timestamp": "2026-02-01T11:15:34.568702"
+              },
+              "758840967": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2026-02-01T11:15:34.569348"
               }
             }
           },
-          "total_points": 175,
+          "total_points": 185,
           "rounds_played": 7,
           "best_score": 45,
           "worst_score": 0,
@@ -3609,7 +3653,7 @@
             "round_2026-01-25": 29,
             "round_2026-01-18": 24,
             "round_2026-02-08": 0,
-            "round_2026-02-01": 1
+            "round_2026-02-01": 11
           }
         }
       },
