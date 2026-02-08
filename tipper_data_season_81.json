@@ -1955,7 +1955,20 @@
         }
       ],
       "start_date": "2026-02-08",
-      "predictions": {}
+      "predictions": {
+        "Fistach": {
+          "758871990": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2026-02-08T10:14:07.572183"
+          }
+        }
+      },
+      "match_points": {
+        "Fistach": {
+          "758871990": 9
+        }
+      }
     },
     "round_2026-02-01": {
       "season_id": "season_81",
@@ -2790,12 +2803,19 @@
                 "away": 2,
                 "timestamp": "2026-02-01T11:07:09.250276"
               }
+            },
+            "round_2026-02-08": {
+              "758871990": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2026-02-08T10:14:07.572313"
+              }
             }
           },
-          "total_points": 200,
-          "rounds_played": 8,
+          "total_points": 209,
+          "rounds_played": 9,
           "best_score": 37,
-          "worst_score": 0,
+          "worst_score": 9,
           "round_scores": {
             "round_2025-12-21": 32,
             "round_2025-12-14": 33,
@@ -2804,7 +2824,7 @@
             "round_2026-01-04": 23,
             "round_2026-01-25": 25,
             "round_2026-01-18": 17,
-            "round_2026-02-08": 0,
+            "round_2026-02-08": 9,
             "round_2026-02-01": 14,
             "round_2026-02-15": 0
           }
