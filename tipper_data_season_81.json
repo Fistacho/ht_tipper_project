@@ -2454,10 +2454,10 @@
           "away_team_name": "LegiaWawa",
           "match_date": "2026-02-15 09:00:00",
           "status": null,
-          "home_goals": "3",
-          "away_goals": "1",
+          "home_goals": 3,
+          "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2026-02-15T10:18:56.624863"
+          "result_updated": "2026-02-15T10:22:30.820927"
         },
         {
           "match_id": "758871996",
@@ -2467,10 +2467,10 @@
           "away_team_name": "Szmacianka Szynwałdzianka",
           "match_date": "2026-02-15 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "0",
+          "home_goals": 2,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2026-02-15T10:18:56.624999"
+          "result_updated": "2026-02-15T10:22:30.821801"
         },
         {
           "match_id": "758871997",
@@ -2480,10 +2480,10 @@
           "away_team_name": "ks Jastrowie",
           "match_date": "2026-02-15 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "0",
+          "home_goals": 1,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2026-02-15T10:18:56.625116"
+          "result_updated": "2026-02-15T10:22:30.822732"
         },
         {
           "match_id": "758871998",
@@ -2493,10 +2493,10 @@
           "away_team_name": "Borciuchy International",
           "match_date": "2026-02-15 09:00:00",
           "status": null,
-          "home_goals": "4",
-          "away_goals": "0",
+          "home_goals": 4,
+          "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2026-02-15T10:18:56.625248"
+          "result_updated": "2026-02-15T10:22:30.823587"
         },
         {
           "match_id": "758840975",
@@ -2506,10 +2506,10 @@
           "away_team_name": "FC Paralityks",
           "match_date": "2026-02-15 09:00:00",
           "status": null,
-          "home_goals": "0",
-          "away_goals": "1",
+          "home_goals": 0,
+          "away_goals": 1,
           "league_id": 9583,
-          "result_updated": "2026-02-15T10:18:56.625369"
+          "result_updated": "2026-02-15T10:22:30.824528"
         }
       ],
       "start_date": "2026-02-15",
@@ -2519,12 +2519,36 @@
             "home": 1,
             "away": 2,
             "timestamp": "2026-02-15T10:22:29.822390"
+          },
+          "758871996": {
+            "home": 4,
+            "away": 1,
+            "timestamp": "2026-02-15T10:22:30.815624"
+          },
+          "758871997": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2026-02-15T10:22:30.817053"
+          },
+          "758871998": {
+            "home": 1,
+            "away": 1,
+            "timestamp": "2026-02-15T10:22:30.818385"
+          },
+          "758840975": {
+            "home": 0,
+            "away": 2,
+            "timestamp": "2026-02-15T10:22:30.819981"
           }
         }
       },
       "match_points": {
         "Fistach": {
-          "758871994": 2
+          "758871994": 2,
+          "758871996": 7,
+          "758871997": 3,
+          "758871998": 1,
+          "758840975": 9
         }
       }
     }
@@ -3075,13 +3099,33 @@
                 "home": 1,
                 "away": 2,
                 "timestamp": "2026-02-15T10:22:29.822492"
+              },
+              "758871996": {
+                "home": 4,
+                "away": 1,
+                "timestamp": "2026-02-15T10:22:30.815745"
+              },
+              "758871997": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2026-02-15T10:22:30.817155"
+              },
+              "758871998": {
+                "home": 1,
+                "away": 1,
+                "timestamp": "2026-02-15T10:22:30.818476"
+              },
+              "758840975": {
+                "home": 0,
+                "away": 2,
+                "timestamp": "2026-02-15T10:22:30.820086"
               }
             }
           },
-          "total_points": 246,
+          "total_points": 266,
           "rounds_played": 10,
           "best_score": 44,
-          "worst_score": 2,
+          "worst_score": 14,
           "round_scores": {
             "round_2025-12-21": 32,
             "round_2025-12-14": 33,
@@ -3092,7 +3136,7 @@
             "round_2026-01-18": 17,
             "round_2026-02-08": 44,
             "round_2026-02-01": 14,
-            "round_2026-02-15": 2
+            "round_2026-02-15": 22
           }
         },
         "Kali": {
