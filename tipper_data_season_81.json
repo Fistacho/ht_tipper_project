@@ -2800,10 +2800,10 @@
           "away_team_name": "LegiaWawa",
           "match_date": "2026-02-22 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "2",
+          "home_goals": 1,
+          "away_goals": 2,
           "league_id": 32612,
-          "result_updated": "2026-02-22T11:20:16.733572"
+          "result_updated": "2026-02-22T11:41:33.168467"
         },
         {
           "match_id": "758872001",
@@ -2813,10 +2813,10 @@
           "away_team_name": "Legia KG(L)",
           "match_date": "2026-02-22 09:00:00",
           "status": null,
-          "home_goals": "0",
-          "away_goals": "4",
+          "home_goals": 0,
+          "away_goals": 4,
           "league_id": 32612,
-          "result_updated": "2026-02-22T11:20:16.733649"
+          "result_updated": "2026-02-22T11:41:33.169620"
         },
         {
           "match_id": "758872002",
@@ -2826,10 +2826,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2026-02-22 09:00:00",
           "status": null,
-          "home_goals": "0",
-          "away_goals": "1",
+          "home_goals": 0,
+          "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2026-02-22T11:20:16.733709"
+          "result_updated": "2026-02-22T11:41:33.170525"
         },
         {
           "match_id": "758872003",
@@ -2839,10 +2839,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2026-02-22 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "1",
+          "home_goals": 2,
+          "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2026-02-22T11:20:16.733766"
+          "result_updated": "2026-02-22T11:41:33.171457"
         },
         {
           "match_id": "758840978",
@@ -2852,10 +2852,10 @@
           "away_team_name": "Underworld Masters",
           "match_date": "2026-02-22 09:00:00",
           "status": null,
-          "home_goals": "0",
-          "away_goals": "2",
+          "home_goals": 0,
+          "away_goals": 2,
           "league_id": 9583,
-          "result_updated": "2026-02-22T11:20:16.733822"
+          "result_updated": "2026-02-22T11:41:33.172517"
         }
       ],
       "start_date": "2026-02-22",
@@ -2865,6 +2865,26 @@
             "home": 1,
             "away": 2,
             "timestamp": "2026-02-22T11:41:32.295269"
+          },
+          "758872001": {
+            "home": 0,
+            "away": 4,
+            "timestamp": "2026-02-22T11:41:33.163634"
+          },
+          "758872002": {
+            "home": 1,
+            "away": 3,
+            "timestamp": "2026-02-22T11:41:33.164861"
+          },
+          "758872003": {
+            "home": 0,
+            "away": 3,
+            "timestamp": "2026-02-22T11:41:33.166134"
+          },
+          "758840978": {
+            "home": 0,
+            "away": 3,
+            "timestamp": "2026-02-22T11:41:33.167485"
           }
         },
         "Adi": {
@@ -2951,7 +2971,11 @@
       },
       "match_points": {
         "Manvers": {
-          "758871999": 12
+          "758871999": 12,
+          "758872001": 12,
+          "758872002": 7,
+          "758872003": 1,
+          "758840978": 9
         },
         "Adi": {
           "758871999": 12,
@@ -3948,13 +3972,33 @@
                 "home": 1,
                 "away": 2,
                 "timestamp": "2026-02-22T11:41:32.295382"
+              },
+              "758872001": {
+                "home": 0,
+                "away": 4,
+                "timestamp": "2026-02-22T11:41:33.163757"
+              },
+              "758872002": {
+                "home": 1,
+                "away": 3,
+                "timestamp": "2026-02-22T11:41:33.164941"
+              },
+              "758872003": {
+                "home": 0,
+                "away": 3,
+                "timestamp": "2026-02-22T11:41:33.166206"
+              },
+              "758840978": {
+                "home": 0,
+                "away": 3,
+                "timestamp": "2026-02-22T11:41:33.167584"
               }
             }
           },
-          "total_points": 303,
+          "total_points": 332,
           "rounds_played": 11,
           "best_score": 45,
-          "worst_score": 12,
+          "worst_score": 14,
           "round_scores": {
             "round_2025-12-21": 45,
             "round_2025-12-14": 25,
@@ -3967,7 +4011,7 @@
             "round_2026-02-01": 14,
             "round_2026-02-15": 27,
             "round_2026-03-01": 0,
-            "round_2026-02-22": 12
+            "round_2026-02-22": 41
           }
         },
         "Moli": {
