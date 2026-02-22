@@ -2854,7 +2854,20 @@
         }
       ],
       "start_date": "2026-02-22",
-      "predictions": {}
+      "predictions": {
+        "Manvers": {
+          "758871999": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2026-02-22T10:57:38.664180"
+          }
+        }
+      },
+      "match_points": {
+        "Manvers": {
+          "758871999": 12
+        }
+      }
     }
   },
   "seasons": {
@@ -3768,12 +3781,19 @@
                 "away": 3,
                 "timestamp": "2026-02-15T10:36:29.688856"
               }
+            },
+            "round_2026-02-22": {
+              "758871999": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2026-02-22T10:57:38.664282"
+              }
             }
           },
-          "total_points": 291,
-          "rounds_played": 10,
+          "total_points": 303,
+          "rounds_played": 11,
           "best_score": 45,
-          "worst_score": 0,
+          "worst_score": 12,
           "round_scores": {
             "round_2025-12-21": 45,
             "round_2025-12-14": 25,
@@ -3786,7 +3806,7 @@
             "round_2026-02-01": 14,
             "round_2026-02-15": 27,
             "round_2026-03-01": 0,
-            "round_2026-02-22": 0
+            "round_2026-02-22": 12
           }
         },
         "Moli": {
