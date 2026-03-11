@@ -3310,7 +3310,20 @@
         }
       ],
       "start_date": "2026-03-08",
-      "predictions": {}
+      "predictions": {
+        "Wilk": {
+          "758872005": {
+            "home": 1,
+            "away": 3,
+            "timestamp": "2026-03-11T05:31:51.629562"
+          }
+        }
+      },
+      "match_points": {
+        "Wilk": {
+          "758872005": 1
+        }
+      }
     }
   },
   "seasons": {
@@ -5326,10 +5339,17 @@
                 "away": 0,
                 "timestamp": "2026-03-01T11:30:06.294378"
               }
+            },
+            "round_2026-03-08": {
+              "758872005": {
+                "home": 1,
+                "away": 3,
+                "timestamp": "2026-03-11T05:31:51.629691"
+              }
             }
           },
-          "total_points": 263,
-          "rounds_played": 10,
+          "total_points": 264,
+          "rounds_played": 11,
           "best_score": 45,
           "worst_score": 0,
           "round_scores": {
@@ -5346,7 +5366,7 @@
             "round_2026-03-01": 38,
             "round_2026-02-22": 0,
             "round_2026-03-15": 0,
-            "round_2026-03-08": 0
+            "round_2026-03-08": 1
           }
         }
       },
