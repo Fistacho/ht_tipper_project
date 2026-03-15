@@ -3189,10 +3189,10 @@
           "away_team_name": "Atletik Bimbao",
           "match_date": "2026-03-15 09:00:00",
           "status": null,
-          "home_goals": 4,
-          "away_goals": 0,
+          "home_goals": "4",
+          "away_goals": "0",
           "league_id": 32612,
-          "result_updated": "2026-03-15T18:03:58.904654"
+          "result_updated": "2026-03-15T18:04:04.740925"
         },
         {
           "match_id": "758872011",
@@ -3202,10 +3202,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2026-03-15 09:00:00",
           "status": null,
-          "home_goals": 3,
-          "away_goals": 0,
+          "home_goals": "3",
+          "away_goals": "0",
           "league_id": 32612,
-          "result_updated": "2026-03-15T18:03:58.906117"
+          "result_updated": "2026-03-15T18:04:04.741016"
         },
         {
           "match_id": "758872012",
@@ -3215,10 +3215,10 @@
           "away_team_name": "Borciuchy International",
           "match_date": "2026-03-15 09:00:00",
           "status": null,
-          "home_goals": 3,
-          "away_goals": 1,
+          "home_goals": "3",
+          "away_goals": "1",
           "league_id": 32612,
-          "result_updated": "2026-03-15T18:03:58.907547"
+          "result_updated": "2026-03-15T18:04:04.741108"
         },
         {
           "match_id": "758872015",
@@ -3228,10 +3228,10 @@
           "away_team_name": "ks Jastrowie",
           "match_date": "2026-03-15 09:00:00",
           "status": null,
-          "home_goals": 1,
-          "away_goals": 2,
+          "home_goals": "1",
+          "away_goals": "2",
           "league_id": 32612,
-          "result_updated": "2026-03-15T18:03:58.909140"
+          "result_updated": "2026-03-15T18:04:04.741170"
         },
         {
           "match_id": "758840992",
@@ -3241,10 +3241,10 @@
           "away_team_name": "FC Paralityks",
           "match_date": "2026-03-15 09:00:00",
           "status": null,
-          "home_goals": 0,
-          "away_goals": 1,
+          "home_goals": "0",
+          "away_goals": "1",
           "league_id": 9583,
-          "result_updated": "2026-03-15T18:03:58.910629"
+          "result_updated": "2026-03-15T18:04:04.741222"
         }
       ],
       "start_date": "2026-03-15",
