@@ -3734,6 +3734,73 @@
       ],
       "start_date": "2026-04-12",
       "predictions": {}
+    },
+    "round_2026-04-05": {
+      "season_id": "season_81",
+      "matches": [
+        {
+          "match_id": "764125142",
+          "home_team_id": "479526",
+          "home_team_name": "ks Jastrowie",
+          "away_team_id": "1825826",
+          "away_team_name": "LegiaWawa",
+          "match_date": "2026-04-05 09:00:00",
+          "status": null,
+          "home_goals": "0",
+          "away_goals": "1",
+          "league_id": 32612
+        },
+        {
+          "match_id": "764125143",
+          "home_team_id": "1829983",
+          "home_team_name": "Legia KG(L)",
+          "away_team_id": "1299952",
+          "away_team_name": "FC Lokomotywa",
+          "match_date": "2026-04-05 09:00:00",
+          "status": null,
+          "home_goals": "2",
+          "away_goals": "2",
+          "league_id": 32612
+        },
+        {
+          "match_id": "764125144",
+          "home_team_id": "2883083",
+          "home_team_name": "huragan gniewczyna 1",
+          "away_team_id": "265812",
+          "away_team_name": "WuGieZet",
+          "match_date": "2026-04-05 09:00:00",
+          "status": null,
+          "home_goals": "0",
+          "away_goals": "7",
+          "league_id": 32612
+        },
+        {
+          "match_id": "764125145",
+          "home_team_id": "477994",
+          "home_team_name": "Borciuchy International",
+          "away_team_id": "866974",
+          "away_team_name": "Moli Team",
+          "match_date": "2026-04-05 09:00:00",
+          "status": null,
+          "home_goals": "1",
+          "away_goals": "0",
+          "league_id": 32612
+        },
+        {
+          "match_id": "764094118",
+          "home_team_id": "1046400",
+          "home_team_name": "Manchester United Szczytno",
+          "away_team_id": "1823455",
+          "away_team_name": "FC Paralityks",
+          "match_date": "2026-04-05 09:00:00",
+          "status": null,
+          "home_goals": "0",
+          "away_goals": "1",
+          "league_id": 9583
+        }
+      ],
+      "start_date": "2026-04-05",
+      "predictions": {}
     }
   },
   "seasons": {
@@ -3754,7 +3821,8 @@
         "round_2026-02-22",
         "round_2026-03-15",
         "round_2026-03-08",
-        "round_2026-04-12"
+        "round_2026-04-12",
+        "round_2026-04-05"
       ],
       "start_date": null,
       "end_date": null,
