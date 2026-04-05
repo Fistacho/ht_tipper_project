@@ -7,7 +7,9 @@
       "start_date": null,
       "end_date": null,
       "selected_teams": [],
-      "selected_leagues": [],
+      "selected_leagues": [
+        32612
+      ],
       "players": {},
       "archived": false
     }
