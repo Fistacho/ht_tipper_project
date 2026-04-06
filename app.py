@@ -283,21 +283,18 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
     return list(get_cached_all_time_leaderboard(file_signatures, exclude_worst))
 
 
-def get_exclude_worst_setting(season_id: str, key: str):
-    """Zwraca ustawienie checkboxa oraz informację, czy reguła obowiązuje w sezonie."""
+def get_exclude_worst_setting(season_id: str):
+    """Zwraca zapisane ustawienie sezonowe i pokazuje je w widoku rankingu."""
     storage_cache = st.session_state.get("_storage_cache", {})
     storage = storage_cache.get(season_id)
     if storage is not None:
         rule_enabled = storage.get_exclude_worst_rule(season_id)
     else:
         rule_enabled = season_uses_worst_score_rule(season_id)
-    checkbox_value = st.checkbox(
-        "Odrzuć najgorszy wynik każdego gracza",
-        value=rule_enabled,
-        key=key,
-        help="Ustawienie sezonowe"
-    )
-    return checkbox_value, rule_enabled
+
+    rule_text = "włączone" if rule_enabled else "wyłączone"
+    st.caption(f"Ustawienie sezonowe: odrzucanie najgorszego wyniku jest {rule_text}.")
+    return rule_enabled
 
 
 def main():
@@ -716,7 +713,7 @@ def main():
                 st.markdown("---")
                 st.subheader("🏆 Ranking")
                 
-                exclude_worst, exclude_worst_rule_enabled = get_exclude_worst_setting(selected_season_id, "exclude_worst_overall_archived")
+                exclude_worst = get_exclude_worst_setting(selected_season_id)
                 
                 # Pobierz graczy bezpośrednio z danych sezonu (dla archiwalnych sezonów)
                 # Najpierw sprawdź w seasons[season_id]['players'], potem w players (kompatybilność wsteczna)
@@ -1052,7 +1049,7 @@ def main():
         with ranking_tab1:
             st.markdown("### 🏆 Ranking całości")
             
-            exclude_worst, exclude_worst_rule_enabled = get_exclude_worst_setting(selected_season_id, "exclude_worst_overall")
+            exclude_worst = get_exclude_worst_setting(selected_season_id)
             # Przelicz punkty przed pobraniem rankingu (aby mieć aktualne dane)
             storage._recalculate_player_totals(season_id=selected_season_id)
             leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst, season_id=selected_season_id)
@@ -1561,7 +1558,7 @@ def main():
             st.markdown("### 🌟 Ranking wszechczasów")
             st.info("💡 Suma punktów ze wszystkich sezonów")
             
-            exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza z każdego sezonu", value=True, key="exclude_worst_alltime")
+            st.caption("Ranking uwzględnia zapisane zasady każdego sezonu, w tym odrzucanie najgorszego wyniku tam, gdzie było włączone.")
             
             # Przelicz punkty dla aktywnego sezonu przed pobraniem rankingu wszechczasów
             # (aby mieć aktualne dane dla sezonu 80)
@@ -1571,7 +1568,7 @@ def main():
                 storage._save_data(force=True)  # Zapisz zaktualizowane total_points
                 logger.info(f"Zapisano zaktualizowane punkty dla sezonu {selected_season_id}")
             
-            all_time_leaderboard = get_all_time_leaderboard(exclude_worst=exclude_worst)
+            all_time_leaderboard = get_all_time_leaderboard(exclude_worst=True)
             
             if all_time_leaderboard:
                 # Przygotuj dane do wyświetlenia
@@ -2392,7 +2389,13 @@ def main():
                                                        (match_id.isdigit() and int(match_id) in existing_predictions_before))
                                             
                                             logger.info(f"Zapis typów: Zapisuję typ {parsed} dla meczu {match_id}, is_update={is_update}")
-                                            result = storage.add_prediction(round_id, selected_player, match_id, parsed)
+                                            result = storage.add_prediction(
+                                                round_id,
+                                                selected_player,
+                                                match_id,
+                                                parsed,
+                                                recalculate_totals=False
+                                            )
                                             
                                             if result:
                                                 if is_update:
@@ -2422,6 +2425,7 @@ def main():
                                 # NIE przeładowujemy danych - używamy aktualnych danych z storage
                                 round_data = storage.data['rounds'].get(round_id, {})
                                 round_matches = round_data.get('matches', [])
+                                recalculated_matches = 0
                                 for match in round_matches:
                                     match_id = str(match.get('match_id', ''))
                                     home_goals = match.get('home_goals')
@@ -2429,9 +2433,19 @@ def main():
                                     if home_goals is not None and away_goals is not None:
                                         # Przelicz punkty dla tego meczu (dla wszystkich graczy z typami)
                                         try:
-                                            storage.update_match_result(round_id, match_id, int(home_goals), int(away_goals))
+                                            storage.update_match_result(
+                                                round_id,
+                                                match_id,
+                                                int(home_goals),
+                                                int(away_goals),
+                                                save=False,
+                                                recalculate_totals=False
+                                            )
+                                            recalculated_matches += 1
                                         except Exception as e:
                                             logger.error(f"Błąd przeliczania punktów dla meczu {match_id}: {e}")
+
+                                storage._recalculate_player_totals(season_id=selected_season_id, save=False)
                                 
                                 if updated_count > 0 and saved_count > 0:
                                     st.success(f"✅ Zapisano {saved_count} nowych typów, zaktualizowano {updated_count} typów")

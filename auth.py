@@ -182,8 +182,10 @@ def login_page() -> bool:
         # Ranking całości
         with ranking_tab1:
             st.markdown(f"### 🏆 Ranking całości ({current_season_label})")
-            
-            exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza", value=True, key="login_exclude_worst_overall")
+            exclude_worst = storage.get_exclude_worst_rule(current_season_id)
+            rule_text = "włączone" if exclude_worst else "wyłączone"
+            st.caption(f"Ustawienie sezonowe: odrzucanie najgorszego wyniku jest {rule_text}.")
+
             leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst, season_id=current_season_id)
             leaderboard = [player for player in leaderboard if player['player_name'] in selected_players]
             
@@ -613,12 +615,10 @@ def login_page() -> bool:
         # Ranking wszechczasów
         with ranking_tab3:
             st.markdown("### 🌟 Ranking wszechczasów")
-            st.info("💡 Suma punktów ze wszystkich sezonów")
-            
-            exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza z każdego sezonu", value=True, key="login_exclude_worst_alltime")
+            st.info("💡 Suma punktów ze wszystkich sezonów liczona według zapisanych zasad każdego sezonu")
             
             # Oblicz ranking wszechczasów
-            all_time_leaderboard = get_all_time_leaderboard_for_login(exclude_worst=exclude_worst)
+            all_time_leaderboard = get_all_time_leaderboard_for_login(exclude_worst=True)
             
             if all_time_leaderboard:
                 # Przygotuj dane do wyświetlenia

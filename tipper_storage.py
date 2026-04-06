@@ -685,8 +685,15 @@ class TipperStorage:
         
         return self.data['seasons'][season_id]['players']
     
-    def add_prediction(self, round_id: str, player_name: str, match_id: str, prediction: tuple):
-        """Dodaje lub aktualizuje typ gracza dla meczu (tylko jeden typ na gracza i mecz)"""
+    def add_prediction(
+        self,
+        round_id: str,
+        player_name: str,
+        match_id: str,
+        prediction: tuple,
+        recalculate_totals: bool = True
+    ):
+        """Dodaje lub aktualizuje typ gracza dla meczu (tylko jeden typ na gracza i mecz)."""
         if round_id not in self.data['rounds']:
             logger.error(f"Runda {round_id} nie istnieje")
             return False
@@ -700,13 +707,6 @@ class TipperStorage:
         
         if player_name not in players:
             players[player_name] = self._build_player_entry()
-        
-        # Sprawdź czy typ już istnieje
-        existing_prediction = None
-        if 'predictions' in self.data['rounds'][round_id]:
-            if player_name in self.data['rounds'][round_id]['predictions']:
-                if match_id in self.data['rounds'][round_id]['predictions'][player_name]:
-                    existing_prediction = self.data['rounds'][round_id]['predictions'][player_name][match_id]
         
         # Dodaj lub aktualizuj typ do rundy
         if 'predictions' not in self.data['rounds'][round_id]:
@@ -761,8 +761,9 @@ class TipperStorage:
                         self.data['rounds'][round_id]['match_points'][player_name][match_id_str] = points
                         logger.info(f"add_prediction: Przeliczono punkty {points} dla gracza {player_name}, mecz {match_id_str}, typ {prediction}, wynik {home_goals}-{away_goals}")
                     
-                    # Przelicz całkowite punkty gracza (dla sezonu)
-                    self._recalculate_player_totals(season_id=season_id)
+                    # Przelicz całkowite punkty gracza (dla sezonu) tylko jeśli nie jesteśmy w trybie batch.
+                    if recalculate_totals:
+                        self._recalculate_player_totals(season_id=season_id)
                 break
         
         # NIE zapisuj od razu przez _save_data() (używa debounce) - zapis będzie przez flush_save() po wszystkich typach
