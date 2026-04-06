@@ -95,6 +95,34 @@ def get_cached_league_name(
     return league_name or f"Liga {league_id}"
 
 
+def safe_get_league_name_from_storage_or_api(storage: TipperStorage, league_id: int) -> str:
+    """Zwraca nazwę ligi bez wywalania się, jeśli OAuth nie jest jeszcze zainicjalizowany."""
+    stored_league = storage.data.get('leagues', {}).get(str(league_id), {})
+    stored_league_name = stored_league.get('name')
+    if stored_league_name:
+        return stored_league_name
+
+    consumer_key = os.getenv('HATTRICK_CONSUMER_KEY')
+    consumer_secret = os.getenv('HATTRICK_CONSUMER_SECRET')
+    access_token = os.getenv('HATTRICK_ACCESS_TOKEN')
+    access_token_secret = os.getenv('HATTRICK_ACCESS_TOKEN_SECRET')
+
+    if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
+        return f"Liga {league_id}"
+
+    league_name = get_cached_league_name(
+        consumer_key,
+        consumer_secret,
+        access_token,
+        access_token_secret,
+        league_id
+    )
+    if league_name:
+        storage.add_league(league_id, league_name)
+
+    return league_name or f"Liga {league_id}"
+
+
 def should_auto_sync_round(round_id: str, scope: str, ttl_seconds: int | None) -> bool:
     """Ogranicza automatyczne synchronizacje tej samej rundy przy kolejnych rerunach."""
     if ttl_seconds is None:
@@ -522,15 +550,7 @@ def main():
                 if stored_league_name:
                     league_name_label = stored_league_name
                 else:
-                    league_name_label = get_cached_league_name(
-                        consumer_key,
-                        consumer_secret,
-                        access_token,
-                        access_token_secret,
-                        new_league_id
-                    )
-                    if league_name_label:
-                        storage.add_league(new_league_id, league_name_label)
+                    league_name_label = safe_get_league_name_from_storage_or_api(storage, new_league_id)
 
                 st.caption(f"Liga {idx + 1}: {new_league_id} | {league_name_label}")
                 # Aktualizuj wartość w session_state
@@ -561,13 +581,7 @@ def main():
             if st.button("💾 Zapisz ligi", type="primary", key=f"save_leagues_{selected_season_id}", width='stretch'):
                 TIPPER_LEAGUES = st.session_state[leagues_key].copy()
                 for league_id in TIPPER_LEAGUES:
-                    league_name = get_cached_league_name(
-                        consumer_key,
-                        consumer_secret,
-                        access_token,
-                        access_token_secret,
-                        league_id
-                    )
+                    league_name = safe_get_league_name_from_storage_or_api(storage, league_id)
                     storage.add_league(league_id, league_name)
                 storage.set_selected_leagues(TIPPER_LEAGUES, season_id=selected_season_id)
                 storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
@@ -736,10 +750,6 @@ def main():
                 if 'players' in season_data and season_data['players']:
                     players_data_check = season_data['players']
             
-            # Jeśli nie ma w sezonie, sprawdź starą strukturę (kompatybilność wsteczna)
-            if not players_data_check and 'players' in storage.data and storage.data['players']:
-                players_data_check = storage.data['players']
-            
             # Sprawdź czy są gracze z wynikami
             for player_name, player_data in players_data_check.items():
                 if player_data.get('total_points', 0) > 0:
@@ -768,10 +778,6 @@ def main():
                     season_data = storage.data['seasons'][selected_season_id]
                     if 'players' in season_data and season_data['players']:
                         players_data = season_data['players']
-                
-                # Jeśli nie ma w sezonie, sprawdź starą strukturę (kompatybilność wsteczna)
-                if not players_data and 'players' in storage.data and storage.data['players']:
-                    players_data = storage.data['players']
                 
                 if players_data:
                     # Przygotuj ranking z podziałem na rundy

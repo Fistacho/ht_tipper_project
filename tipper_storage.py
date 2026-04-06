@@ -563,13 +563,6 @@ class TipperStorage:
         if 'players' not in self.data['seasons'][season_id]:
             self.data['seasons'][season_id]['players'] = {}
         
-        # Kompatybilność wsteczna: jeśli sezon nie ma graczy, sprawdź starą strukturę
-        if not self.data['seasons'][season_id]['players'] and 'players' in self.data and self.data['players']:
-            # Przenieś graczy ze starej struktury
-            self.data['seasons'][season_id]['players'] = self.data['players'].copy()
-            logger.info(f"Przeniesiono {len(self.data['players'])} graczy ze starej struktury do sezonu {season_id}")
-            self._save_data()  # Zapisz migrację
-        
         return self.data['seasons'][season_id]['players']
     
     def add_prediction(self, round_id: str, player_name: str, match_id: str, prediction: tuple):
