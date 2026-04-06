@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 FIXTURES_CACHE_TTL_SECONDS = 300
 ROUND_AUTO_SYNC_TTL_SECONDS = 3600
 LEAGUE_DETAILS_CACHE_TTL_SECONDS = 86400
-ROUND_LIVE_SYNC_TTL_SECONDS = 1800
+ROUND_LIVE_SYNC_TTL_SECONDS = 3600
 
 
 @st.cache_data(ttl=FIXTURES_CACHE_TTL_SECONDS, show_spinner=False)
@@ -1171,8 +1171,7 @@ def main():
                 storage.reload_data()
                 round_data = storage.data['rounds'].get(round_id, {})
                 round_matches = round_data.get('matches', [])
-                round_sync_ttl = get_round_sync_ttl(selected_matches, round_matches)
-                auto_sync_round = should_auto_sync_round(round_id, "ranking", round_sync_ttl)
+                auto_sync_round = False
                 
                 # Stwórz mapę meczów w storage (po match_id)
                 storage_matches_map = {}
