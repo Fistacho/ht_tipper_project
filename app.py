@@ -1999,6 +1999,11 @@ def main():
             
             # Wybór gracza - wszystko przefiltrowane przez jednego gracza
             col_player1, col_player2 = st.columns([3, 1])
+
+            if st.session_state.pop("tipper_clear_new_player_name", False):
+                st.session_state.pop("tipper_new_player_name", None)
+            if st.session_state.pop("tipper_clear_rename_player_name", False):
+                st.session_state.pop("tipper_rename_player_name", None)
             
             with col_player1:
                 # Lista graczy z sezonu
@@ -2021,8 +2026,8 @@ def main():
                     else:
                         remove_player = False
                 with col_copy:
-                    # Przycisk kopiowania graczy z poprzedniego sezonu
-                    copy_players_btn = st.button("📋 Kopiuj z poprzedniego", key="tipper_copy_players_btn", width='stretch', help="Kopiuj graczy z poprzedniego sezonu")
+                    if st.button("📝 Edytuj nazwę", key="tipper_rename_player_btn", width='stretch', help="Zmień nazwę wybranego gracza"):
+                        st.session_state["tipper_show_rename_player"] = True
             
             # Dodawanie nowego gracza
             if st.session_state.get("tipper_show_add_player", False):
@@ -2033,7 +2038,7 @@ def main():
                             if storage.add_player(new_player_name, season_id=selected_season_id):
                                 storage.flush_save()  # Wymuś natychmiastowy zapis
                                 st.session_state["tipper_show_add_player"] = False
-                                st.session_state["tipper_new_player_name"] = ""
+                                st.session_state["tipper_clear_new_player_name"] = True
                                 st.success(f"✅ Dodano gracza: {new_player_name} do sezonu {selected_season_id.replace('season_', '')}")
                                 st.rerun()
                             else:
@@ -2042,46 +2047,36 @@ def main():
                             st.warning("⚠️ Wprowadź nazwę gracza")
                     if st.button("Anuluj", key="tipper_cancel_new_player"):
                         st.session_state["tipper_show_add_player"] = False
-                        st.session_state["tipper_new_player_name"] = ""
+                        st.session_state["tipper_clear_new_player_name"] = True
                         st.rerun()
-            
-            # Kopiowanie graczy z poprzedniego sezonu
-            if copy_players_btn:
-                # Znajdź poprzedni sezon (najwyższy numer przed obecnym)
-                current_season_num = int(selected_season_id.replace("season_", "")) if selected_season_id.startswith("season_") else 0
-                available_seasons_nums = [int(s.replace("season_", "")) for s in available_seasons if s.startswith("season_")]
-                previous_seasons = [s for s in available_seasons_nums if s < current_season_num]
-                
-                if previous_seasons:
-                    previous_season_num = max(previous_seasons)
-                    previous_season_id = f"season_{previous_season_num}"
-                    
-                    # Załaduj poprzedni sezon i skopiuj graczy
-                    previous_storage = TipperStorage(season_id=previous_season_id)
-                    previous_players = previous_storage.get_season_players_list(season_id=previous_season_id)
-                    
-                    if previous_players:
-                        copied_count = 0
-                        skipped_count = 0
-                        for player_name in previous_players:
-                            if storage.add_player(player_name, season_id=selected_season_id):
-                                copied_count += 1
-                            else:
-                                skipped_count += 1  # Gracz już istnieje
-                        
-                        if copied_count > 0:
+
+            if st.session_state.get("tipper_show_rename_player", False) and selected_player:
+                with st.expander("📝 Edytuj nazwę gracza", expanded=True):
+                    rename_player_name = st.text_input(
+                        "Nowa nazwa gracza:",
+                        value=selected_player,
+                        key="tipper_rename_player_name"
+                    )
+                    if st.button("💾 Zapisz nową nazwę", key="tipper_save_rename_player"):
+                        ok, error_code = storage.rename_player(selected_player, rename_player_name, season_id=selected_season_id)
+                        if ok:
                             storage.flush_save()
-                            if skipped_count > 0:
-                                st.success(f"✅ Skopiowano {copied_count} graczy z sezonu {previous_season_num} ({skipped_count} już istnieje)")
-                            else:
-                                st.success(f"✅ Skopiowano {copied_count} graczy z sezonu {previous_season_num}")
+                            st.session_state["tipper_show_rename_player"] = False
+                            st.session_state["tipper_clear_rename_player_name"] = True
+                            st.success(f"✅ Zmieniono nazwę gracza z {selected_player} na {rename_player_name}")
                             st.rerun()
+                        elif error_code == "duplicate_name":
+                            st.warning("⚠️ Gracz o takiej nazwie już istnieje w tym sezonie")
+                        elif error_code == "same_name":
+                            st.info("ℹ️ Nazwa gracza nie została zmieniona")
+                        elif error_code == "empty_name":
+                            st.warning("⚠️ Wprowadź nową nazwę gracza")
                         else:
-                            st.warning(f"⚠️ Wszyscy gracze z sezonu {previous_season_num} już istnieją w tym sezonie")
-                    else:
-                        st.warning(f"⚠️ Brak graczy w sezonie {previous_season_num}")
-                else:
-                    st.warning("⚠️ Nie znaleziono poprzedniego sezonu")
+                            st.error("❌ Nie udało się zmienić nazwy gracza")
+                    if st.button("Anuluj zmianę nazwy", key="tipper_cancel_rename_player"):
+                        st.session_state["tipper_show_rename_player"] = False
+                        st.session_state["tipper_clear_rename_player_name"] = True
+                        st.rerun()
             
             # Usuwanie gracza
             if remove_player and selected_player:

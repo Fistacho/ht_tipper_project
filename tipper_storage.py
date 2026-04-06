@@ -1478,6 +1478,45 @@ class TipperStorage:
         self._save_data()
         self._recalculate_player_totals(season_id=season_id)
         return True
+
+    def rename_player(self, old_name: str, new_name: str, season_id: str = None):
+        """Zmienia nazwę gracza w sezonie wraz z typami i punktami."""
+        if season_id is None:
+            season_id = self.season_id
+
+        new_name = (new_name or "").strip()
+        if not new_name:
+            return False, "empty_name"
+
+        players = self._get_season_players(season_id)
+
+        if old_name not in players:
+            return False, "missing_player"
+
+        if old_name == new_name:
+            return False, "same_name"
+
+        if new_name in players:
+            return False, "duplicate_name"
+
+        players[new_name] = players.pop(old_name)
+
+        for round_id, round_data in self.data['rounds'].items():
+            if round_data.get('season_id') != season_id:
+                continue
+
+            if 'predictions' in round_data and old_name in round_data['predictions']:
+                round_data['predictions'][new_name] = round_data['predictions'].pop(old_name)
+
+            if 'match_points' in round_data and old_name in round_data['match_points']:
+                round_data['match_points'][new_name] = round_data['match_points'].pop(old_name)
+
+            if 'manual_points' in round_data and old_name in round_data['manual_points']:
+                round_data['manual_points'][new_name] = round_data['manual_points'].pop(old_name)
+
+        self._save_data()
+        self._recalculate_player_totals(season_id=season_id)
+        return True, None
     
     def get_season_players_list(self, season_id: str = None) -> List[str]:
         """Zwraca listę graczy dla danego sezonu"""
