@@ -6129,7 +6129,7 @@
           }
         }
       },
-      "archived": false,
+      "archived": true,
       "team_metadata": {
         "ks Jastrowie": {
           "league_ids": [
