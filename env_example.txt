@@ -28,3 +28,7 @@ APP_PASSWORD_SALT=wygenerowana_sol
 # TIPPER_LOG_MAX_BYTES=1000000
 # TIPPER_LOG_BACKUP_COUNT=3
 
+# Opcjonalny interwał backupu danych do GitHub (sekundy)
+# Domyślnie 3600 = 1 godzina
+# TIPPER_GITHUB_BACKUP_INTERVAL_SECONDS=3600
+

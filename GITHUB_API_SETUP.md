@@ -45,9 +45,23 @@ GITHUB_REPO_NAME = "ht_tipper_project"
 
 ## ✅ Jak to działa
 
-1. **Przy starcie aplikacji**: Dane są ładowane z GitHub (jeśli plik istnieje) lub lokalnie
-2. **Przy zapisie danych**: Dane są zapisywane do GitHub przez API (jeśli skonfigurowane) lub lokalnie
-3. **Fallback**: Jeśli GitHub API nie jest skonfigurowane, aplikacja działa normalnie z lokalnym plikiem
+1. **Stan roboczy aplikacji**: aplikacja pracuje na lokalnym pliku JSON i przy rerunach przeładowuje lokalny stan, a nie GitHub.
+2. **Ręczny zapis**: `flush_save()` zapisuje lokalnie i od razu wysyła backup do GitHub.
+3. **Backup okresowy**: jeśli lokalny stan zmienił się od ostatniego backupu, aplikacja spróbuje wysłać go do GitHub przy następnym rerunie po upływie 1 godziny.
+4. **Pierwsze uruchomienie / recovery**: jeśli lokalny plik nie istnieje, aplikacja może pobrać stan startowy z GitHub i odtworzyć lokalny plik roboczy.
+5. **Fallback**: jeśli GitHub API nie jest skonfigurowane albo backup się nie uda, aplikacja dalej działa na lokalnym pliku.
+
+## ⏱️ Interwał backupu
+
+Domyślny interwał okresowego backupu do GitHub wynosi 3600 sekund (1 godzina).
+
+Możesz go zmienić przez zmienną środowiskową:
+
+```env
+TIPPER_GITHUB_BACKUP_INTERVAL_SECONDS=3600
+```
+
+Uwaga: w Streamlit backup okresowy wykona się przy kolejnym rerunie aplikacji po przekroczeniu tego interwału. Aplikacja nie uruchamia osobnego procesu w tle.
 
 ## 🔒 Bezpieczeństwo
 
@@ -60,6 +74,7 @@ GITHUB_REPO_NAME = "ht_tipper_project"
 Jeśli Twoje repozytorium to: `https://github.com/jan-kowalski/ht_tipper_project`
 
 To w `.env` lub Secrets wpisz:
+
 ```env
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 GITHUB_REPO_OWNER=jan-kowalski
@@ -69,14 +84,19 @@ GITHUB_REPO_NAME=ht_tipper_project
 ## 🐛 Rozwiązywanie problemów
 
 ### Błąd: "Bad credentials"
+
 - Sprawdź czy token jest poprawny
 - Sprawdź czy token ma uprawnienia `repo`
 
 ### Błąd: "Not found"
+
 - Sprawdź czy `GITHUB_REPO_OWNER` i `GITHUB_REPO_NAME` są poprawne
 - Sprawdź czy repozytorium istnieje i masz do niego dostęp
 
 ### Dane nie zapisują się
+
 - Sprawdź logi aplikacji (`tipper.log`)
 - Sprawdź czy token ma uprawnienia do zapisu (`repo`)
 
+Jeśli problem nadal występuje, sprawdź odpowiedź GitHub API zapisaną w `tipper.log`.
+To zwykle wystarcza do ustalenia, czy problem dotyczy tokenu, uprawnień albo ścieżki pliku.

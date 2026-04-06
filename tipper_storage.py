@@ -5,7 +5,9 @@ import json
 import os
 import glob
 import re
-from typing import Dict, List, Optional
+import hashlib
+import time
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 import logging
 from functools import lru_cache
@@ -14,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Ścieżka do pliku z danymi typera
 TIPPER_DATA_FILE = "tipper_data.json"
+DEFAULT_GITHUB_BACKUP_INTERVAL_SECONDS = 3600
 
 
 def default_exclude_worst_rule(season_id: str) -> bool:
@@ -194,12 +197,19 @@ class TipperStorage:
         
         # Użyj bezwzględnej ścieżki dla pewności (szczególnie na Streamlit Cloud)
         self.data_file = os.path.abspath(data_file)
+        self.sync_meta_file = f"{self.data_file}.sync.json"
         self.github_config = self._get_github_config()
-        self.data = self._load_data()
-        # Mechanizm opóźnionego zapisu (debounce) - zapisuje dopiero po 2 sekundach bez zmian
+        self._github_backup_interval_seconds = int(
+            os.getenv('TIPPER_GITHUB_BACKUP_INTERVAL_SECONDS', str(DEFAULT_GITHUB_BACKUP_INTERVAL_SECONDS))
+        )
         self._pending_save = False
         self._last_save_time = 0
         self._save_delay = 2.0  # 2 sekundy opóźnienia
+        self._last_github_backup_time = 0.0
+        self._last_github_backup_hash = ""
+        self._has_unsynced_changes = False
+        self.data = self._load_data()
+        self._initialize_sync_state()
     
     def _get_github_config(self) -> Optional[Dict]:
         """Pobiera konfigurację GitHub API z .env lub Streamlit Secrets"""
@@ -234,39 +244,179 @@ class TipperStorage:
         
         return None
     
-    def _load_data(self) -> Dict:
-        """Ładuje dane z pliku JSON - lokalnie lub z GitHub API"""
-        # Próbuj najpierw załadować z GitHub API (jeśli skonfigurowane)
-        if self.github_config:
-            github_data = self._load_from_github()
-            if github_data:
-                logger.info(f"✅ Załadowano dane z GitHub: {len(github_data.get('players', {}))} graczy, {len(github_data.get('rounds', {}))} rund")
-                data = github_data
-            else:
-                data = None
-        else:
-            data = None
-        
-        # Fallback: załaduj lokalnie (dla lokalnego rozwoju)
+    def _load_data(self, prefer_github: bool = False) -> Dict:
+        """Ładuje dane z pliku JSON, preferując lokalny stan aplikacji."""
+        data, source = self._load_data_with_source(prefer_github=prefer_github)
+
         if data is None:
             abs_path = os.path.abspath(self.data_file)
-            
-            if os.path.exists(abs_path):
-                try:
-                    with open(abs_path, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        logger.info(f"Załadowano dane z pliku {abs_path}: {len(data.get('players', {}))} graczy, {len(data.get('rounds', {}))} rund")
-                except (json.JSONDecodeError, IOError) as e:
-                    logger.error(f"Błąd ładowania danych typera z {abs_path}: {e}")
-                    data = self._get_default_data()
-            else:
-                logger.warning(f"Plik {abs_path} nie istnieje, używam domyślnych danych")
-                data = self._get_default_data()
+            logger.warning(f"Brak danych w źródłach dla {abs_path}, używam domyślnych danych")
+            data = self._get_default_data()
+            source = 'default'
         
         # Migracja danych: przenieś graczy ze starej struktury do sezonu
         self._migrate_players_to_season(data)
+
+        if source == 'github':
+            self._write_local_data(data)
+            self._mark_github_backup_success(self._calculate_data_hash(data), backup_time=time.time())
         
         return data
+
+    def _load_data_with_source(self, prefer_github: bool = False) -> Tuple[Optional[Dict], Optional[str]]:
+        """Ładuje dane wraz z informacją o źródle odczytu."""
+        load_order = []
+        if prefer_github and self.github_config:
+            load_order.append('github')
+        load_order.append('local')
+        if not prefer_github and self.github_config:
+            load_order.append('github')
+
+        for source in load_order:
+            if source == 'local':
+                local_data = self._load_from_local_file()
+                if local_data is not None:
+                    return local_data, 'local'
+            elif source == 'github':
+                github_data = self._load_from_github()
+                if github_data is not None:
+                    logger.info(
+                        f"✅ Załadowano dane z GitHub: {len(github_data.get('players', {}))} graczy, {len(github_data.get('rounds', {}))} rund"
+                    )
+                    return github_data, 'github'
+
+        return None, None
+
+    def _load_from_local_file(self) -> Optional[Dict]:
+        """Ładuje dane z lokalnego pliku roboczego."""
+        abs_path = os.path.abspath(self.data_file)
+
+        if not os.path.exists(abs_path):
+            logger.warning(f"Plik {abs_path} nie istnieje")
+            return None
+
+        try:
+            with open(abs_path, 'r', encoding='utf-8') as file_handle:
+                data = json.load(file_handle)
+            logger.info(
+                f"Załadowano dane z pliku {abs_path}: {len(data.get('players', {}))} graczy, {len(data.get('rounds', {}))} rund"
+            )
+            return data
+        except (json.JSONDecodeError, IOError) as error:
+            logger.error(f"Błąd ładowania danych typera z {abs_path}: {error}")
+            return None
+
+    def _serialize_data(self, data: Optional[Dict] = None) -> str:
+        """Serializuje dane do stabilnej postaci JSON."""
+        return json.dumps(data if data is not None else self.data, ensure_ascii=False, indent=2)
+
+    def _calculate_data_hash(self, data: Optional[Dict] = None) -> str:
+        """Oblicza hash bieżącego stanu danych do śledzenia synchronizacji."""
+        json_content = self._serialize_data(data)
+        return hashlib.sha256(json_content.encode('utf-8')).hexdigest()
+
+    def _write_local_data(self, data: Optional[Dict] = None):
+        """Zapisuje dane do lokalnego pliku roboczego."""
+        abs_path = os.path.abspath(self.data_file)
+        json_content = self._serialize_data(data)
+
+        logger.info(f"_write_local_data: Zapisuję lokalnie do pliku {abs_path}")
+
+        with open(abs_path, 'w', encoding='utf-8') as file_handle:
+            file_handle.write(json_content)
+
+        if os.path.exists(abs_path):
+            file_size = os.path.getsize(abs_path)
+            logger.debug(f"Plik zapisany poprawnie, rozmiar: {file_size} bajtów")
+        else:
+            logger.warning(f"Plik {abs_path} nie istnieje po zapisie (może być normalne na Streamlit Cloud)")
+
+    def _load_sync_metadata(self) -> Dict:
+        """Ładuje metadane ostatniej synchronizacji z GitHub."""
+        if not os.path.exists(self.sync_meta_file):
+            return {}
+
+        try:
+            with open(self.sync_meta_file, 'r', encoding='utf-8') as file_handle:
+                metadata = json.load(file_handle)
+            return metadata if isinstance(metadata, dict) else {}
+        except (json.JSONDecodeError, IOError) as error:
+            logger.warning(f"Nie udało się załadować metadanych synchronizacji {self.sync_meta_file}: {error}")
+            return {}
+
+    def _write_sync_metadata(self):
+        """Zapisuje metadane ostatniej synchronizacji z GitHub."""
+        metadata = {
+            'last_github_backup_time': self._last_github_backup_time,
+            'last_github_backup_hash': self._last_github_backup_hash,
+        }
+
+        try:
+            with open(self.sync_meta_file, 'w', encoding='utf-8') as file_handle:
+                json.dump(metadata, file_handle, ensure_ascii=False, indent=2)
+        except IOError as error:
+            logger.warning(f"Nie udało się zapisać metadanych synchronizacji {self.sync_meta_file}: {error}")
+
+    def _mark_github_backup_success(self, data_hash: str, backup_time: Optional[float] = None):
+        """Aktualizuje stan po udanym backupie do GitHub."""
+        self._last_github_backup_hash = data_hash
+        self._last_github_backup_time = backup_time if backup_time is not None else time.time()
+        self._has_unsynced_changes = False
+        self._write_sync_metadata()
+
+    def _initialize_sync_state(self):
+        """Ustawia stan synchronizacji po załadowaniu danych."""
+        current_hash = self._calculate_data_hash()
+        metadata = self._load_sync_metadata()
+        self._last_github_backup_time = float(metadata.get('last_github_backup_time', 0) or 0)
+        self._last_github_backup_hash = str(metadata.get('last_github_backup_hash', '') or '')
+
+        if not self.github_config:
+            self._has_unsynced_changes = False
+            return
+
+        if not self._last_github_backup_hash:
+            if os.path.exists(self.data_file):
+                self._last_github_backup_time = max(
+                    self._last_github_backup_time,
+                    os.path.getmtime(self.data_file)
+                )
+            self._has_unsynced_changes = True
+            return
+
+        self._has_unsynced_changes = current_hash != self._last_github_backup_hash
+
+    def _should_run_periodic_github_backup(self) -> bool:
+        """Określa, czy należy wykonać okresowy backup do GitHub."""
+        if not self.github_config or not self._has_unsynced_changes:
+            return False
+
+        return (time.time() - self._last_github_backup_time) >= self._github_backup_interval_seconds
+
+    def maybe_backup_to_github(self) -> bool:
+        """Wykonuje okresowy backup do GitHub, jeśli lokalny stan nie jest jeszcze zsynchronizowany."""
+        if not self._should_run_periodic_github_backup():
+            return False
+
+        logger.info("maybe_backup_to_github: Uruchamiam okresowy backup zaległych zmian do GitHub")
+        return self._backup_local_state_to_github(reason='periodic')
+
+    def _backup_local_state_to_github(self, reason: str = 'manual') -> bool:
+        """Wysyła aktualny lokalny stan do GitHub jako backup."""
+        if not self.github_config:
+            return False
+
+        current_hash = self._calculate_data_hash()
+        if not self._has_unsynced_changes and reason != 'manual':
+            return False
+
+        if self._save_to_github():
+            self._mark_github_backup_success(current_hash)
+            logger.info(f"Backup do GitHub zakończony powodzeniem ({reason})")
+            return True
+
+        logger.warning(f"Backup do GitHub nie powiódł się ({reason})")
+        return False
     
     def _migrate_players_to_season(self, data: Dict):
         """Migruje graczy ze starej struktury (globalnej) do struktury per sezon"""
@@ -391,9 +541,10 @@ class TipperStorage:
             logger.debug(f"Nie udało się załadować z GitHub (może plik nie istnieje): {e}")
             return None
     
-    def reload_data(self):
-        """Przeładowuje dane z pliku (użyteczne po zmianach zewnętrznych)"""
-        self.data = self._load_data()
+    def reload_data(self, prefer_github: bool = False):
+        """Przeładowuje dane z pliku; domyślnie z lokalnego stanu aplikacji."""
+        self.data = self._load_data(prefer_github=prefer_github)
+        self._initialize_sync_state()
         logger.info("Przeładowano dane z pliku")
     
     def _get_default_data(self) -> Dict:
@@ -414,8 +565,8 @@ class TipperStorage:
         Używa mechanizmu debounce - zapisuje dopiero po 2 sekundach bez zmian
         (lub natychmiast jeśli force=True)
         """
-        import time
         current_time = time.time()
+        self._has_unsynced_changes = True
         
         # Jeśli force=True, zapisz natychmiast
         if force:
@@ -441,26 +592,9 @@ class TipperStorage:
     
     def _do_save(self):
         """Wykonuje faktyczny zapis danych"""
-        # Próbuj najpierw zapisać przez GitHub API (jeśli skonfigurowane)
-        if self.github_config:
-            logger.info(f"_do_save: Próbuję zapisać przez GitHub API do pliku {os.path.basename(self.data_file)}")
-            if self._save_to_github():
-                logger.info("_do_save: Zapisano dane do GitHub przez API")
-                return
-            else:
-                logger.warning("_do_save: Nie udało się zapisać przez GitHub API, używam zapisu lokalnego")
-        
-        # Fallback: zapis lokalny (dla lokalnego rozwoju)
         try:
-            # Użyj bezwzględnej ścieżki dla pewności (szczególnie na Streamlit Cloud)
-            abs_path = os.path.abspath(self.data_file)
-            
-            logger.info(f"_do_save: Zapisuję lokalnie do pliku {abs_path}")
-            
-            # Zapisuj do pliku z trybem 'w' (nadpisuje istniejący)
-            with open(abs_path, 'w', encoding='utf-8') as f:
-                json.dump(self.data, f, ensure_ascii=False, indent=2)
-            
+            self._write_local_data()
+
             # Loguj szczegóły zapisu
             rounds_count = len(self.data.get('rounds', {}))
             total_predictions = 0
@@ -470,25 +604,21 @@ class TipperStorage:
                     total_predictions += len(player_predictions)
                     logger.info(f"_do_save: Runda {round_id}, gracz {player_name}: {len(player_predictions)} typów, match_ids: {list(player_predictions.keys())[:5]}")
             
-            logger.info(f"_do_save: Zapisano dane do pliku {abs_path}: {rounds_count} rund, {total_predictions} typów")
+            logger.info(f"_do_save: Zapisano dane do pliku {self.data_file}: {rounds_count} rund, {total_predictions} typów")
             logger.info(f"_do_save: Szczegóły: {len(self.data.get('seasons', {}))} sezonów")
-            
-            # Sprawdź czy plik rzeczywiście istnieje po zapisie
-            if os.path.exists(abs_path):
-                file_size = os.path.getsize(abs_path)
-                logger.debug(f"Plik zapisany poprawnie, rozmiar: {file_size} bajtów")
-            else:
-                logger.warning(f"Plik {abs_path} nie istnieje po zapisie (może być normalne na Streamlit Cloud)")
+
+            if self._should_run_periodic_github_backup():
+                self._backup_local_state_to_github(reason='periodic')
                 
         except IOError as e:
             logger.error(f"Błąd zapisywania danych typera: {e}")
     
     def flush_save(self):
         """Wymusza natychmiastowy zapis wszystkich oczekujących zmian"""
-        import time
         # Zawsze zapisz, nawet jeśli nie ma pending_save (może być opóźnienie w debounce)
         self._pending_save = False
         self._last_save_time = time.time()
+        self._has_unsynced_changes = True
         
         # Loguj przed zapisem - sprawdź ile typów jest w każdej rundzie
         logger.info(f"flush_save: Zapisuję do pliku {self.data_file}")
@@ -499,6 +629,8 @@ class TipperStorage:
                 logger.info(f"flush_save: Runda {round_id}, gracz {player_name}: {len(player_predictions)} typów, match_ids: {list(player_predictions.keys())}")
         
         self._do_save()
+        if self.github_config and self._has_unsynced_changes:
+            self._backup_local_state_to_github(reason='manual')
         logger.info("flush_save: Wymuszono natychmiastowy zapis danych")
         
         # Sprawdź czy plik został zapisany

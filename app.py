@@ -212,7 +212,9 @@ def get_session_storage(season_id: str) -> TipperStorage:
     if season_id not in storage_cache:
         storage_cache[season_id] = TipperStorage(season_id=season_id)
 
-    return storage_cache[season_id]
+    storage = storage_cache[season_id]
+    storage.maybe_backup_to_github()
+    return storage
 
 
 def get_round_sync_ttl(selected_matches: List[Dict], stored_matches: List[Dict]) -> int | None:
