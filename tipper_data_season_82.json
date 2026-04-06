@@ -786,7 +786,16 @@
           ],
           "label": "Rozbójnicy BB (V.201)"
         }
-      }
+      },
+      "selected_players": [
+        "Adi",
+        "Fistach",
+        "Manvers",
+        "Moli",
+        "Preiss",
+        "Sonne",
+        "Wilk"
+      ]
     }
   },
   "leagues": {
