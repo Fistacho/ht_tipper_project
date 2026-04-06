@@ -195,7 +195,7 @@ class TipperStorage:
                 else:
                     # Scal dane (zachowaj istniejące, dodaj brakujące)
                     current_season_data = data['seasons']['current_season']
-                    for key in ['rounds', 'selected_teams', 'selected_leagues']:
+                    for key in ['rounds', 'selected_teams', 'selected_leagues', 'selected_players']:
                         if key in current_season_data and key not in data['seasons'][target_season_id]:
                             data['seasons'][target_season_id][key] = current_season_data[key]
                         elif key in current_season_data:
@@ -214,6 +214,7 @@ class TipperStorage:
                     'end_date': None,
                     'selected_teams': [],
                     'selected_leagues': [],
+                    'selected_players': [],
                     'team_metadata': {},
                     'exclude_worst_rule': default_exclude_worst_rule(target_season_id),
                     'players': {}
@@ -221,6 +222,8 @@ class TipperStorage:
 
             if 'exclude_worst_rule' not in data['seasons'][target_season_id]:
                 data['seasons'][target_season_id]['exclude_worst_rule'] = default_exclude_worst_rule(target_season_id)
+            if 'selected_players' not in data['seasons'][target_season_id]:
+                data['seasons'][target_season_id]['selected_players'] = []
             
             # Jeśli sezon nie ma graczy, przenieś ich ze starej struktury
             if 'players' not in data['seasons'][target_season_id] or not data['seasons'][target_season_id].get('players'):
@@ -287,7 +290,8 @@ class TipperStorage:
             'seasons': {},  # {season_id: {rounds: [], start_date: ..., end_date: ..., players: {}, ...}}
             'leagues': {},  # {league_id: {name: ..., seasons: []}}
             'settings': {  # Ustawienia typera (kompatybilność wsteczna)
-                'selected_teams': []  # Lista nazw drużyn do typowania
+                'selected_teams': [],  # Lista nazw drużyn do typowania
+                'selected_players': []  # Lista wybranych graczy
             }
         }
     
@@ -501,6 +505,7 @@ class TipperStorage:
                 'end_date': end_date,
                 'selected_teams': [],
                 'selected_leagues': [],
+                'selected_players': [],
                 'team_metadata': {},
                 'exclude_worst_rule': default_exclude_worst_rule(season_id),
                 'archived': False
@@ -520,6 +525,7 @@ class TipperStorage:
                 'end_date': None,
                 'selected_teams': [],
                 'selected_leagues': [],
+                'selected_players': [],
                 'team_metadata': {},
                 'exclude_worst_rule': default_exclude_worst_rule(season_id),
                 'archived': False
@@ -555,6 +561,7 @@ class TipperStorage:
                 'end_date': None,
                 'selected_teams': [],
                 'selected_leagues': [],
+                'selected_players': [],
                 'team_metadata': {},
                 'exclude_worst_rule': default_exclude_worst_rule(season_id),
                 'players': {}
@@ -1262,6 +1269,19 @@ class TipperStorage:
         
         return []
 
+    def get_selected_players(self, season_id: str = None) -> List[str]:
+        """Zwraca listę wybranych graczy dla danego sezonu."""
+        if season_id is None:
+            season_id = self.season_id
+
+        if season_id in self.data.get('seasons', {}):
+            return self.data['seasons'][season_id].get('selected_players', [])
+
+        if 'settings' in self.data and 'selected_players' in self.data['settings']:
+            return self.data['settings'].get('selected_players', [])
+
+        return []
+
     def get_team_metadata(self, season_id: str = None) -> Dict:
         """Zwraca metadane drużyn dla danego sezonu."""
         if season_id is None:
@@ -1293,6 +1313,7 @@ class TipperStorage:
                 'end_date': None,
                 'selected_teams': [],
                 'selected_leagues': [],
+                'selected_players': [],
                 'team_metadata': {},
                 'exclude_worst_rule': default_exclude_worst_rule(season_id)
             }
@@ -1313,6 +1334,7 @@ class TipperStorage:
                 'end_date': None,
                 'selected_teams': [],
                 'selected_leagues': [],
+                'selected_players': [],
                 'team_metadata': {}
             }
 
@@ -1338,12 +1360,35 @@ class TipperStorage:
                 'start_date': None,
                 'end_date': None,
                 'selected_teams': [],
+                'selected_players': [],
                 'team_metadata': {},
                 'exclude_worst_rule': default_exclude_worst_rule(season_id)
             }
         
         # Zapisz wybór drużyn dla sezonu
         self.data['seasons'][season_id]['selected_teams'] = team_names
+        self._save_data()
+
+    def set_selected_players(self, player_names: List[str], season_id: str = None):
+        """Zapisuje listę wybranych graczy dla danego sezonu."""
+        if season_id is None:
+            season_id = self.season_id
+
+        if season_id not in self.data.get('seasons', {}):
+            self.data['seasons'][season_id] = {
+                'league_id': None,
+                'rounds': [],
+                'start_date': None,
+                'end_date': None,
+                'selected_teams': [],
+                'selected_leagues': [],
+                'selected_players': [],
+                'team_metadata': {},
+                'exclude_worst_rule': default_exclude_worst_rule(season_id),
+                'players': {}
+            }
+
+        self.data['seasons'][season_id]['selected_players'] = player_names
         self._save_data()
     
     def get_selected_leagues(self, season_id: str = None) -> List[int]:
@@ -1376,6 +1421,7 @@ class TipperStorage:
                 'end_date': None,
                 'selected_teams': [],
                 'selected_leagues': [],
+                'selected_players': [],
                 'team_metadata': {},
                 'exclude_worst_rule': default_exclude_worst_rule(season_id)
             }
@@ -1410,6 +1456,7 @@ class TipperStorage:
                 'end_date': None,
                 'selected_teams': [],
                 'selected_leagues': [],
+                'selected_players': [],
                 'team_metadata': {},
                 'exclude_worst_rule': default_exclude_worst_rule(season_id),
                 'players': {}
@@ -1467,6 +1514,10 @@ class TipperStorage:
         
         # Usuń gracza z sezonu
         del players[player_name]
+
+        selected_players = self.get_selected_players(season_id)
+        if player_name in selected_players:
+            self.data['seasons'][season_id]['selected_players'] = [name for name in selected_players if name != player_name]
         
         self._save_data()
         self._recalculate_player_totals(season_id=season_id)
@@ -1493,6 +1544,13 @@ class TipperStorage:
             return False, "duplicate_name"
 
         players[new_name] = players.pop(old_name)
+
+        selected_players = self.get_selected_players(season_id)
+        if old_name in selected_players:
+            self.data['seasons'][season_id]['selected_players'] = [
+                new_name if player_name == old_name else player_name
+                for player_name in selected_players
+            ]
 
         for round_id, round_data in self.data['rounds'].items():
             if round_data.get('season_id') != season_id:
@@ -1538,6 +1596,7 @@ class TipperStorage:
             'end_date': None,
             'selected_teams': [],
             'selected_leagues': [],
+            'selected_players': [],
             'team_metadata': {},
             'exclude_worst_rule': default_exclude_worst_rule(season_id),
             'players': {},

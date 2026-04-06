@@ -123,6 +123,17 @@ def safe_get_league_name_from_storage_or_api(storage: TipperStorage, league_id: 
     return league_name or f"Liga {league_id}"
 
 
+def get_effective_selected_players(storage: TipperStorage, season_id: str) -> List[str]:
+    """Zwraca aktywną listę graczy dla sezonu; pusty wybór oznacza wszystkich."""
+    all_players = storage.get_season_players_list(season_id=season_id)
+    selected_players = storage.get_selected_players(season_id=season_id)
+    if not selected_players:
+        return all_players
+
+    filtered_players = [player_name for player_name in all_players if player_name in selected_players]
+    return filtered_players if filtered_players else all_players
+
+
 def should_auto_sync_round(round_id: str, scope: str, ttl_seconds: int | None) -> bool:
     """Ogranicza automatyczne synchronizacje tej samej rundy przy kolejnych rerunach."""
     if ttl_seconds is None:
@@ -500,6 +511,14 @@ def main():
     
     # Inicjalizacja storage dla wybranego sezonu (używany w całej aplikacji)
     storage = get_session_storage(selected_season_id)
+    is_selected_season_archived = storage.is_season_archived(season_id=selected_season_id)
+    season_is_current = selected_season_id == current_season_id
+    season_editable = season_is_current and not is_selected_season_archived
+    season_read_only_reason = None
+    if not season_is_current:
+        season_read_only_reason = "Tylko obecny sezon można edytować."
+    elif is_selected_season_archived:
+        season_read_only_reason = "Sezon archiwalny jest tylko do odczytu."
     
     st.markdown("---")
     
@@ -515,6 +534,8 @@ def main():
         
         st.markdown("---")
         st.header("⚙️ Konfiguracja")
+        if season_read_only_reason:
+            st.info(f"🔒 {season_read_only_reason}")
         
         # ID lig dla typera - per sezon (dynamiczna lista)
         st.subheader(f"🏆 Ligi typera (Sezon {selected_season_id.replace('season_', '')})")
@@ -541,9 +562,10 @@ def main():
                 new_league_id = st.number_input(
                     f"Liga {idx + 1} (LeagueLevelUnitID):",
                     value=league_id,
-            min_value=1,
+                    min_value=1,
                     key=f"league_{selected_season_id}_{idx}",
-                    label_visibility="collapsed"
+                    label_visibility="collapsed",
+                    disabled=not season_editable
                 )
                 stored_league = storage.data.get('leagues', {}).get(str(new_league_id), {})
                 stored_league_name = stored_league.get('name')
@@ -556,7 +578,7 @@ def main():
                 # Aktualizuj wartość w session_state
                 st.session_state[leagues_key][idx] = new_league_id
             with col_remove:
-                if st.button("🗑️", key=f"remove_league_{selected_season_id}_{idx}", help="Usuń ligę"):
+                if st.button("🗑️", key=f"remove_league_{selected_season_id}_{idx}", help="Usuń ligę", disabled=not season_editable):
                     leagues_to_remove.append(idx)
         
         # Usuń zaznaczone ligi (od końca, aby nie zmieniać indeksów)
@@ -567,7 +589,7 @@ def main():
         # Przycisk dodawania nowej ligi
         col_add, col_save = st.columns(2)
         with col_add:
-            if st.button("➕ Dodaj ligę", key=f"add_league_{selected_season_id}", width='stretch'):
+            if st.button("➕ Dodaj ligę", key=f"add_league_{selected_season_id}", width='stretch', disabled=not season_editable):
                 # Dodaj domyślną ligę (najwyższe ID + 1 lub 1)
                 if st.session_state[leagues_key]:
                     new_league_id = max(st.session_state[leagues_key]) + 1
@@ -578,7 +600,7 @@ def main():
         
         with col_save:
             # Przycisk zapisu lig
-            if st.button("💾 Zapisz ligi", type="primary", key=f"save_leagues_{selected_season_id}", width='stretch'):
+            if st.button("💾 Zapisz ligi", type="primary", key=f"save_leagues_{selected_season_id}", width='stretch', disabled=not season_editable):
                 TIPPER_LEAGUES = st.session_state[leagues_key].copy()
                 for league_id in TIPPER_LEAGUES:
                     league_name = safe_get_league_name_from_storage_or_api(storage, league_id)
@@ -603,13 +625,14 @@ def main():
         
         archived_status = st.checkbox(
             "Oznacz jako archiwalny",
-            value=is_archived,
+            value=is_selected_season_archived,
             help="Archiwalne sezony nie wykonują zapytań do API - używają tylko danych z pliku",
-            key=f"archived_checkbox_{selected_season_id}"
+            key=f"archived_checkbox_{selected_season_id}",
+            disabled=not season_editable
         )
         
-        if archived_status != is_archived:
-            if st.button("💾 Zapisz status", type="primary", key=f"save_archived_{selected_season_id}", width='stretch'):
+        if archived_status != is_selected_season_archived:
+            if st.button("💾 Zapisz status", type="primary", key=f"save_archived_{selected_season_id}", width='stretch', disabled=not season_editable):
                 storage.set_season_archived(archived_status, season_id=selected_season_id)
                 storage.flush_save()
                 if archived_status:
@@ -618,7 +641,7 @@ def main():
                     st.success(f"✅ Sezon {selected_season_id.replace('season_', '')} oznaczony jako aktywny")
                 st.rerun()
         
-        if is_archived:
+        if is_selected_season_archived:
             st.info("📦 Ten sezon jest archiwalny - nie wykonuje zapytań do API")
 
         st.markdown("---")
@@ -629,11 +652,12 @@ def main():
             "Odrzucaj najgorszy wynik gracza",
             value=exclude_worst_rule,
             help="To ustawienie dotyczy tylko wybranego sezonu.",
-            key=f"season_exclude_worst_rule_{selected_season_id}"
+            key=f"season_exclude_worst_rule_{selected_season_id}",
+            disabled=not season_editable
         )
 
         if exclude_worst_rule_new != exclude_worst_rule:
-            if st.button("💾 Zapisz zasady", type="primary", key=f"save_rules_{selected_season_id}", width='stretch'):
+            if st.button("💾 Zapisz zasady", type="primary", key=f"save_rules_{selected_season_id}", width='stretch', disabled=not season_editable):
                 storage.set_exclude_worst_rule(exclude_worst_rule_new, season_id=selected_season_id)
                 storage.flush_save()
                 rule_text = "włączono" if exclude_worst_rule_new else "wyłączono"
@@ -643,7 +667,7 @@ def main():
         st.markdown("---")
         
         # Przycisk odświeżania danych
-        if st.button("🔄 Odśwież dane", type="primary"):
+        if st.button("🔄 Odśwież dane", type="primary", disabled=not season_editable):
             st.cache_data.clear()
             st.rerun()
         
@@ -670,7 +694,8 @@ def main():
             uploaded_file = st.file_uploader(
                 "Wybierz plik JSON",
                 type=['json'],
-                help="Wgraj plik tipper_data.json z zapisanymi danymi"
+                help="Wgraj plik tipper_data.json z zapisanymi danymi",
+                disabled=not season_editable
             )
             
             if uploaded_file is not None:
@@ -691,7 +716,7 @@ def main():
                         st.info(f"📊 Dane w pliku:\n- Gracze: {players_count}\n- Rundy: {rounds_count}")
                         
                         # Przycisk importu
-                        if st.button("💾 Zaimportuj dane", type="primary", width='stretch'):
+                        if st.button("💾 Zaimportuj dane", type="primary", width='stretch', disabled=not season_editable):
                             # Zrób backup przed importem
                             backup_data = storage.data.copy()
                             
@@ -783,6 +808,8 @@ def main():
                     # Przygotuj ranking z podziałem na rundy
                     leaderboard_data = []
                     for player_name, player_data in players_data.items():
+                        if player_name not in get_effective_selected_players(storage, selected_season_id):
+                            continue
                         round_scores = player_data.get('round_scores', {})
                         total_points = player_data.get('total_points', 0)
                         worst_score = player_data.get('worst_score', 0)
@@ -1005,18 +1032,53 @@ def main():
             new_selected_teams = []
             
             for team_name in all_team_names:
-                if st.checkbox(team_labels.get(team_name, team_name), value=team_name in selected_teams, key=f"team_select_{selected_season_id}_{team_name}"):
+                if st.checkbox(
+                    team_labels.get(team_name, team_name),
+                    value=team_name in selected_teams,
+                    key=f"team_select_{selected_season_id}_{team_name}",
+                    disabled=not season_editable
+                ):
                     new_selected_teams.append(team_name)
             
             # Przycisk zapisu ustawień
-            if st.button("💾 Zapisz wybór drużyn", type="primary", width='stretch'):
-                storage.set_selected_teams(new_selected_teams, season_id=selected_season_id)
+            if st.button("💾 Zapisz wybór drużyn", type="primary", width='stretch', disabled=not season_editable):
+                teams_to_save = new_selected_teams if new_selected_teams else all_team_names
+                storage.set_selected_teams(teams_to_save, season_id=selected_season_id)
                 storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
-                st.success(f"✅ Zapisano wybór {len(new_selected_teams)} drużyn dla sezonu {selected_season_id.replace('season_', '')}")
+                st.success(f"✅ Zapisano wybór {len(teams_to_save)} drużyn dla sezonu {selected_season_id.replace('season_', '')}")
                 st.rerun()
             
             # Użyj aktualnie wybranych drużyn
             selected_teams = new_selected_teams if new_selected_teams else selected_teams
+
+            st.markdown("---")
+            st.subheader(f"👥 Wybór graczy na sezon (Sezon {selected_season_id.replace('season_', '')})")
+            st.markdown("*Zaznacz graczy, których chcesz uwzględnić w sezonie*")
+
+            all_season_players = storage.get_season_players_list(season_id=selected_season_id)
+            saved_selected_players = storage.get_selected_players(season_id=selected_season_id)
+            saved_selected_players = [player_name for player_name in saved_selected_players if player_name in all_season_players]
+            if not saved_selected_players:
+                saved_selected_players = all_season_players.copy()
+
+            new_selected_players = []
+            for player_name in all_season_players:
+                if st.checkbox(
+                    player_name,
+                    value=player_name in saved_selected_players,
+                    key=f"player_select_{selected_season_id}_{player_name}",
+                    disabled=not season_editable
+                ):
+                    new_selected_players.append(player_name)
+
+            if st.button("💾 Zapisz wybór graczy", type="primary", width='stretch', disabled=not season_editable):
+                players_to_save = new_selected_players if new_selected_players else all_season_players
+                storage.set_selected_players(players_to_save, season_id=selected_season_id)
+                storage.flush_save()
+                st.success(f"✅ Zapisano wybór {len(players_to_save)} graczy dla sezonu {selected_season_id.replace('season_', '')}")
+                st.rerun()
+
+            selected_players = new_selected_players if new_selected_players else saved_selected_players
         
         # Filtruj mecze - tylko te, w których uczestniczą wybrane drużyny
         def filter_matches_by_teams(matches: List[Dict], team_names: List[str]) -> List[Dict]:
@@ -1070,6 +1132,7 @@ def main():
             # Przelicz punkty przed pobraniem rankingu (aby mieć aktualne dane)
             storage._recalculate_player_totals(season_id=selected_season_id)
             leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst, season_id=selected_season_id)
+            leaderboard = [player for player in leaderboard if player['player_name'] in selected_players]
             
             if leaderboard:
                 # Przygotuj dane do wyświetlenia
@@ -1288,6 +1351,7 @@ def main():
                 # Przeładuj dane po przeliczeniu
                 storage.reload_data()
                 round_leaderboard = storage.get_round_leaderboard(round_id)
+                round_leaderboard = [player for player in round_leaderboard if player['player_name'] in selected_players]
                 
                 if round_leaderboard:
                     # Pobierz mecze z rundy dla wyświetlenia typów
@@ -1498,7 +1562,8 @@ def main():
                                                 max_value=None,
                                                 step=1,
                                                 key=f"manual_points_{player_name}_{round_id}_{match_id}",
-                                                label_visibility="collapsed"
+                                                label_visibility="collapsed",
+                                                disabled=not season_editable
                                             )
                                             # Zapisz wartość do słownika
                                             manual_points_data[match_id] = new_points
@@ -1509,7 +1574,7 @@ def main():
                                                 st.caption("🤖 Auto")
                                     
                                     # Przycisk zapisu wszystkich punktów
-                                    if st.button("💾 Zapisz wszystkie punkty", type="primary", key=f"save_all_points_{player_name}_{round_id}", width='stretch'):
+                                    if st.button("💾 Zapisz wszystkie punkty", type="primary", key=f"save_all_points_{player_name}_{round_id}", width='stretch', disabled=not season_editable):
                                         saved_count = 0
                                         for match_id, new_points in manual_points_data.items():
                                             # Pobierz aktualne punkty
@@ -2001,7 +2066,8 @@ def main():
             # Opcja wprowadzania typów historycznych
             allow_historical = st.checkbox("Pozwól na wprowadzanie typów historycznych (dla rozegranych meczów)", 
                                           value=False, 
-                                          help="Jeśli zaznaczone, możesz wprowadzać typy dla meczów, które już się odbyły")
+                                          help="Jeśli zaznaczone, możesz wprowadzać typy dla meczów, które już się odbyły",
+                                          disabled=not season_editable)
             
             # Wybór gracza - wszystko przefiltrowane przez jednego gracza
             col_player1, col_player2 = st.columns([3, 1])
@@ -2013,33 +2079,36 @@ def main():
             
             with col_player1:
                 # Lista graczy z sezonu
-                all_players_list = storage.get_season_players_list(season_id=selected_season_id)
+                all_players_list = selected_players if 'selected_players' in locals() else get_effective_selected_players(storage, selected_season_id)
                 if all_players_list:
                     selected_player = st.selectbox("Wybierz gracza:", all_players_list, key="tipper_selected_player")
                 else:
                     selected_player = None
-                    st.info("📊 Brak graczy w sezonie. Dodaj nowego gracza.")
+                    st.info("📊 Brak aktywnych graczy w sezonie.")
             
             with col_player2:
                 st.markdown("<br>", unsafe_allow_html=True)  # Spacing
                 col_add, col_remove, col_copy = st.columns(3)
                 with col_add:
-                    if st.button("➕ Dodaj nowego", key="tipper_add_new_player_btn", width='stretch'):
+                    if st.button("➕ Dodaj nowego", key="tipper_add_new_player_btn", width='stretch', disabled=not season_editable):
                         st.session_state["tipper_show_add_player"] = True
                 with col_remove:
                     if all_players_list and selected_player:
-                        remove_player = st.button("🗑️ Usuń istniejącego", key="tipper_remove_player_btn", width='stretch')
+                        remove_player = st.button("🗑️ Usuń istniejącego", key="tipper_remove_player_btn", width='stretch', disabled=not season_editable)
                     else:
                         remove_player = False
                 with col_copy:
-                    if st.button("📝 Edytuj nazwę", key="tipper_rename_player_btn", width='stretch', help="Zmień nazwę wybranego gracza"):
+                    if st.button("📝 Edytuj nazwę", key="tipper_rename_player_btn", width='stretch', help="Zmień nazwę wybranego gracza", disabled=not season_editable):
                         st.session_state["tipper_show_rename_player"] = True
+
+            if not season_editable:
+                st.info(f"🔒 {season_read_only_reason}")
             
             # Dodawanie nowego gracza
             if st.session_state.get("tipper_show_add_player", False):
                 with st.expander("➕ Dodaj nowego gracza", expanded=True):
                     new_player_name = st.text_input("Nazwa nowego gracza:", key="tipper_new_player_name")
-                    if st.button("💾 Zapisz", key="tipper_save_new_player"):
+                    if st.button("💾 Zapisz", key="tipper_save_new_player", disabled=not season_editable):
                         if new_player_name:
                             if storage.add_player(new_player_name, season_id=selected_season_id):
                                 storage.flush_save()  # Wymuś natychmiastowy zapis
@@ -2063,7 +2132,7 @@ def main():
                         value=selected_player,
                         key="tipper_rename_player_name"
                     )
-                    if st.button("💾 Zapisz nową nazwę", key="tipper_save_rename_player"):
+                    if st.button("💾 Zapisz nową nazwę", key="tipper_save_rename_player", disabled=not season_editable):
                         ok, error_code = storage.rename_player(selected_player, rename_player_name, season_id=selected_season_id)
                         if ok:
                             storage.flush_save()
@@ -2197,14 +2266,16 @@ def main():
                                             f"Typ:",
                                             value=st.session_state[input_key],
                                             key=input_key,
-                                            label_visibility="collapsed"
+                                            label_visibility="collapsed",
+                                            disabled=not season_editable
                                         )
                                     else:
                                         pred_input = st.text_input(
                                             f"Typ:",
                                             value=initial_value,
                                             key=input_key,
-                                            label_visibility="collapsed"
+                                            label_visibility="collapsed",
+                                            disabled=not season_editable
                                         )
                                 else:
                                     if is_historical:
@@ -2247,10 +2318,10 @@ def main():
                         col_save_single, col_delete_single = st.columns(2)
                         with col_save_single:
                             save_button_key = f"tipper_save_all_{selected_player}_{round_id}"
-                            save_types_submitted = st.form_submit_button("💾 Zapisz typy", type="primary", use_container_width=True)
+                            save_types_submitted = st.form_submit_button("💾 Zapisz typy", type="primary", use_container_width=True, disabled=not season_editable)
                         with col_delete_single:
                             delete_button_key = f"tipper_delete_all_{selected_player}_{round_id}"
-                            delete_types_submitted = st.form_submit_button("🗑️ Usuń typy", use_container_width=True)
+                            delete_types_submitted = st.form_submit_button("🗑️ Usuń typy", use_container_width=True, disabled=not season_editable)
 
                         if save_types_submitted:
                             saved_count = 0
@@ -2425,10 +2496,11 @@ def main():
                             "Typy:",
                             height=300,
                             help="Wklej typy w formacie:\nBorciuchy International - WKS BRONEK 50 7:0\nMoli Team - Szmacianka Szynwałdzian 1:1\nLegiaWawa - ks Jastrowie 2:1",
-                            key="tipper_bulk_text"
+                            key="tipper_bulk_text",
+                            disabled=not season_editable
                         )
                         
-                        bulk_fill_submitted = st.form_submit_button("📋 Wypełnij pola z bulk", use_container_width=False)
+                        bulk_fill_submitted = st.form_submit_button("📋 Wypełnij pola z bulk", use_container_width=False, disabled=not season_editable)
 
                     if bulk_fill_submitted:
                         if not predictions_text:
