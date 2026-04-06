@@ -144,7 +144,7 @@ def should_auto_sync_round(round_id: str, scope: str, ttl_seconds: int | None) -
     if ttl_seconds is None:
         return False
 
-    sync_key = f"_last_auto_sync_{scope}_{round_id}"
+    sync_key = f"_last_auto_sync_{round_id}"
     now_ts = datetime.now().timestamp()
     last_sync_ts = float(st.session_state.get(sync_key, 0))
 
@@ -1672,8 +1672,7 @@ def main():
                     with st.spinner("Pobieranie wyników i przeliczanie punktów..."):
                         # Przeładuj dane
                         storage.reload_data()
-                        st.session_state[f"_last_auto_sync_main_{round_id}"] = datetime.now().timestamp()
-                        st.session_state[f"_last_auto_sync_ranking_{round_id}"] = datetime.now().timestamp()
+                        st.session_state[f"_last_auto_sync_{round_id}"] = datetime.now().timestamp()
                         round_data = storage.data['rounds'].get(round_id, {})
                         round_matches = round_data.get('matches', [])
                         

@@ -1215,42 +1215,39 @@ class TipperStorage:
         all_rounds = sorted(season_rounds.items(), key=lambda x: x[1].get('start_date', ''))
         
         for player_name, player_data in players.items():
-            total_points = player_data['total_points']
-            worst_score = player_data.get('worst_score', 0)
             round_scores = player_data.get('round_scores', {})
             
-            # Zbierz punkty z każdej kolejki w kolejności (najstarsza pierwsza)
+            # Ranking całości pokazuje tylko zamknięte kolejki.
             round_points_list = []
-            finished_round_points = []  # Punkty tylko z rozegranych kolejek
             for round_id, round_data in all_rounds:
+                if not self._is_round_finished(round_data):
+                    continue
+
                 round_points = round_scores.get(round_id, 0)
                 round_points_list.append(round_points)
-                
-                # Zbierz punkty z kolejek, w których gracz typował (dla odrzucania najgorszego)
-                # Uwzględnij kolejkę jeśli gracz typował w tej rundzie (niezależnie od tego, czy runda jest w pełni rozegrana)
+
                 has_predictions = player_name in round_data.get('predictions', {})
-                
+
                 if has_predictions:
-                    # Gracz typował w tej rundzie - zawsze dodaj punkty (nawet jeśli 0, np. przez ręczną korektę)
-                    # To uwzględnia wszystkie kolejki, w których gracz typował, nawet jeśli nie wszystkie mecze są rozegrane
-                    finished_round_points.append(round_points)
-                elif self._is_round_finished(round_data):
-                    # Gracz nie typował, ale runda jest rozegrana - ma 0 punktów
-                    finished_round_points.append(0)
+                    continue
+
+                # Gracz nie typował, ale runda jest zamknięta - ma 0 punktów do tabeli całości.
+                round_points_list[-1] = 0
+
+            total_points = sum(round_points_list)
+            finished_rounds_count = len(round_points_list)
+            actual_best_score = max(round_points_list) if round_points_list else 0
+            worst_from_finished = min(round_points_list) if round_points_list else 0
             
             # Odrzuć najgorszy wynik jeśli exclude_worst=True
-            # WAŻNE: Odrzucamy tylko z rozegranych kolejek
             final_total_points = total_points
-            if exclude_worst and len(finished_round_points) > 1:
-                # Oblicz worst_score tylko z rozegranych kolejek
-                worst_from_finished = min(finished_round_points) if finished_round_points else 0
-                # Odrzuć najgorszy wynik tylko jeśli jest więcej niż jedna rozegrana kolejka
+            if exclude_worst and len(round_points_list) > 1:
                 final_total_points -= worst_from_finished
                 excluded_worst = True
                 actual_worst_score = worst_from_finished
             else:
                 excluded_worst = False
-                actual_worst_score = worst_score
+                actual_worst_score = worst_from_finished
             
             team_name = str(player_data.get('team_name', '') or '').strip()
 
@@ -1258,8 +1255,8 @@ class TipperStorage:
                 'player_name': player_name,
                 'team_name': team_name,
                 'total_points': final_total_points,
-                'rounds_played': player_data['rounds_played'],
-                'best_score': player_data.get('best_score', 0),
+                'rounds_played': finished_rounds_count,
+                'best_score': actual_best_score,
                 'worst_score': actual_worst_score,
                 'excluded_worst': excluded_worst,
                 'round_points': round_points_list,  # Lista punktów z każdej kolejki
