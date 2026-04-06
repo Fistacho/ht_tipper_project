@@ -279,10 +279,14 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
     
     # Znajdź wszystkie pliki sezonów
     pattern = os.path.join(os.getcwd(), "tipper_data_season_*.json")
-    files = glob.glob(pattern)
+    files = sorted(
+        glob.glob(pattern),
+        key=lambda file_path: int(re.search(r'tipper_data_season_(\d+)\.json', os.path.basename(file_path)).group(1)),
+        reverse=True
+    )
     
     # Słownik do przechowywania sum punktów dla każdego gracza
-    players_total = {}  # {player_name: {'total': int, 'seasons': int, 'rounds': int, 'seasons_data': {season_id: points}}}
+    players_total = {}  # {player_name: {'total': int, 'team_name': str, 'seasons': int, 'rounds': int, 'seasons_data': {season_id: points}}}
     
     # Przejdź przez wszystkie pliki sezonów
     logger.info(f"get_all_time_leaderboard: Znaleziono {len(files)} plików sezonów")
@@ -305,8 +309,8 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
             # Pobierz graczy z sezonu (najpierw sprawdź w seasons, potem w players)
             # Ta sama logika jak w auth.py
             players_data = {}
+            season_data = data.get('seasons', {}).get(season_id, {})
             if season_id in data.get('seasons', {}):
-                season_data = data['seasons'][season_id]
                 if 'players' in season_data and season_data['players']:
                     players_data = season_data['players']
             
@@ -319,10 +323,15 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
                 if player_name not in players_total:
                     players_total[player_name] = {
                         'total': 0,
+                        'team_name': '',
                         'seasons': 0,
                         'rounds': 0,
                         'seasons_data': {}
                     }
+
+                team_name = str(player_data.get('team_name', '') or '').strip()
+                if team_name and not players_total[player_name]['team_name']:
+                    players_total[player_name]['team_name'] = team_name
                 
                 # Pobierz punkty gracza (używamy total_points z danych gracza)
                 total_points = player_data.get('total_points', 0)
@@ -352,6 +361,7 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
     for player_name, data in players_total.items():
         leaderboard.append({
             'player_name': player_name,
+            'team_name': data.get('team_name', ''),
             'total_points': data['total'],
             'seasons_played': data['seasons'],
             'rounds_played': data['rounds'],
@@ -491,7 +501,8 @@ def main():
                         if previous_players:
                             copied_count = 0
                             for player_name in previous_players:
-                                if temp_storage.add_player(player_name, season_id=new_season_id):
+                                previous_player_team = previous_storage.get_player_team(player_name, season_id=previous_season_id)
+                                if temp_storage.add_player(player_name, season_id=new_season_id, team_name=previous_player_team):
                                     copied_count += 1
                             
                             if copied_count > 0:
@@ -864,6 +875,7 @@ def main():
                         leaderboard_data.append({
                             'Pozycja': 0,  # Zostanie ustawione po sortowaniu
                             'Gracz': player_name,
+                            'Drużyna': storage.get_player_team(player_name, season_id=selected_season_id) or '—',
                             'Punkty': summary,
                             'Suma': final_total,
                             'Rundy': rounds_played
@@ -878,7 +890,7 @@ def main():
                     
                     if leaderboard_data:
                         df_leaderboard = pd.DataFrame(leaderboard_data)
-                        st.dataframe(df_leaderboard[['Pozycja', 'Gracz', 'Punkty', 'Suma', 'Rundy']], width='stretch', hide_index=True)
+                        st.dataframe(df_leaderboard[['Pozycja', 'Gracz', 'Drużyna', 'Punkty', 'Suma', 'Rundy']], width='stretch', hide_index=True)
                     else:
                         st.info("📊 Brak danych rankingowych")
                 else:
@@ -1161,6 +1173,7 @@ def main():
                     leaderboard_data.append({
                         'Miejsce': idx,
                         'Gracz': player['player_name'],
+                        'Drużyna': player.get('team_name') or '—',
                         'Punkty': points_summary,
                         'Suma': player['total_points'],
                         'Rundy': player['rounds_played'],
@@ -1382,6 +1395,7 @@ def main():
                         round_leaderboard_data.append({
                             'Miejsce': idx,
                             'Gracz': player['player_name'],
+                            'Drużyna': player.get('team_name') or '—',
                             'Punkty': points_summary,
                             'Suma': player['total_points'],
                             'Mecze': player['matches_count']
@@ -1660,6 +1674,7 @@ def main():
                     leaderboard_data.append({
                         'Miejsce': idx,
                         'Gracz': player['player_name'],
+                        'Drużyna': player.get('team_name') or '—',
                         'Punkty z sezonów': seasons_str,
                         'Suma': player['total_points'],
                         'Sezony': player['seasons_played'],
@@ -2101,7 +2116,7 @@ def main():
                     else:
                         remove_player = False
                 with col_copy:
-                    if st.button("📝 Edytuj nazwę", key="tipper_rename_player_btn", width='stretch', help="Zmień nazwę wybranego gracza", disabled=not season_editable):
+                    if st.button("📝 Edytuj gracza", key="tipper_rename_player_btn", width='stretch', help="Zmień nazwę lub ustaw drużynę gracza", disabled=not season_editable):
                         st.session_state["tipper_show_rename_player"] = True
 
             if not season_editable:
@@ -2129,28 +2144,81 @@ def main():
                         st.rerun()
 
             if st.session_state.get("tipper_show_rename_player", False) and selected_player:
-                with st.expander("📝 Edytuj nazwę gracza", expanded=True):
+                with st.expander("📝 Edytuj gracza", expanded=True):
+                    current_player_team = storage.get_player_team(selected_player, season_id=selected_season_id)
+                    season_team_options = sorted({
+                        team_name for team_name in (
+                            storage.get_selected_teams(season_id=selected_season_id)
+                            + list(storage.get_team_metadata(season_id=selected_season_id).keys())
+                        )
+                        if team_name
+                    })
+                    if current_player_team and current_player_team not in season_team_options:
+                        season_team_options.append(current_player_team)
+                        season_team_options.sort()
+
                     rename_player_name = st.text_input(
                         "Nowa nazwa gracza:",
                         value=selected_player,
                         key="tipper_rename_player_name"
                     )
+                    if season_team_options:
+                        rename_player_team = st.selectbox(
+                            "Drużyna gracza (opcjonalnie):",
+                            [""] + season_team_options,
+                            index=([""] + season_team_options).index(current_player_team) if current_player_team in season_team_options else 0,
+                            format_func=lambda team_name: "Brak powiązania" if not team_name else team_name,
+                            key=f"tipper_rename_player_team_{selected_season_id}_{selected_player}"
+                        )
+                    else:
+                        rename_player_team = st.text_input(
+                            "Drużyna gracza (opcjonalnie):",
+                            value=current_player_team,
+                            key=f"tipper_rename_player_team_{selected_season_id}_{selected_player}"
+                        )
+
                     if st.button("💾 Zapisz nową nazwę", key="tipper_save_rename_player", disabled=not season_editable):
-                        ok, error_code = storage.rename_player(selected_player, rename_player_name, season_id=selected_season_id)
-                        if ok:
+                        new_player_name = (rename_player_name or "").strip()
+                        new_player_team = (rename_player_team or "").strip()
+                        name_changed = new_player_name != selected_player
+                        team_changed = new_player_team != current_player_team
+
+                        if not name_changed and not team_changed:
+                            st.info("ℹ️ Nie wprowadzono żadnych zmian")
+                        else:
+                            final_player_name = selected_player
+                            if name_changed:
+                                ok, error_code = storage.rename_player(selected_player, new_player_name, season_id=selected_season_id)
+                                if not ok:
+                                    if error_code == "duplicate_name":
+                                        st.warning("⚠️ Gracz o takiej nazwie już istnieje w tym sezonie")
+                                    elif error_code == "empty_name":
+                                        st.warning("⚠️ Wprowadź nową nazwę gracza")
+                                    else:
+                                        st.error("❌ Nie udało się zmienić nazwy gracza")
+                                    return
+
+                                final_player_name = new_player_name
+
+                            if team_changed:
+                                if not storage.set_player_team(final_player_name, new_player_team, season_id=selected_season_id):
+                                    st.error("❌ Nie udało się zapisać drużyny gracza")
+                                    return
+
                             storage.flush_save()
                             st.session_state["tipper_show_rename_player"] = False
                             st.session_state["tipper_clear_rename_player_name"] = True
-                            st.success(f"✅ Zmieniono nazwę gracza z {selected_player} na {rename_player_name}")
+
+                            if name_changed and team_changed:
+                                team_message = new_player_team if new_player_team else "brak powiązania"
+                                st.success(f"✅ Zaktualizowano gracza: {selected_player} -> {final_player_name}, drużyna: {team_message}")
+                            elif name_changed:
+                                st.success(f"✅ Zmieniono nazwę gracza z {selected_player} na {final_player_name}")
+                            else:
+                                team_message = new_player_team if new_player_team else "brak powiązania"
+                                st.success(f"✅ Zapisano drużynę gracza: {team_message}")
+
                             st.rerun()
-                        elif error_code == "duplicate_name":
-                            st.warning("⚠️ Gracz o takiej nazwie już istnieje w tym sezonie")
-                        elif error_code == "same_name":
-                            st.info("ℹ️ Nazwa gracza nie została zmieniona")
-                        elif error_code == "empty_name":
-                            st.warning("⚠️ Wprowadź nową nazwę gracza")
-                        else:
-                            st.error("❌ Nie udało się zmienić nazwy gracza")
                     if st.button("Anuluj zmianę nazwy", key="tipper_cancel_rename_player"):
                         st.session_state["tipper_show_rename_player"] = False
                         st.session_state["tipper_clear_rename_player_name"] = True

@@ -14,6 +14,24 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+def get_effective_selected_players_for_login(storage, season_id: str) -> list[str]:
+    """Zwraca aktywną listę graczy dla sezonu; pusty wybór oznacza wszystkich."""
+    all_players = storage.get_season_players_list(season_id=season_id)
+    selected_players = storage.get_selected_players(season_id=season_id)
+    if not selected_players:
+        return all_players
+
+    filtered_players = [player_name for player_name in all_players if player_name in selected_players]
+    return filtered_players if filtered_players else all_players
+
+
+def format_season_label(season_id: str) -> str:
+    """Formatuje czytelną etykietę sezonu do UI."""
+    if season_id and season_id.startswith('season_'):
+        return f"Sezon {season_id.replace('season_', '')}"
+    return season_id or "bieżący sezon"
+
+
 def get_all_time_leaderboard_for_login(exclude_worst: bool = False):
     """
     Oblicza ranking wszechczasów - suma punktów ze wszystkich sezonów dla każdego gracza
@@ -28,14 +46,18 @@ def get_all_time_leaderboard_for_login(exclude_worst: bool = False):
     import glob
     import re
     import json
-    from typing import List, Dict
+    from tipper_storage import season_uses_worst_score_rule
     
     # Znajdź wszystkie pliki sezonów
     pattern = os.path.join(os.getcwd(), "tipper_data_season_*.json")
-    files = glob.glob(pattern)
+    files = sorted(
+        glob.glob(pattern),
+        key=lambda file_path: int(re.search(r'tipper_data_season_(\d+)\.json', os.path.basename(file_path)).group(1)),
+        reverse=True
+    )
     
     # Słownik do przechowywania sum punktów dla każdego gracza
-    players_total = {}  # {player_name: {'total': int, 'seasons': int, 'rounds': int, 'seasons_data': {season_id: points}}}
+    players_total = {}  # {player_name: {'total': int, 'team_name': str, 'seasons': int, 'rounds': int, 'seasons_data': {season_id: points}}}
     
     # Przejdź przez wszystkie pliki sezonów
     for file_path in files:
@@ -54,8 +76,8 @@ def get_all_time_leaderboard_for_login(exclude_worst: bool = False):
             
             # Pobierz graczy z sezonu (najpierw sprawdź w seasons, potem w players)
             players_data = {}
+            season_data = data.get('seasons', {}).get(season_id, {})
             if season_id in data.get('seasons', {}):
-                season_data = data['seasons'][season_id]
                 if 'players' in season_data and season_data['players']:
                     players_data = season_data['players']
             
@@ -68,10 +90,15 @@ def get_all_time_leaderboard_for_login(exclude_worst: bool = False):
                 if player_name not in players_total:
                     players_total[player_name] = {
                         'total': 0,
+                        'team_name': '',
                         'seasons': 0,
                         'rounds': 0,
                         'seasons_data': {}
                     }
+
+                team_name = str(player_data.get('team_name', '') or '').strip()
+                if team_name and not players_total[player_name]['team_name']:
+                    players_total[player_name]['team_name'] = team_name
                 
                 # Pobierz punkty gracza
                 total_points = player_data.get('total_points', 0)
@@ -79,7 +106,7 @@ def get_all_time_leaderboard_for_login(exclude_worst: bool = False):
                 rounds_played = player_data.get('rounds_played', 0)
                 
                 # Odrzuć najgorszy wynik jeśli exclude_worst=True
-                if exclude_worst and worst_score > 0:
+                if exclude_worst and season_uses_worst_score_rule(season_id, season_data) and worst_score > 0:
                     season_points = total_points - worst_score
                 else:
                     season_points = total_points
@@ -99,6 +126,7 @@ def get_all_time_leaderboard_for_login(exclude_worst: bool = False):
     for player_name, data in players_total.items():
         leaderboard.append({
             'player_name': player_name,
+            'team_name': data.get('team_name', ''),
             'total_points': data['total'],
             'seasons_played': data['seasons'],
             'rounds_played': data['rounds'],
@@ -231,6 +259,9 @@ def login_page() -> bool:
     try:
         from tipper_storage import TipperStorage
         storage = TipperStorage()
+        current_season_id = storage.season_id
+        current_season_label = format_season_label(current_season_id)
+        selected_players = get_effective_selected_players_for_login(storage, current_season_id)
         
         # Ranking - sekcja read-only
         st.subheader("🏆 Ranking (tylko do odczytu)")
@@ -241,10 +272,11 @@ def login_page() -> bool:
         
         # Ranking całości
         with ranking_tab1:
-            st.markdown("### 🏆 Ranking całości")
+            st.markdown(f"### 🏆 Ranking całości ({current_season_label})")
             
             exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza", value=True, key="login_exclude_worst_overall")
-            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst)
+            leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst, season_id=current_season_id)
+            leaderboard = [player for player in leaderboard if player['player_name'] in selected_players]
             
             if leaderboard:
                 # Przygotuj dane do wyświetlenia
@@ -266,6 +298,7 @@ def login_page() -> bool:
                     leaderboard_data.append({
                         'Miejsce': idx,
                         'Gracz': player['player_name'],
+                        'Drużyna': player.get('team_name') or '—',
                         'Punkty': points_summary,
                         'Suma': player['total_points'],
                         'Rundy': player['rounds_played'],
@@ -425,10 +458,17 @@ def login_page() -> bool:
         
         # Ranking per kolejka
         with ranking_tab2:
-            st.markdown("### 📊 Ranking per kolejka")
+            st.markdown(f"### 📊 Ranking per kolejka ({current_season_label})")
             
             # Pobierz wszystkie rundy z storage
-            all_rounds = sorted(storage.data['rounds'].items(), key=lambda x: x[1].get('start_date', ''))
+            all_rounds = sorted(
+                [
+                    (round_id, round_data)
+                    for round_id, round_data in storage.data['rounds'].items()
+                    if round_data.get('season_id', current_season_id) == current_season_id
+                ],
+                key=lambda x: x[1].get('start_date', '')
+            )
             
             if all_rounds:
                 # Stwórz listę opcji rund
@@ -491,6 +531,7 @@ def login_page() -> bool:
                         
                         # Ranking dla wybranej rundy
                         round_leaderboard = storage.get_round_leaderboard(selected_round_id)
+                        round_leaderboard = [player for player in round_leaderboard if player['player_name'] in selected_players]
                         
                         if round_leaderboard:
                             # Pobierz mecze z rundy dla wyświetlenia typów
@@ -514,6 +555,7 @@ def login_page() -> bool:
                                 round_leaderboard_data.append({
                                     'Miejsce': idx,
                                     'Gracz': player['player_name'],
+                                    'Drużyna': player.get('team_name') or '—',
                                     'Punkty': points_summary,
                                     'Suma': player['total_points'],
                                     'Mecze': player['matches_count']
@@ -617,6 +659,7 @@ def login_page() -> bool:
                                     for i in range(max(0, selected_round_idx - 4), selected_round_idx + 1):
                                         round_id_comp, date_comp, _ = round_options[i]
                                         round_lb = storage.get_round_leaderboard(round_id_comp)
+                                        round_lb = [player for player in round_lb if player['player_name'] in selected_players]
                                         round_num_comp = date_to_round_number.get(round_id_comp, '?')
                                         
                                         for player in round_lb:

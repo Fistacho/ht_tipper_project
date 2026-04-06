@@ -36,6 +36,23 @@ def season_uses_worst_score_rule(season_id: str, season_data: Optional[Dict] = N
 
 class TipperStorage:
     """Klasa do przechowywania i zarządzania danymi typera"""
+
+    @staticmethod
+    def _build_player_entry(team_name: str = "") -> Dict:
+        """Tworzy domyślną strukturę danych gracza."""
+        normalized_team_name = (team_name or "").strip()
+        player_entry = {
+            'predictions': {},
+            'total_points': 0,
+            'rounds_played': 0,
+            'best_score': 0,
+            'worst_score': float('inf')
+        }
+
+        if normalized_team_name:
+            player_entry['team_name'] = normalized_team_name
+
+        return player_entry
     
     def __init__(self, data_file: str = None, season_id: str = None):
         """
@@ -586,13 +603,7 @@ class TipperStorage:
         players = self._get_season_players(season_id)
         
         if player_name not in players:
-            players[player_name] = {
-                'predictions': {},
-                'total_points': 0,
-                'rounds_played': 0,
-                'best_score': 0,
-                'worst_score': float('inf')
-            }
+            players[player_name] = self._build_player_entry()
         
         # Sprawdź czy typ już istnieje
         existing_prediction = None
@@ -805,13 +816,7 @@ class TipperStorage:
                 
                 # Aktualizuj punkty gracza (w sezonie)
                 if player_name not in players:
-                    players[player_name] = {
-                        'predictions': {},
-                        'total_points': 0,
-                        'rounds_played': 0,
-                        'best_score': 0,
-                        'worst_score': float('inf')
-                    }
+                    players[player_name] = self._build_player_entry()
                 
                 # Zapisz punkty dla tego meczu
                 if 'match_points' not in self.data['rounds'][round_id]:
@@ -856,13 +861,7 @@ class TipperStorage:
         if player_name not in players:
             logger.warning(f"Gracz {player_name} nie istnieje w sezonie {season_id}")
             # Możemy utworzyć gracza jeśli nie istnieje
-            players[player_name] = {
-                'predictions': {},
-                'total_points': 0,
-                'rounds_played': 0,
-                'best_score': 0,
-                'worst_score': float('inf')
-            }
+            players[player_name] = self._build_player_entry()
         
         # Upewnij się, że struktura match_points istnieje
         if 'match_points' not in self.data['rounds'][round_id]:
@@ -1068,6 +1067,35 @@ class TipperStorage:
             return players[player_name]['predictions'].get(round_id, {})
         else:
             return players[player_name]['predictions']
+
+    def get_player_team(self, player_name: str, season_id: str = None) -> str:
+        """Zwraca opcjonalne powiązanie gracza z drużyną."""
+        if season_id is None:
+            season_id = self.season_id
+
+        players = self._get_season_players(season_id)
+        if player_name not in players:
+            return ""
+
+        return str(players[player_name].get('team_name', '') or '').strip()
+
+    def set_player_team(self, player_name: str, team_name: str, season_id: str = None) -> bool:
+        """Ustawia opcjonalne powiązanie gracza z drużyną."""
+        if season_id is None:
+            season_id = self.season_id
+
+        players = self._get_season_players(season_id)
+        if player_name not in players:
+            return False
+
+        normalized_team_name = (team_name or '').strip()
+        if normalized_team_name:
+            players[player_name]['team_name'] = normalized_team_name
+        else:
+            players[player_name].pop('team_name', None)
+
+        self._save_data()
+        return True
     
     def get_leaderboard(self, exclude_worst: bool = True, season_id: str = None) -> List[Dict]:
         """Zwraca ranking graczy dla danego sezonu (z opcją odrzucenia najgorszego wyniku)"""
@@ -1131,6 +1159,7 @@ class TipperStorage:
             
             leaderboard.append({
                 'player_name': player_name,
+                'team_name': self.get_player_team(player_name, season_id),
                 'total_points': final_total_points,
                 'rounds_played': player_data['rounds_played'],
                 'best_score': player_data.get('best_score', 0),
@@ -1236,6 +1265,7 @@ class TipperStorage:
             
             player_scores[player_name] = {
                 'player_name': player_name,
+                'team_name': self.get_player_team(player_name, season_id),
                 'total_points': total_points,
                 'matches_count': matches_count,
                 'match_points': match_points_list  # Lista punktów za każdy mecz
@@ -1466,7 +1496,7 @@ class TipperStorage:
         self.data['seasons'][season_id]['archived'] = archived
         self._save_data()
     
-    def add_player(self, player_name: str, season_id: str = None):
+    def add_player(self, player_name: str, season_id: str = None, team_name: str = ""):
         """Dodaje gracza do sezonu"""
         if season_id is None:
             season_id = self.season_id
@@ -1477,13 +1507,7 @@ class TipperStorage:
         if player_name in players:
             return False  # Gracz już istnieje
         
-        players[player_name] = {
-            'predictions': {},
-            'total_points': 0,
-            'rounds_played': 0,
-            'best_score': 0,
-            'worst_score': float('inf')
-        }
+        players[player_name] = self._build_player_entry(team_name)
         
         self._save_data()
         return True
