@@ -508,7 +508,8 @@ class TipperStorage:
                 'predictions': {}  # {player_name: {match_id: (home, away)}}
             }
             self.data['seasons'][season_id]['rounds'].append(round_id)
-            self._save_data()
+            # Nowa runda musi być zapisana natychmiast, bo kolejne reruny używają reload_data().
+            self._save_data(force=True)
     
     def _get_season_players(self, season_id: str = None) -> Dict:
         """Zwraca słownik graczy dla danego sezonu"""

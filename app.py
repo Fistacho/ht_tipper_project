@@ -90,6 +90,24 @@ def should_auto_sync_round(round_id: str, scope: str) -> bool:
     return True
 
 
+def get_last_auto_sync_label() -> str:
+    """Zwraca etykietę z czasem ostatniej automatycznej synchronizacji w bieżącej sesji."""
+    sync_values = []
+
+    for key, value in st.session_state.items():
+        if key.startswith("_last_auto_sync_"):
+            try:
+                sync_values.append(float(value))
+            except (TypeError, ValueError):
+                continue
+
+    if not sync_values:
+        return "Auto update: brak w tej sesji"
+
+    last_sync = datetime.fromtimestamp(max(sync_values))
+    return f"Auto update: {last_sync.strftime('%H:%M')}"
+
+
 def build_team_metadata_from_fixtures(fixtures: List[Dict], league_names: Dict[int, str]) -> Dict[str, Dict]:
     """Buduje etykiety drużyn z nazwami lig na podstawie już pobranych fixtures."""
     team_metadata = {}
@@ -361,6 +379,7 @@ def main():
         # Sekcja użytkownika
         st.header("👤 Użytkownik")
         st.info(f"Zalogowany jako: **{username}**")
+        st.caption(get_last_auto_sync_label())
         if st.button("🚪 Wyloguj się", width='stretch'):
             logout()
             return
@@ -2110,6 +2129,10 @@ def main():
                             saved_count = 0
                             updated_count = 0
                             errors = []
+
+                            if round_id not in storage.data.get('rounds', {}):
+                                storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
+                                storage.reload_data()
                             
                             # Pobierz wszystkie istniejące typy przed zapisem (aby nie stracić tych, które nie są w session_state)
                             # NIE przeładowujemy danych - używamy aktualnych danych z storage
