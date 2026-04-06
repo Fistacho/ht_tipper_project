@@ -661,7 +661,15 @@ class TipperStorage:
         self._recalculate_player_totals(season_id=season_id)
         return True
     
-    def update_match_result(self, round_id: str, match_id: str, home_goals: int, away_goals: int):
+    def update_match_result(
+        self,
+        round_id: str,
+        match_id: str,
+        home_goals: int,
+        away_goals: int,
+        save: bool = True,
+        recalculate_totals: bool = True
+    ):
         """Aktualizuje wynik meczu i przelicza punkty"""
         if round_id not in self.data['rounds']:
             logger.error(f"Runda {round_id} nie istnieje")
@@ -780,8 +788,11 @@ class TipperStorage:
             else:
                 logger.warning(f"update_match_result: ⚠️ Gracz {player_name} nie ma typu dla meczu {match_id}")
         
-        self._save_data()
-        self._recalculate_player_totals(season_id=season_id)
+        if recalculate_totals:
+            self._recalculate_player_totals(season_id=season_id, save=False)
+
+        if save:
+            self._save_data()
     
     def set_manual_points(self, round_id: str, match_id: str, player_name: str, points: int, season_id: str = None):
         """
@@ -878,7 +889,7 @@ class TipperStorage:
         
         return True
     
-    def _recalculate_player_totals(self, season_id: str = None):
+    def _recalculate_player_totals(self, season_id: str = None, save: bool = True):
         """Przelicza całkowite punkty dla wszystkich graczy w danym sezonie"""
         if season_id is None:
             season_id = self.season_id
@@ -988,7 +999,8 @@ class TipperStorage:
             player_data['worst_score'] = worst_score if worst_score != float('inf') else 0
             player_data['round_scores'] = round_scores
         
-        self._save_data()
+        if save:
+            self._save_data()
     
     def get_round_predictions(self, round_id: str) -> Dict:
         """Zwraca typy dla rundy"""
@@ -1398,4 +1410,3 @@ class TipperStorage:
         except Exception as e:
             logger.error(f"Błąd tworzenia nowego sezonu: {e}")
             return False
-

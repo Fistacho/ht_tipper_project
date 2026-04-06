@@ -35,6 +35,44 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+FIXTURES_CACHE_TTL_SECONDS = 300
+ROUND_AUTO_SYNC_TTL_SECONDS = 120
+
+
+@st.cache_data(ttl=FIXTURES_CACHE_TTL_SECONDS, show_spinner=False)
+def get_cached_league_fixtures(
+    consumer_key: str,
+    consumer_secret: str,
+    access_token: str,
+    access_token_secret: str,
+    league_id: int
+) -> List[Dict]:
+    """Pobiera fixtures ligi z krótkim cache, aby ograniczyć liczbę requestów przy rerunach."""
+    client = HattrickOAuthSimple(consumer_key, consumer_secret)
+    client.set_access_tokens(access_token, access_token_secret)
+    fixtures = client.get_league_fixtures(league_id) or []
+
+    normalized_fixtures = []
+    for fixture in fixtures:
+        fixture_copy = fixture.copy()
+        fixture_copy['league_id'] = league_id
+        normalized_fixtures.append(fixture_copy)
+
+    return normalized_fixtures
+
+
+def should_auto_sync_round(round_id: str, scope: str) -> bool:
+    """Ogranicza automatyczne synchronizacje tej samej rundy przy kolejnych rerunach."""
+    sync_key = f"_last_auto_sync_{scope}_{round_id}"
+    now_ts = datetime.now().timestamp()
+    last_sync_ts = float(st.session_state.get(sync_key, 0))
+
+    if now_ts - last_sync_ts < ROUND_AUTO_SYNC_TTL_SECONDS:
+        return False
+
+    st.session_state[sync_key] = now_ts
+    return True
+
 
 def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
     """
@@ -640,20 +678,19 @@ def main():
                 return
         else:
             # Dla niearchiwalnych sezonów pobieramy dane z API
-            # Inicjalizuj klienta OAuth
-            client = HattrickOAuthSimple(consumer_key, consumer_secret)
-            client.set_access_tokens(access_token, access_token_secret)
-            
             # Pobierz mecze z obu lig
             all_fixtures = []
             with st.spinner("Pobieranie meczów z lig..."):
                 for league_id in TIPPER_LEAGUES:
                     try:
-                        fixtures = client.get_league_fixtures(league_id)
+                        fixtures = get_cached_league_fixtures(
+                            consumer_key,
+                            consumer_secret,
+                            access_token,
+                            access_token_secret,
+                            league_id
+                        )
                         if fixtures:
-                            # Dodaj informację o lidze
-                            for fixture in fixtures:
-                                fixture['league_id'] = league_id
                             all_fixtures.extend(fixtures)
                             logger.info(f"Pobrano {len(fixtures)} meczów z ligi {league_id}")
                     except Exception as e:
@@ -897,6 +934,7 @@ def main():
                 # Ranking dla wybranej rundy
                 # Przeładuj dane przed pobraniem rankingu, aby mieć aktualne punkty
                 storage.reload_data()
+                auto_sync_round = should_auto_sync_round(round_id, "ranking")
                 
                 # Najpierw zaktualizuj wyniki z API do storage
                 round_data = storage.data['rounds'].get(round_id, {})
@@ -910,26 +948,27 @@ def main():
                 
                 # Zaktualizuj wyniki meczów z API
                 updated_results_count = 0
-                logger.info(f"[Ranking per kolejka] Aktualizacja wyników z API: sprawdzam {len(selected_matches)} meczów z API dla rundy {round_id}")
-                for api_match in selected_matches:
-                    match_id = str(api_match.get('match_id', ''))
-                    api_home_goals = api_match.get('home_goals')
-                    api_away_goals = api_match.get('away_goals')
-                    
-                    # Jeśli mecz z API ma wynik, zaktualizuj go w storage
-                    if api_home_goals is not None and api_away_goals is not None:
-                        if match_id in storage_matches_map:
-                            storage_match = storage_matches_map[match_id]
-                            storage_home_goals = storage_match.get('home_goals')
-                            storage_away_goals = storage_match.get('away_goals')
-                            
-                            # Zaktualizuj wynik tylko jeśli się zmienił lub nie był zapisany
-                            if storage_home_goals != api_home_goals or storage_away_goals != api_away_goals:
-                                logger.info(f"[Ranking per kolejka] ✅ Aktualizuję wynik meczu {match_id}: {storage_home_goals}-{storage_away_goals} -> {api_home_goals}-{api_away_goals}")
-                                storage_match['home_goals'] = api_home_goals
-                                storage_match['away_goals'] = api_away_goals
-                                storage_match['result_updated'] = datetime.now().isoformat()
-                                updated_results_count += 1
+                if auto_sync_round:
+                    logger.info(f"[Ranking per kolejka] Aktualizacja wyników z API: sprawdzam {len(selected_matches)} meczów z API dla rundy {round_id}")
+                    for api_match in selected_matches:
+                        match_id = str(api_match.get('match_id', ''))
+                        api_home_goals = api_match.get('home_goals')
+                        api_away_goals = api_match.get('away_goals')
+                        
+                        # Jeśli mecz z API ma wynik, zaktualizuj go w storage
+                        if api_home_goals is not None and api_away_goals is not None:
+                            if match_id in storage_matches_map:
+                                storage_match = storage_matches_map[match_id]
+                                storage_home_goals = storage_match.get('home_goals')
+                                storage_away_goals = storage_match.get('away_goals')
+                                
+                                # Zaktualizuj wynik tylko jeśli się zmienił lub nie był zapisany
+                                if storage_home_goals != api_home_goals or storage_away_goals != api_away_goals:
+                                    logger.info(f"[Ranking per kolejka] ✅ Aktualizuję wynik meczu {match_id}: {storage_home_goals}-{storage_away_goals} -> {api_home_goals}-{api_away_goals}")
+                                    storage_match['home_goals'] = api_home_goals
+                                    storage_match['away_goals'] = api_away_goals
+                                    storage_match['result_updated'] = datetime.now().isoformat()
+                                    updated_results_count += 1
                 
                 # Zapisz zaktualizowane wyniki
                 if updated_results_count > 0:
@@ -945,6 +984,7 @@ def main():
                 match_points_dict = round_data.get('match_points', {})
                 
                 # Sprawdź każdy mecz i przelicz punkty jeśli ma wynik, ale brakuje punktów
+                recalculated_matches = 0
                 for match in round_matches:
                     match_id = str(match.get('match_id', ''))
                     home_goals = match.get('home_goals')
@@ -980,9 +1020,21 @@ def main():
                         if needs_recalculation or (players_with_predictions > 0 and players_with_points < players_with_predictions):
                             logger.info(f"[Ranking per kolejka] Automatyczne przeliczanie punktów dla meczu {match_id} w rundzie {round_id} (graczy z typami: {players_with_predictions}, z punktami: {players_with_points})")
                             try:
-                                storage.update_match_result(round_id, match_id, int(home_goals), int(away_goals))
+                                storage.update_match_result(
+                                    round_id,
+                                    match_id,
+                                    int(home_goals),
+                                    int(away_goals),
+                                    save=False,
+                                    recalculate_totals=False
+                                )
+                                recalculated_matches += 1
                             except Exception as e:
                                 logger.error(f"[Ranking per kolejka] Błąd automatycznego przeliczania punktów dla meczu {match_id}: {e}")
+
+                if recalculated_matches > 0:
+                    storage._recalculate_player_totals(season_id=selected_season_id, save=False)
+                    storage._save_data(force=True)
                 
                 # Przeładuj dane po przeliczeniu
                 storage.reload_data()
@@ -1382,6 +1434,8 @@ def main():
                     with st.spinner("Pobieranie wyników i przeliczanie punktów..."):
                         # Przeładuj dane
                         storage.reload_data()
+                        st.session_state[f"_last_auto_sync_main_{round_id}"] = datetime.now().timestamp()
+                        st.session_state[f"_last_auto_sync_ranking_{round_id}"] = datetime.now().timestamp()
                         round_data = storage.data['rounds'].get(round_id, {})
                         round_matches = round_data.get('matches', [])
                         
@@ -1471,7 +1525,14 @@ def main():
                             if home_goals is not None and away_goals is not None:
                                 try:
                                     logger.info(f"Wywołuję update_match_result dla meczu {match_id} z wynikiem {home_goals}-{away_goals}")
-                                    storage.update_match_result(round_id, match_id, int(home_goals), int(away_goals))
+                                    storage.update_match_result(
+                                        round_id,
+                                        match_id,
+                                        int(home_goals),
+                                        int(away_goals),
+                                        save=False,
+                                        recalculate_totals=False
+                                    )
                                     calculated_count += 1
                                     processed_match_ids.add(match_id)
                                     logger.info(f"✅ Przeliczono punkty dla meczu {match_id} w rundzie {round_id} (wynik: {home_goals}-{away_goals})")
@@ -1497,7 +1558,14 @@ def main():
                             if api_home_goals is not None and api_away_goals is not None:
                                 try:
                                     logger.info(f"Wywołuję update_match_result dla meczu z API {match_id} z wynikiem {api_home_goals}-{api_away_goals}")
-                                    storage.update_match_result(round_id, match_id, int(api_home_goals), int(api_away_goals))
+                                    storage.update_match_result(
+                                        round_id,
+                                        match_id,
+                                        int(api_home_goals),
+                                        int(api_away_goals),
+                                        save=False,
+                                        recalculate_totals=False
+                                    )
                                     calculated_count += 1
                                     processed_match_ids.add(match_id)
                                     logger.info(f"✅ Przeliczono punkty dla meczu z API {match_id} w rundzie {round_id} (wynik: {api_home_goals}-{api_away_goals})")
@@ -1506,6 +1574,10 @@ def main():
                             else:
                                 logger.info(f"⏭️ Mecz z API {match_id} nie ma wyniku (home_goals={api_home_goals}, away_goals={api_away_goals}) - pomijam")
                         
+                        if calculated_count > 0:
+                            storage._recalculate_player_totals(season_id=selected_season_id, save=False)
+                            storage._save_data(force=True)
+
                         if calculated_count > 0:
                             st.success(f"✅ Przeliczono punkty dla {calculated_count} meczów")
                         else:
@@ -1528,100 +1600,114 @@ def main():
                 else:
                     matches_upcoming.append(match)
             
-            # Najpierw zaktualizuj wszystkie wyniki z API do storage
-            storage.reload_data()
-            round_data = storage.data['rounds'].get(round_id, {})
-            round_matches = round_data.get('matches', [])
-            
-            # Stwórz mapę meczów w storage (po match_id)
-            storage_matches_map = {}
-            for m in round_matches:
-                mid = str(m.get('match_id', ''))
-                storage_matches_map[mid] = m
-            
-            # Zaktualizuj wyniki meczów z API
-            updated_results_count = 0
-            logger.info(f"Aktualizacja wyników z API: sprawdzam {len(selected_matches)} meczów z API dla rundy {round_id}")
-            for api_match in selected_matches:
-                match_id = str(api_match.get('match_id', ''))
-                api_home_goals = api_match.get('home_goals')
-                api_away_goals = api_match.get('away_goals')
-                
-                logger.info(f"API mecz {match_id}: home_goals={api_home_goals}, away_goals={api_away_goals}")
-                
-                # Jeśli mecz z API ma wynik, zaktualizuj go w storage
-                if api_home_goals is not None and api_away_goals is not None:
-                    if match_id in storage_matches_map:
-                        storage_match = storage_matches_map[match_id]
-                        storage_home_goals = storage_match.get('home_goals')
-                        storage_away_goals = storage_match.get('away_goals')
-                        
-                        logger.info(f"Storage mecz {match_id}: home_goals={storage_home_goals}, away_goals={storage_away_goals}")
-                        
-                        # Zaktualizuj wynik tylko jeśli się zmienił lub nie był zapisany
-                        if storage_home_goals != api_home_goals or storage_away_goals != api_away_goals:
-                            logger.info(f"✅ Aktualizuję wynik meczu {match_id}: {storage_home_goals}-{storage_away_goals} -> {api_home_goals}-{api_away_goals}")
-                            storage_match['home_goals'] = api_home_goals
-                            storage_match['away_goals'] = api_away_goals
-                            storage_match['result_updated'] = datetime.now().isoformat()
-                            updated_results_count += 1
-                        else:
-                            logger.info(f"⏭️ Wynik meczu {match_id} już jest aktualny: {storage_home_goals}-{storage_away_goals}")
-                    else:
-                        logger.warning(f"⚠️ Mecz {match_id} z API nie został znaleziony w storage_matches_map (keys: {list(storage_matches_map.keys())})")
-                else:
-                    logger.info(f"⏭️ Mecz {match_id} z API nie ma wyniku (home_goals={api_home_goals}, away_goals={api_away_goals})")
-            
-            # Zapisz zaktualizowane wyniki
-            if updated_results_count > 0:
-                storage._save_data(force=True)
-                logger.info(f"Zaktualizowano {updated_results_count} wyników meczów z API")
-                # Przeładuj dane po aktualizacji
+            if should_auto_sync_round(round_id, "main"):
+                # Najpierw zaktualizuj wszystkie wyniki z API do storage
                 storage.reload_data()
                 round_data = storage.data['rounds'].get(round_id, {})
                 round_matches = round_data.get('matches', [])
-            
-            # Teraz przelicz punkty dla wszystkich meczów z wynikami
-            round_predictions = round_data.get('predictions', {})
-            match_points_dict = round_data.get('match_points', {})
-            
-            for match in round_matches:
-                match_id = str(match.get('match_id', ''))
-                home_goals = match.get('home_goals')
-                away_goals = match.get('away_goals')
                 
-                if home_goals is not None and away_goals is not None:
-                    # Sprawdź czy wszyscy gracze z typami mają punkty dla tego meczu
-                    needs_recalculation = False
-                    players_with_predictions = 0
-                    players_with_points = 0
+                # Stwórz mapę meczów w storage (po match_id)
+                storage_matches_map = {}
+                for m in round_matches:
+                    mid = str(m.get('match_id', ''))
+                    storage_matches_map[mid] = m
+                
+                # Zaktualizuj wyniki meczów z API
+                updated_results_count = 0
+                logger.info(f"Aktualizacja wyników z API: sprawdzam {len(selected_matches)} meczów z API dla rundy {round_id}")
+                for api_match in selected_matches:
+                    match_id = str(api_match.get('match_id', ''))
+                    api_home_goals = api_match.get('home_goals')
+                    api_away_goals = api_match.get('away_goals')
                     
-                    for player_name, player_predictions in round_predictions.items():
-                        # Sprawdź czy gracz ma typ dla tego meczu
-                        has_prediction = (match_id in player_predictions or 
-                                        str(match_id) in player_predictions or
-                                        (match_id.isdigit() and int(match_id) in player_predictions))
-                        
-                        if has_prediction:
-                            players_with_predictions += 1
-                            # Sprawdź czy gracz ma punkty dla tego meczu
-                            player_points = match_points_dict.get(player_name, {})
-                            has_points = (match_id in player_points or 
-                                        str(match_id) in player_points or
-                                        (match_id.isdigit() and int(match_id) in player_points))
+                    logger.info(f"API mecz {match_id}: home_goals={api_home_goals}, away_goals={api_away_goals}")
+                    
+                    # Jeśli mecz z API ma wynik, zaktualizuj go w storage
+                    if api_home_goals is not None and api_away_goals is not None:
+                        if match_id in storage_matches_map:
+                            storage_match = storage_matches_map[match_id]
+                            storage_home_goals = storage_match.get('home_goals')
+                            storage_away_goals = storage_match.get('away_goals')
                             
-                            if has_points:
-                                players_with_points += 1
+                            logger.info(f"Storage mecz {match_id}: home_goals={storage_home_goals}, away_goals={storage_away_goals}")
+                            
+                            # Zaktualizuj wynik tylko jeśli się zmienił lub nie był zapisany
+                            if storage_home_goals != api_home_goals or storage_away_goals != api_away_goals:
+                                logger.info(f"✅ Aktualizuję wynik meczu {match_id}: {storage_home_goals}-{storage_away_goals} -> {api_home_goals}-{api_away_goals}")
+                                storage_match['home_goals'] = api_home_goals
+                                storage_match['away_goals'] = api_away_goals
+                                storage_match['result_updated'] = datetime.now().isoformat()
+                                updated_results_count += 1
                             else:
-                                needs_recalculation = True
+                                logger.info(f"⏭️ Wynik meczu {match_id} już jest aktualny: {storage_home_goals}-{storage_away_goals}")
+                        else:
+                            logger.warning(f"⚠️ Mecz {match_id} z API nie został znaleziony w storage_matches_map (keys: {list(storage_matches_map.keys())})")
+                    else:
+                        logger.info(f"⏭️ Mecz {match_id} z API nie ma wyniku (home_goals={api_home_goals}, away_goals={api_away_goals})")
+                
+                # Zapisz zaktualizowane wyniki
+                if updated_results_count > 0:
+                    storage._save_data(force=True)
+                    logger.info(f"Zaktualizowano {updated_results_count} wyników meczów z API")
+                    # Przeładuj dane po aktualizacji
+                    storage.reload_data()
+                    round_data = storage.data['rounds'].get(round_id, {})
+                    round_matches = round_data.get('matches', [])
+                
+                # Teraz przelicz punkty dla wszystkich meczów z wynikami
+                round_predictions = round_data.get('predictions', {})
+                match_points_dict = round_data.get('match_points', {})
+                recalculated_matches = 0
+                
+                for match in round_matches:
+                    match_id = str(match.get('match_id', ''))
+                    home_goals = match.get('home_goals')
+                    away_goals = match.get('away_goals')
                     
-                    # Jeśli nie wszyscy gracze z typami mają punkty, przelicz je
-                    if needs_recalculation or (players_with_predictions > 0 and players_with_points < players_with_predictions):
-                        logger.info(f"Brak punktów dla meczu {match_id} - przeliczam punkty (graczy z typami: {players_with_predictions}, z punktami: {players_with_points})")
-                        try:
-                            storage.update_match_result(round_id, match_id, int(home_goals), int(away_goals))
-                        except Exception as e:
-                            logger.error(f"Błąd przeliczania punktów dla meczu {match_id}: {e}", exc_info=True)
+                    if home_goals is not None and away_goals is not None:
+                        # Sprawdź czy wszyscy gracze z typami mają punkty dla tego meczu
+                        needs_recalculation = False
+                        players_with_predictions = 0
+                        players_with_points = 0
+                        
+                        for player_name, player_predictions in round_predictions.items():
+                            # Sprawdź czy gracz ma typ dla tego meczu
+                            has_prediction = (match_id in player_predictions or 
+                                            str(match_id) in player_predictions or
+                                            (match_id.isdigit() and int(match_id) in player_predictions))
+                            
+                            if has_prediction:
+                                players_with_predictions += 1
+                                # Sprawdź czy gracz ma punkty dla tego meczu
+                                player_points = match_points_dict.get(player_name, {})
+                                has_points = (match_id in player_points or 
+                                            str(match_id) in player_points or
+                                            (match_id.isdigit() and int(match_id) in player_points))
+                                
+                                if has_points:
+                                    players_with_points += 1
+                                else:
+                                    needs_recalculation = True
+                        
+                        # Jeśli nie wszyscy gracze z typami mają punkty, przelicz je
+                        if needs_recalculation or (players_with_predictions > 0 and players_with_points < players_with_predictions):
+                            logger.info(f"Brak punktów dla meczu {match_id} - przeliczam punkty (graczy z typami: {players_with_predictions}, z punktami: {players_with_points})")
+                            try:
+                                storage.update_match_result(
+                                    round_id,
+                                    match_id,
+                                    int(home_goals),
+                                    int(away_goals),
+                                    save=False,
+                                    recalculate_totals=False
+                                )
+                                recalculated_matches += 1
+                            except Exception as e:
+                                logger.error(f"Błąd przeliczania punktów dla meczu {match_id}: {e}", exc_info=True)
+
+                if recalculated_matches > 0:
+                    storage._recalculate_player_totals(season_id=selected_season_id, save=False)
+                    storage._save_data(force=True)
             
             # Przygotuj dane do tabeli
             matches_table_data = []
@@ -2311,4 +2397,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
