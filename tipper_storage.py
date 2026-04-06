@@ -13,6 +13,19 @@ logger = logging.getLogger(__name__)
 TIPPER_DATA_FILE = "tipper_data.json"
 
 
+def season_uses_worst_score_rule(season_id: str) -> bool:
+    """Zwraca True tylko dla sezonów, w których obowiązuje odrzucanie najgorszego wyniku."""
+    if not season_id or not str(season_id).startswith("season_"):
+        return True
+
+    try:
+        season_num = int(str(season_id).replace("season_", ""))
+    except ValueError:
+        return True
+
+    return season_num < 82
+
+
 class TipperStorage:
     """Klasa do przechowywania i zarządzania danymi typera"""
     
@@ -1045,6 +1058,8 @@ class TipperStorage:
         """Zwraca ranking graczy dla danego sezonu (z opcją odrzucenia najgorszego wyniku)"""
         if season_id is None:
             season_id = self.season_id
+
+        exclude_worst = exclude_worst and season_uses_worst_score_rule(season_id)
         
         leaderboard = []
         

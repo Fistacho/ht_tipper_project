@@ -11,7 +11,7 @@ from typing import List, Dict
 from collections import defaultdict
 
 from tipper import Tipper
-from tipper_storage import TipperStorage
+from tipper_storage import TipperStorage, season_uses_worst_score_rule
 from hattrick_oauth_simple import HattrickOAuthSimple
 from dotenv import load_dotenv
 from auth import check_authentication, login_page, logout
@@ -25,8 +25,11 @@ st.set_page_config(
 )
 
 # Konfiguracja logowania
+LOG_LEVEL_NAME = os.getenv("TIPPER_LOG_LEVEL", "WARNING").upper()
+LOG_LEVEL = getattr(logging, LOG_LEVEL_NAME, logging.WARNING)
+
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=LOG_LEVEL,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('tipper.log'),
@@ -142,6 +145,16 @@ def build_team_metadata_from_fixtures(fixtures: List[Dict], league_names: Dict[i
             entry['label'] = f"{team_name} ({', '.join(entry['league_names'])})"
 
     return team_metadata
+
+
+def get_session_storage(season_id: str) -> TipperStorage:
+    """Zwraca storage trzymany w sesji, aby nie ładować go od nowa przy każdym rerunie."""
+    storage_cache = st.session_state.setdefault("_storage_cache", {})
+
+    if season_id not in storage_cache:
+        storage_cache[season_id] = TipperStorage(season_id=season_id)
+
+    return storage_cache[season_id]
 
 
 def get_round_sync_ttl(selected_matches: List[Dict], stored_matches: List[Dict]) -> int | None:
@@ -264,7 +277,7 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
                 rounds_played = player_data.get('rounds_played', 0)
                 
                 # Odrzuć najgorszy wynik jeśli exclude_worst=True
-                if exclude_worst and worst_score > 0:
+                if exclude_worst and season_uses_worst_score_rule(season_id) and worst_score > 0:
                     season_points = total_points - worst_score
                 else:
                     season_points = total_points
@@ -296,6 +309,19 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
     leaderboard.sort(key=lambda x: x['total_points'], reverse=True)
     
     return leaderboard
+
+
+def get_exclude_worst_setting(season_id: str, key: str):
+    """Zwraca ustawienie checkboxa oraz informację, czy reguła obowiązuje w sezonie."""
+    rule_enabled = season_uses_worst_score_rule(season_id)
+    checkbox_value = st.checkbox(
+        "Odrzuć najgorszy wynik każdego gracza",
+        value=rule_enabled,
+        key=key,
+        disabled=not rule_enabled,
+        help="Od sezonu 82 ta zasada jest wyłączona." if not rule_enabled else None
+    )
+    return checkbox_value and rule_enabled, rule_enabled
 
 
 def main():
@@ -427,7 +453,7 @@ def main():
                 st.error(f"❌ Sezon {new_season_num} już istnieje lub wystąpił błąd")
     
     # Inicjalizacja storage dla wybranego sezonu (używany w całej aplikacji)
-    storage = TipperStorage(season_id=selected_season_id)
+    storage = get_session_storage(selected_season_id)
     
     st.markdown("---")
     
@@ -694,7 +720,7 @@ def main():
                 st.markdown("---")
                 st.subheader("🏆 Ranking")
                 
-                exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza", value=True, key="exclude_worst_overall_archived")
+                exclude_worst, exclude_worst_rule_enabled = get_exclude_worst_setting(selected_season_id, "exclude_worst_overall_archived")
                 
                 # Pobierz graczy bezpośrednio z danych sezonu (dla archiwalnych sezonów)
                 # Najpierw sprawdź w seasons[season_id]['players'], potem w players (kompatybilność wsteczna)
@@ -997,7 +1023,7 @@ def main():
         with ranking_tab1:
             st.markdown("### 🏆 Ranking całości")
             
-            exclude_worst = st.checkbox("Odrzuć najgorszy wynik każdego gracza", value=True, key="exclude_worst_overall")
+            exclude_worst, exclude_worst_rule_enabled = get_exclude_worst_setting(selected_season_id, "exclude_worst_overall")
             # Przelicz punkty przed pobraniem rankingu (aby mieć aktualne dane)
             storage._recalculate_player_totals(season_id=selected_season_id)
             leaderboard = storage.get_leaderboard(exclude_worst=exclude_worst, season_id=selected_season_id)
@@ -2024,24 +2050,16 @@ def main():
                 # Upewnij się, że runda istnieje w storage (ważne dla nowych sezonów)
                 if round_id not in storage.data.get('rounds', {}):
                     storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
-                    storage.reload_data()
                 
                 # Sprawdź czy trzeba odświeżyć dane
                 needs_refresh = st.session_state.get('_refresh_predictions', False)
-                if needs_refresh:
-                    storage.reload_data()
                 
                 # Sprawdź czy trzeba odświeżyć dane (po zapisie typów)
                 needs_refresh = st.session_state.get('_refresh_predictions', False)
                 if needs_refresh:
-                    # Przeładuj dane przed pobraniem typów (aby mieć aktualne dane po zapisie)
-                    storage.reload_data()
                     logger.info("Odświeżam dane po zapisie typów")
                     # Wyczyść flagę po użyciu
                     st.session_state['_refresh_predictions'] = False
-                else:
-                    # Przeładuj dane przed pobraniem typów (aby mieć aktualne dane)
-                    storage.reload_data()
                 
                 # Pobierz istniejące typy gracza dla tej rundy
                 existing_predictions = storage.get_player_predictions(selected_player, round_id, season_id=selected_season_id)
@@ -2213,7 +2231,6 @@ def main():
 
                             if round_id not in storage.data.get('rounds', {}):
                                 storage.add_round(selected_season_id, round_id, selected_matches, selected_round_date)
-                                storage.reload_data()
                             
                             # Pobierz wszystkie istniejące typy przed zapisem (aby nie stracić tych, które nie są w session_state)
                             # NIE przeładowujemy danych - używamy aktualnych danych z storage
