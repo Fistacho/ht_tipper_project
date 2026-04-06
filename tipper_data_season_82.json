@@ -443,7 +443,8 @@
           "round_scores": {
             "round_2026-04-12": 0,
             "round_2026-04-05": 22
-          }
+          },
+          "team_name": "Legia KG(L)"
         },
         "Fistach": {
           "predictions": {
@@ -533,7 +534,8 @@
           "round_scores": {
             "round_2026-04-12": 0,
             "round_2026-04-05": 26
-          }
+          },
+          "team_name": "FC Paralityks"
         },
         "Moli": {
           "predictions": {
@@ -572,7 +574,8 @@
           "round_scores": {
             "round_2026-04-12": 0,
             "round_2026-04-05": 28
-          }
+          },
+          "team_name": "Moli Team"
         },
         "Sokół": {
           "predictions": {},
@@ -583,7 +586,8 @@
           "round_scores": {
             "round_2026-04-12": 0,
             "round_2026-04-05": 0
-          }
+          },
+          "team_name": "ks Jastrowie"
         },
         "Sonne": {
           "predictions": {
@@ -622,7 +626,8 @@
           "round_scores": {
             "round_2026-04-12": 0,
             "round_2026-04-05": 28
-          }
+          },
+          "team_name": "FC Lokomotywa"
         },
         "Wilk": {
           "predictions": {
@@ -661,7 +666,8 @@
           "round_scores": {
             "round_2026-04-12": 0,
             "round_2026-04-05": 34
-          }
+          },
+          "team_name": "Borciuchy International"
         },
         "Preiss": {
           "predictions": {
@@ -700,7 +706,8 @@
           "round_scores": {
             "round_2026-04-12": 0,
             "round_2026-04-05": 24
-          }
+          },
+          "team_name": "WuGieZet"
         }
       },
       "archived": false,
