@@ -217,7 +217,10 @@ def build_ht_forum_table(df: pd.DataFrame, columns: List[str]) -> str:
     """Buduje tabelę BBCode zgodną z forum Hattrick."""
     rows = []
 
-    header_cells = ''.join(f"[td]{_normalize_ht_forum_cell(column)}[/td]" for column in columns)
+    header_cells = ''.join(
+        f"[td][b]{_normalize_ht_forum_cell(column)}[/b][/td]"
+        for column in columns
+    )
     rows.append(f"[tr]{header_cells}[/tr]")
 
     for _, row in df[columns].iterrows():
