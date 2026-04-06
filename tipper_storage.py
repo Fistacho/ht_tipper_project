@@ -3,9 +3,12 @@ Moduł przechowywania danych typera
 """
 import json
 import os
+import glob
+import re
 from typing import Dict, List, Optional
 from datetime import datetime
 import logging
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +35,99 @@ def season_uses_worst_score_rule(season_id: str, season_data: Optional[Dict] = N
         return bool(season_data.get('exclude_worst_rule'))
 
     return default_exclude_worst_rule(season_id)
+
+
+def get_season_file_signatures(base_dir: str = None) -> tuple:
+    """Zwraca sygnatury plików sezonów do cache'owania obliczeń."""
+    search_dir = base_dir or os.getcwd()
+    pattern = os.path.join(search_dir, "tipper_data_season_*.json")
+    season_files = []
+
+    for file_path in glob.glob(pattern):
+        filename = os.path.basename(file_path)
+        match = re.search(r'tipper_data_season_(\d+)\.json', filename)
+        if not match:
+            continue
+
+        season_num = int(match.group(1))
+        season_files.append((season_num, os.path.abspath(file_path), os.path.getmtime(file_path)))
+
+    season_files.sort(key=lambda item: item[0], reverse=True)
+    return tuple((file_path, mtime) for _, file_path, mtime in season_files)
+
+
+@lru_cache(maxsize=16)
+def get_cached_all_time_leaderboard(file_signatures: tuple, exclude_worst: bool = False) -> List[Dict]:
+    """Oblicza ranking wszechczasów z cache zależnym od zmian plików sezonów."""
+    players_total = {}
+
+    for file_path, _mtime in file_signatures:
+        try:
+            filename = os.path.basename(file_path)
+            match = re.search(r'tipper_data_season_(\d+)\.json', filename)
+            if not match:
+                continue
+
+            season_num = int(match.group(1))
+            season_id = f"season_{season_num}"
+
+            with open(file_path, 'r', encoding='utf-8') as file_handle:
+                data = json.load(file_handle)
+
+            players_data = {}
+            season_data = data.get('seasons', {}).get(season_id, {})
+            if season_id in data.get('seasons', {}):
+                if 'players' in season_data and season_data['players']:
+                    players_data = season_data['players']
+
+            if not players_data and 'players' in data and data['players']:
+                players_data = data['players']
+
+            for player_name, player_data in players_data.items():
+                if player_name not in players_total:
+                    players_total[player_name] = {
+                        'total': 0,
+                        'team_name': '',
+                        'seasons': 0,
+                        'rounds': 0,
+                        'seasons_data': {}
+                    }
+
+                team_name = str(player_data.get('team_name', '') or '').strip()
+                if team_name and not players_total[player_name]['team_name']:
+                    players_total[player_name]['team_name'] = team_name
+
+                total_points = player_data.get('total_points', 0)
+                worst_score = player_data.get('worst_score', 0)
+                rounds_played = player_data.get('rounds_played', 0)
+
+                if exclude_worst and season_uses_worst_score_rule(season_id, season_data) and worst_score > 0:
+                    season_points = total_points - worst_score
+                else:
+                    season_points = total_points
+
+                players_total[player_name]['total'] += season_points
+                players_total[player_name]['seasons'] += 1
+                players_total[player_name]['rounds'] += rounds_played
+                players_total[player_name]['seasons_data'][season_id] = season_points
+
+        except Exception as error:
+            logger.error(f"Błąd przetwarzania pliku {file_path}: {error}")
+            continue
+
+    leaderboard = []
+    for player_name, data in players_total.items():
+        leaderboard.append({
+            'player_name': player_name,
+            'team_name': data.get('team_name', ''),
+            'total_points': data['total'],
+            'seasons_played': data['seasons'],
+            'rounds_played': data['rounds'],
+            'seasons_data': data['seasons_data']
+        })
+
+    leaderboard.sort(key=lambda item: item['total_points'], reverse=True)
+    return leaderboard
 
 
 class TipperStorage:
@@ -930,8 +1026,6 @@ class TipperStorage:
         if season_id is None:
             season_id = self.season_id
         
-        from tipper import Tipper
-        
         # Pobierz graczy dla sezonu
         players = self._get_season_players(season_id)
         
@@ -1157,9 +1251,11 @@ class TipperStorage:
                 excluded_worst = False
                 actual_worst_score = worst_score
             
+            team_name = str(player_data.get('team_name', '') or '').strip()
+
             leaderboard.append({
                 'player_name': player_name,
-                'team_name': self.get_player_team(player_name, season_id),
+                'team_name': team_name,
                 'total_points': final_total_points,
                 'rounds_played': player_data['rounds_played'],
                 'best_score': player_data.get('best_score', 0),
@@ -1263,9 +1359,11 @@ class TipperStorage:
                        f"match_points_list={match_points_list} (count={len(match_points_list)}), "
                        f"total_points={total_points}, matches_count={matches_count}")
             
+            team_name = str(players.get(player_name, {}).get('team_name', '') or '').strip()
+
             player_scores[player_name] = {
                 'player_name': player_name,
-                'team_name': self.get_player_team(player_name, season_id),
+                'team_name': team_name,
                 'total_points': total_points,
                 'matches_count': matches_count,
                 'match_points': match_points_list  # Lista punktów za każdy mecz

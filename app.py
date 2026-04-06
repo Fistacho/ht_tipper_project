@@ -12,7 +12,12 @@ from typing import List, Dict
 from collections import defaultdict
 
 from tipper import Tipper
-from tipper_storage import TipperStorage, season_uses_worst_score_rule
+from tipper_storage import (
+    TipperStorage,
+    season_uses_worst_score_rule,
+    get_season_file_signatures,
+    get_cached_all_time_leaderboard,
+)
 from hattrick_oauth_simple import HattrickOAuthSimple
 from dotenv import load_dotenv
 from auth import check_authentication, login_page, logout
@@ -273,105 +278,9 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
     Returns:
         Lista słowników z danymi graczy posortowana po sumie punktów (malejąco)
     """
-    import glob
-    import re
-    import json
-    
-    # Znajdź wszystkie pliki sezonów
-    pattern = os.path.join(os.getcwd(), "tipper_data_season_*.json")
-    files = sorted(
-        glob.glob(pattern),
-        key=lambda file_path: int(re.search(r'tipper_data_season_(\d+)\.json', os.path.basename(file_path)).group(1)),
-        reverse=True
-    )
-    
-    # Słownik do przechowywania sum punktów dla każdego gracza
-    players_total = {}  # {player_name: {'total': int, 'team_name': str, 'seasons': int, 'rounds': int, 'seasons_data': {season_id: points}}}
-    
-    # Przejdź przez wszystkie pliki sezonów
-    logger.info(f"get_all_time_leaderboard: Znaleziono {len(files)} plików sezonów")
-    for file_path in files:
-        try:
-            filename = os.path.basename(file_path)
-            match = re.search(r'tipper_data_season_(\d+)\.json', filename)
-            if not match:
-                continue
-            
-            season_num = int(match.group(1))
-            season_id = f"season_{season_num}"
-            
-            logger.info(f"get_all_time_leaderboard: Przetwarzam sezon {season_id} z pliku {filename}")
-            
-            # Wczytaj dane sezonu
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            # Pobierz graczy z sezonu (najpierw sprawdź w seasons, potem w players)
-            # Ta sama logika jak w auth.py
-            players_data = {}
-            season_data = data.get('seasons', {}).get(season_id, {})
-            if season_id in data.get('seasons', {}):
-                if 'players' in season_data and season_data['players']:
-                    players_data = season_data['players']
-            
-            # Jeśli nie ma w sezonie, sprawdź starą strukturę
-            if not players_data and 'players' in data and data['players']:
-                players_data = data['players']
-            
-            # Przetwarzaj graczy z tego sezonu
-            for player_name, player_data in players_data.items():
-                if player_name not in players_total:
-                    players_total[player_name] = {
-                        'total': 0,
-                        'team_name': '',
-                        'seasons': 0,
-                        'rounds': 0,
-                        'seasons_data': {}
-                    }
-
-                team_name = str(player_data.get('team_name', '') or '').strip()
-                if team_name and not players_total[player_name]['team_name']:
-                    players_total[player_name]['team_name'] = team_name
-                
-                # Pobierz punkty gracza (używamy total_points z danych gracza)
-                total_points = player_data.get('total_points', 0)
-                worst_score = player_data.get('worst_score', 0)
-                rounds_played = player_data.get('rounds_played', 0)
-                
-                # Odrzuć najgorszy wynik jeśli exclude_worst=True
-                if exclude_worst and season_uses_worst_score_rule(season_id, season_data) and worst_score > 0:
-                    season_points = total_points - worst_score
-                else:
-                    season_points = total_points
-                
-                logger.info(f"get_all_time_leaderboard: {player_name} w {season_id}: total_points={total_points}, worst_score={worst_score}, season_points={season_points}")
-                
-                # Dodaj punkty do sumy
-                players_total[player_name]['total'] += season_points
-                players_total[player_name]['seasons'] += 1
-                players_total[player_name]['rounds'] += rounds_played
-                players_total[player_name]['seasons_data'][season_id] = season_points
-                
-        except Exception as e:
-            logger.error(f"Błąd przetwarzania pliku {file_path}: {e}")
-            continue
-    
-    # Przygotuj listę do sortowania
-    leaderboard = []
-    for player_name, data in players_total.items():
-        leaderboard.append({
-            'player_name': player_name,
-            'team_name': data.get('team_name', ''),
-            'total_points': data['total'],
-            'seasons_played': data['seasons'],
-            'rounds_played': data['rounds'],
-            'seasons_data': data['seasons_data']
-        })
-    
-    # Sortuj po sumie punktów (malejąco)
-    leaderboard.sort(key=lambda x: x['total_points'], reverse=True)
-    
-    return leaderboard
+    file_signatures = get_season_file_signatures(os.getcwd())
+    logger.info(f"get_all_time_leaderboard: używam cache dla {len(file_signatures)} plików sezonów")
+    return list(get_cached_all_time_leaderboard(file_signatures, exclude_worst))
 
 
 def get_exclude_worst_setting(season_id: str, key: str):
