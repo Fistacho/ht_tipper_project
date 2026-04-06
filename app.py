@@ -2013,28 +2013,37 @@ def main():
                 st.markdown("<br>", unsafe_allow_html=True)  # Spacing
                 col_add, col_remove, col_copy = st.columns(3)
                 with col_add:
-                    add_new_player = st.button("➕ Dodaj", key="tipper_add_new_player_btn", width='stretch')
+                    if st.button("➕ Dodaj nowego", key="tipper_add_new_player_btn", width='stretch'):
+                        st.session_state["tipper_show_add_player"] = True
                 with col_remove:
                     if all_players_list and selected_player:
-                        remove_player = st.button("🗑️ Usuń", key="tipper_remove_player_btn", width='stretch')
+                        remove_player = st.button("🗑️ Usuń istniejącego", key="tipper_remove_player_btn", width='stretch')
                     else:
                         remove_player = False
                 with col_copy:
                     # Przycisk kopiowania graczy z poprzedniego sezonu
-                    copy_players_btn = st.button("📋 Kopiuj", key="tipper_copy_players_btn", width='stretch', help="Kopiuj graczy z poprzedniego sezonu")
+                    copy_players_btn = st.button("📋 Kopiuj z poprzedniego", key="tipper_copy_players_btn", width='stretch', help="Kopiuj graczy z poprzedniego sezonu")
             
             # Dodawanie nowego gracza
-            if add_new_player:
+            if st.session_state.get("tipper_show_add_player", False):
                 with st.expander("➕ Dodaj nowego gracza", expanded=True):
                     new_player_name = st.text_input("Nazwa nowego gracza:", key="tipper_new_player_name")
                     if st.button("💾 Zapisz", key="tipper_save_new_player"):
                         if new_player_name:
                             if storage.add_player(new_player_name, season_id=selected_season_id):
                                 storage.flush_save()  # Wymuś natychmiastowy zapis
+                                st.session_state["tipper_show_add_player"] = False
+                                st.session_state["tipper_new_player_name"] = ""
                                 st.success(f"✅ Dodano gracza: {new_player_name} do sezonu {selected_season_id.replace('season_', '')}")
                                 st.rerun()
                             else:
                                 st.warning("⚠️ Gracz już istnieje w tym sezonie")
+                        else:
+                            st.warning("⚠️ Wprowadź nazwę gracza")
+                    if st.button("Anuluj", key="tipper_cancel_new_player"):
+                        st.session_state["tipper_show_add_player"] = False
+                        st.session_state["tipper_new_player_name"] = ""
+                        st.rerun()
             
             # Kopiowanie graczy z poprzedniego sezonu
             if copy_players_btn:
@@ -2107,161 +2116,142 @@ def main():
                 col_single, col_bulk = st.columns(2)
                 
                 with col_single:
-                    st.markdown("### Pojedyncze mecze")
-                    # Wyświetl formularz dla każdego meczu
-                    st.markdown("**Wprowadź typy dla każdego meczu:**")
-                    
-                    for idx, match in enumerate(selected_matches):
-                        match_id = str(match.get('match_id', ''))
-                        home_team = match.get('home_team_name', 'Unknown')
-                        away_team = match.get('away_team_name', 'Unknown')
-                        match_date = match.get('match_date', '')
-                        home_goals = match.get('home_goals')
-                        away_goals = match.get('away_goals')
+                    with st.form(key=f"tipper_single_form_{selected_player}_{round_id}"):
+                        st.markdown("### Pojedyncze mecze")
+                        # Wyświetl formularz dla każdego meczu
+                        st.markdown("**Wprowadź typy dla każdego meczu:**")
                         
-                        # Sprawdź czy mecz już się rozpoczął
-                        can_edit = True
-                        is_historical = False
-                        if match_date:
-                            try:
-                                match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
-                                if datetime.now() >= match_dt:
-                                    is_historical = True
-                                    can_edit = allow_historical
-                            except:
-                                pass
-                        
-                        # Pobierz istniejący typ
-                        has_existing = match_id in existing_predictions
-                        if has_existing:
-                            existing_pred = existing_predictions[match_id]
-                            default_value = f"{existing_pred.get('home', 0)}-{existing_pred.get('away', 0)}"
-                        else:
-                            default_value = "0-0"
-                        
-                        # Oblicz punkty jeśli mecz rozegrany
-                        points_display = ""
-                        if home_goals is not None and away_goals is not None and has_existing:
-                            pred_home = existing_pred.get('home', 0)
-                            pred_away = existing_pred.get('away', 0)
-                            points = tipper.calculate_points((pred_home, pred_away), (int(home_goals), int(away_goals)))
-                            points_display = f" | **Punkty: {points}**"
-                        
-                        col1, col2, col3 = st.columns([3, 1.5, 1])
-                        with col1:
-                            status_icon = "✅" if has_existing else "❌"
-                            status_text = "Typ istnieje" if has_existing else "Brak typu"
-                            result_text = f" ({home_goals}-{away_goals})" if home_goals is not None and away_goals is not None else ""
-                            st.write(f"{status_icon} **{home_team}** vs **{away_team}**{result_text} {points_display}")
-                        with col2:
-                            if can_edit:
-                                input_key = f"tipper_pred_{selected_player}_{match_id}"
-                                
-                                # Sprawdź czy są dane z bulk do wypełnienia
-                                bulk_fill_key = f"bulk_fill_{selected_player}_{round_id}"
-                                bulk_fill_data = st.session_state.get(bulk_fill_key, {})
-                                
-                                # Określ wartość początkową - priorytet: bulk > istniejąca wartość > domyślna
-                                initial_value = default_value
-                                
-                                # Sprawdź czy są dane z bulk dla tego meczu (sprawdź zarówno string jak i int)
-                                match_id_str = str(match_id)
-                                bulk_value = None
-                                if match_id_str in bulk_fill_data:
-                                    bulk_value = bulk_fill_data[match_id_str]
-                                elif match_id in bulk_fill_data:
-                                    bulk_value = bulk_fill_data[match_id]
-                                
-                                if bulk_value:
-                                    # Użyj wartości z bulk (nadpisuje wszystko)
-                                    initial_value = bulk_value
-                                    logger.info(f"Bulk fill: Użyję wartość '{bulk_value}' dla meczu {match_id_str}")
-                                    # Zapisuj wartość do session_state PRZED utworzeniem widgetu
-                                    # To zapewni, że widget będzie miał poprawną wartość
-                                    st.session_state[input_key] = bulk_value
-                                    # NIE usuwaj danych z bulk tutaj - zostaną użyte do wypełnienia wszystkich pól
-                                    # Dane będą usunięte po wyświetleniu wszystkich pól (na końcu sekcji)
-                                elif input_key in st.session_state:
-                                    # Jeśli nie ma bulk, użyj istniejącej wartości z session_state
-                                    initial_value = st.session_state[input_key]
-                                # Jeśli flaga odświeżenia jest ustawiona, użyj wartości domyślnej
-                                elif needs_refresh:
-                                    initial_value = default_value
-                                    # Usuń wartość z session_state jeśli istnieje
-                                    if input_key in st.session_state:
-                                        del st.session_state[input_key]
-                                
-                                # Użyj value w st.text_input - Streamlit automatycznie zsynchronizuje to z session_state
-                                # Jeśli wartość jest w session_state (np. z bulk), użyj jej zamiast initial_value
-                                if input_key in st.session_state:
-                                    # Użyj wartości z session_state (może być z bulk lub z poprzedniego wprowadzenia)
-                                    pred_input = st.text_input(
-                                        f"Typ:",
-                                        value=st.session_state[input_key],
-                                        key=input_key,
-                                        label_visibility="collapsed"
-                                    )
-                                else:
-                                    # Użyj initial_value (domyślna wartość)
-                                    pred_input = st.text_input(
-                                        f"Typ:",
-                                        value=initial_value,
-                                        key=input_key,
-                                        label_visibility="collapsed"
-                                    )
-                                
-                                # Streamlit automatycznie aktualizuje session_state[input_key] gdy użytkownik zmienia wartość
-                                # Wartość zwracana przez st.text_input jest zawsze zsynchronizowana z session_state[input_key]
+                        for idx, match in enumerate(selected_matches):
+                            match_id = str(match.get('match_id', ''))
+                            home_team = match.get('home_team_name', 'Unknown')
+                            away_team = match.get('away_team_name', 'Unknown')
+                            match_date = match.get('match_date', '')
+                            home_goals = match.get('home_goals')
+                            away_goals = match.get('away_goals')
+                            
+                            # Sprawdź czy mecz już się rozpoczął
+                            can_edit = True
+                            is_historical = False
+                            if match_date:
+                                try:
+                                    match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                                    if datetime.now() >= match_dt:
+                                        is_historical = True
+                                        can_edit = allow_historical
+                                except:
+                                    pass
+                            
+                            # Pobierz istniejący typ
+                            has_existing = match_id in existing_predictions
+                            if has_existing:
+                                existing_pred = existing_predictions[match_id]
+                                default_value = f"{existing_pred.get('home', 0)}-{existing_pred.get('away', 0)}"
                             else:
-                                if is_historical:
-                                    st.info("⏰ Rozegrany")
-                                else:
-                                    st.warning("⏰ Rozpoczęty")
-                                pred_input = default_value
-                        with col3:
-                            if has_existing and home_goals is not None and away_goals is not None:
-                                pred_data = existing_predictions[match_id]
-                                pred_home = pred_data.get('home', 0)
-                                pred_away = pred_data.get('away', 0)
+                                default_value = "0-0"
+                            
+                            # Oblicz punkty jeśli mecz rozegrany
+                            points_display = ""
+                            if home_goals is not None and away_goals is not None and has_existing:
+                                pred_home = existing_pred.get('home', 0)
+                                pred_away = existing_pred.get('away', 0)
                                 points = tipper.calculate_points((pred_home, pred_away), (int(home_goals), int(away_goals)))
-                                st.metric("Punkty", points)
+                                points_display = f" | **Punkty: {points}**"
+                            
+                            col1, col2, col3 = st.columns([3, 1.5, 1])
+                            with col1:
+                                status_icon = "✅" if has_existing else "❌"
+                                result_text = f" ({home_goals}-{away_goals})" if home_goals is not None and away_goals is not None else ""
+                                st.write(f"{status_icon} **{home_team}** vs **{away_team}**{result_text} {points_display}")
+                            with col2:
+                                if can_edit:
+                                    input_key = f"tipper_pred_{selected_player}_{match_id}"
+                                    
+                                    # Sprawdź czy są dane z bulk do wypełnienia
+                                    bulk_fill_key = f"bulk_fill_{selected_player}_{round_id}"
+                                    bulk_fill_data = st.session_state.get(bulk_fill_key, {})
+                                    
+                                    # Określ wartość początkową - priorytet: bulk > istniejąca wartość > domyślna
+                                    initial_value = default_value
+                                    
+                                    # Sprawdź czy są dane z bulk dla tego meczu (sprawdź zarówno string jak i int)
+                                    match_id_str = str(match_id)
+                                    bulk_value = None
+                                    if match_id_str in bulk_fill_data:
+                                        bulk_value = bulk_fill_data[match_id_str]
+                                    elif match_id in bulk_fill_data:
+                                        bulk_value = bulk_fill_data[match_id]
+                                    
+                                    if bulk_value:
+                                        initial_value = bulk_value
+                                        st.session_state[input_key] = bulk_value
+                                    elif input_key in st.session_state:
+                                        initial_value = st.session_state[input_key]
+                                    elif needs_refresh:
+                                        initial_value = default_value
+                                        if input_key in st.session_state:
+                                            del st.session_state[input_key]
+                                    
+                                    if input_key in st.session_state:
+                                        pred_input = st.text_input(
+                                            f"Typ:",
+                                            value=st.session_state[input_key],
+                                            key=input_key,
+                                            label_visibility="collapsed"
+                                        )
+                                    else:
+                                        pred_input = st.text_input(
+                                            f"Typ:",
+                                            value=initial_value,
+                                            key=input_key,
+                                            label_visibility="collapsed"
+                                        )
+                                else:
+                                    if is_historical:
+                                        st.info("⏰ Rozegrany")
+                                    else:
+                                        st.warning("⏰ Rozpoczęty")
+                                    pred_input = default_value
+                            with col3:
+                                if has_existing and home_goals is not None and away_goals is not None:
+                                    pred_data = existing_predictions[match_id]
+                                    pred_home = pred_data.get('home', 0)
+                                    pred_away = pred_data.get('away', 0)
+                                    points = tipper.calculate_points((pred_home, pred_away), (int(home_goals), int(away_goals)))
+                                    st.metric("Punkty", points)
+                                else:
+                                    st.empty()
+                        
+                        # Wyczyść dane z bulk po wyświetleniu wszystkich pól
+                        bulk_fill_key = f"bulk_fill_{selected_player}_{round_id}"
+                        if bulk_fill_key in st.session_state:
+                            bulk_fill_data = st.session_state[bulk_fill_key]
+                            used_match_ids = set()
+                            for match in selected_matches:
+                                match_id_str = str(match.get('match_id', ''))
+                                if match_id_str in bulk_fill_data:
+                                    used_match_ids.add(match_id_str)
+                            
+                            for match_id in used_match_ids:
+                                if match_id in bulk_fill_data:
+                                    del bulk_fill_data[match_id]
+                            
+                            if not bulk_fill_data:
+                                del st.session_state[bulk_fill_key]
                             else:
-                                st.empty()
-                
-                    # Wyczyść dane z bulk po wyświetleniu wszystkich pól
-                    bulk_fill_key = f"bulk_fill_{selected_player}_{round_id}"
-                    if bulk_fill_key in st.session_state:
-                        bulk_fill_data = st.session_state[bulk_fill_key]
-                        # Sprawdź które mecze zostały już wyświetlone i użyte
-                        used_match_ids = set()
-                        for match in selected_matches:
-                            match_id_str = str(match.get('match_id', ''))
-                            if match_id_str in bulk_fill_data:
-                                used_match_ids.add(match_id_str)
+                                st.session_state[bulk_fill_key] = bulk_fill_data
                         
-                        # Usuń użyte klucze z bulk_fill_data
-                        for match_id in used_match_ids:
-                            if match_id in bulk_fill_data:
-                                del bulk_fill_data[match_id]
+                        if needs_refresh:
+                            st.session_state['_refresh_predictions'] = False
                         
-                        # Jeśli bulk_fill_data jest puste, usuń klucz
-                        if not bulk_fill_data:
-                            del st.session_state[bulk_fill_key]
-                            logger.info(f"Bulk fill: Usunięto dane z bulk po wypełnieniu wszystkich pól")
-                        else:
-                            # Zaktualizuj session_state z pozostałymi danymi (jeśli jakieś zostały)
-                            st.session_state[bulk_fill_key] = bulk_fill_data
-                    
-                    # Wyczyść flagę odświeżenia po zaktualizowaniu wszystkich wartości
-                    if needs_refresh:
-                        st.session_state['_refresh_predictions'] = False
-                    
-                    # Przyciski zapisu i usuwania pod wszystkimi meczami
-                    col_save_single, col_delete_single = st.columns(2)
-                    with col_save_single:
-                        # Użyj unikalnego klucza z round_id i selected_player, aby uniknąć duplikatów
-                        save_button_key = f"tipper_save_all_{selected_player}_{round_id}"
-                        if st.button("💾 Zapisz typy", type="primary", key=save_button_key, width='stretch'):
+                        col_save_single, col_delete_single = st.columns(2)
+                        with col_save_single:
+                            save_button_key = f"tipper_save_all_{selected_player}_{round_id}"
+                            save_types_submitted = st.form_submit_button("💾 Zapisz typy", type="primary", use_container_width=True)
+                        with col_delete_single:
+                            delete_button_key = f"tipper_delete_all_{selected_player}_{round_id}"
+                            delete_types_submitted = st.form_submit_button("🗑️ Usuń typy", use_container_width=True)
+
+                        if save_types_submitted:
                             saved_count = 0
                             updated_count = 0
                             errors = []
@@ -2415,11 +2405,7 @@ def main():
                                     st.error("❌ Nie udało się zapisać typów:\n" + "\n".join(errors[:5]))
                                 else:
                                     st.warning("⚠️ Wprowadź typy przed zapisem")
-                    
-                    with col_delete_single:
-                        # Użyj unikalnego klucza z round_id i selected_player, aby uniknąć duplikatów
-                        delete_button_key = f"tipper_delete_all_{selected_player}_{round_id}"
-                        if st.button("🗑️ Usuń typy", key=delete_button_key, width='stretch'):
+                        elif delete_types_submitted:
                             if storage.delete_player_predictions(round_id, selected_player):
                                 storage.flush_save()  # Wymuś natychmiastowy zapis
                                 st.success("✅ Usunięto wszystkie typy")
@@ -2428,20 +2414,22 @@ def main():
                                 st.error("❌ Nie udało się usunąć typów")
                 
                 with col_bulk:  # Bulk mode
-                    st.markdown("### Wklej wszystkie (bulk)")
-                    st.markdown("**Wklej typy w formacie:**")
-                    st.markdown("*Format: Nazwa drużyny1 - Nazwa drużyny2 Wynik*")
-                    st.markdown("*Przykład: Borciuchy International - WKS BRONEK 50 7:0*")
-                    
-                    predictions_text = st.text_area(
-                        "Typy:",
-                        height=300,
-                        help="Wklej typy w formacie:\nBorciuchy International - WKS BRONEK 50 7:0\nMoli Team - Szmacianka Szynwałdzian 1:1\nLegiaWawa - ks Jastrowie 2:1",
-                        key="tipper_bulk_text"
-                    )
-                    
-                    # Przycisk do wypełnienia pól pojedynczych meczów z bulk (bez zapisu)
-                    if st.button("📋 Wypełnij pola z bulk", key="tipper_bulk_fill"):
+                    with st.form(key=f"tipper_bulk_form_{selected_player}_{round_id}"):
+                        st.markdown("### Wklej wszystkie (bulk)")
+                        st.markdown("**Wklej typy w formacie:**")
+                        st.markdown("*Format: Nazwa drużyny1 - Nazwa drużyny2 Wynik*")
+                        st.markdown("*Przykład: Borciuchy International - WKS BRONEK 50 7:0*")
+                        
+                        predictions_text = st.text_area(
+                            "Typy:",
+                            height=300,
+                            help="Wklej typy w formacie:\nBorciuchy International - WKS BRONEK 50 7:0\nMoli Team - Szmacianka Szynwałdzian 1:1\nLegiaWawa - ks Jastrowie 2:1",
+                            key="tipper_bulk_text"
+                        )
+                        
+                        bulk_fill_submitted = st.form_submit_button("📋 Wypełnij pola z bulk", use_container_width=False)
+
+                    if bulk_fill_submitted:
                         if not predictions_text:
                             st.warning("⚠️ Wprowadź typy")
                         else:
