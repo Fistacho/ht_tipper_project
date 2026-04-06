@@ -752,6 +752,10 @@ def main():
             st.info("💡 Aby uzyskać klucze OAuth, uruchom skrypt `get_oauth_simple.py`")
             return
         
+        # Wczytaj zapisany wybór drużyn przed rozgałęzieniem na sezon archiwalny/bieżący.
+        # Dzięki temu dalsza część widoku zawsze ma zainicjalizowaną zmienną.
+        selected_teams = storage.get_selected_teams(season_id=selected_season_id)
+
         # Sprawdź czy sezon jest archiwalny
         is_archived = storage.is_season_archived(season_id=selected_season_id)
         
@@ -984,7 +988,6 @@ def main():
             storage.reload_data()
             
             # Pobierz zapisane ustawienia dla wybranego sezonu
-            selected_teams = storage.get_selected_teams(season_id=selected_season_id)
             team_metadata = storage.get_team_metadata(season_id=selected_season_id)
 
             season_leagues = storage.get_selected_leagues(season_id=selected_season_id) or TIPPER_LEAGUES
