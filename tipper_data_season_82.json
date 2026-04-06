@@ -633,7 +633,11 @@
           "total_points": 0,
           "rounds_played": 0,
           "best_score": 0,
-          "worst_score": Infinity
+          "worst_score": 0,
+          "round_scores": {
+            "round_2026-04-12": 0,
+            "round_2026-04-05": 0
+          }
         }
       },
       "archived": false,
