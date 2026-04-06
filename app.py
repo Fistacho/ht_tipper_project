@@ -218,7 +218,7 @@ def build_ht_forum_table(df: pd.DataFrame, columns: List[str]) -> str:
     rows = []
 
     header_cells = ''.join(
-        f"[td][color=#666666][b]{_normalize_ht_forum_cell(column).upper()}[/b][/color][/td]"
+        f"[td][b]{_normalize_ht_forum_cell(column).upper()}[/b][/td]"
         for column in columns
     )
     rows.append(f"[tr]{header_cells}[/tr]")
