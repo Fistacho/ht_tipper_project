@@ -78,9 +78,10 @@
           "away_team_name": "LegiaWawa",
           "match_date": "2026-04-05 09:00:00",
           "status": null,
-          "home_goals": "0",
-          "away_goals": "1",
-          "league_id": 32612
+          "home_goals": 0,
+          "away_goals": 1,
+          "league_id": 32612,
+          "result_updated": "2026-04-06T05:27:43.014905"
         },
         {
           "match_id": "764125143",
@@ -90,9 +91,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2026-04-05 09:00:00",
           "status": null,
-          "home_goals": "2",
-          "away_goals": "2",
-          "league_id": 32612
+          "home_goals": 2,
+          "away_goals": 2,
+          "league_id": 32612,
+          "result_updated": "2026-04-06T05:27:43.015291"
         },
         {
           "match_id": "764125144",
@@ -102,9 +104,10 @@
           "away_team_name": "WuGieZet",
           "match_date": "2026-04-05 09:00:00",
           "status": null,
-          "home_goals": "0",
-          "away_goals": "7",
-          "league_id": 32612
+          "home_goals": 0,
+          "away_goals": 7,
+          "league_id": 32612,
+          "result_updated": "2026-04-06T05:27:43.015644"
         },
         {
           "match_id": "764125145",
@@ -114,9 +117,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2026-04-05 09:00:00",
           "status": null,
-          "home_goals": "1",
-          "away_goals": "0",
-          "league_id": 32612
+          "home_goals": 1,
+          "away_goals": 0,
+          "league_id": 32612,
+          "result_updated": "2026-04-06T05:27:43.016965"
         },
         {
           "match_id": "764094118",
@@ -126,13 +130,51 @@
           "away_team_name": "FC Paralityks",
           "match_date": "2026-04-05 09:00:00",
           "status": null,
-          "home_goals": "0",
-          "away_goals": "1",
-          "league_id": 9583
+          "home_goals": 0,
+          "away_goals": 1,
+          "league_id": 9583,
+          "result_updated": "2026-04-06T05:27:43.017389"
         }
       ],
       "start_date": "2026-04-05",
-      "predictions": {}
+      "predictions": {
+        "Fistach": {
+          "764125142": {
+            "home": 1,
+            "away": 3,
+            "timestamp": "2026-04-06T05:27:43.011284"
+          },
+          "764125143": {
+            "home": 3,
+            "away": 1,
+            "timestamp": "2026-04-06T05:27:43.012127"
+          },
+          "764125144": {
+            "home": 1,
+            "away": 6,
+            "timestamp": "2026-04-06T05:27:43.012888"
+          },
+          "764125145": {
+            "home": 2,
+            "away": 2,
+            "timestamp": "2026-04-06T05:27:43.013651"
+          },
+          "764094118": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2026-04-06T05:27:43.014457"
+          }
+        }
+      },
+      "match_points": {
+        "Fistach": {
+          "764125142": 7,
+          "764125143": 3,
+          "764125144": 8,
+          "764125145": 2,
+          "764094118": 3
+        }
+      }
     }
   },
   "seasons": {
@@ -172,14 +214,42 @@
           }
         },
         "Fistach": {
-          "predictions": {},
-          "total_points": 0,
-          "rounds_played": 0,
-          "best_score": 0,
-          "worst_score": 0,
+          "predictions": {
+            "round_2026-04-05": {
+              "764125142": {
+                "home": 1,
+                "away": 3,
+                "timestamp": "2026-04-06T05:27:43.011372"
+              },
+              "764125143": {
+                "home": 3,
+                "away": 1,
+                "timestamp": "2026-04-06T05:27:43.012216"
+              },
+              "764125144": {
+                "home": 1,
+                "away": 6,
+                "timestamp": "2026-04-06T05:27:43.012973"
+              },
+              "764125145": {
+                "home": 2,
+                "away": 2,
+                "timestamp": "2026-04-06T05:27:43.013729"
+              },
+              "764094118": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2026-04-06T05:27:43.014582"
+              }
+            }
+          },
+          "total_points": 23,
+          "rounds_played": 1,
+          "best_score": 23,
+          "worst_score": 23,
           "round_scores": {
             "round_2026-04-12": 0,
-            "round_2026-04-05": 0
+            "round_2026-04-05": 23
           }
         },
         "Kali": {
