@@ -6132,7 +6132,12 @@
       "archived": false
     }
   },
-  "leagues": {},
+  "leagues": {
+    "32612": {
+      "name": "VI.499",
+      "seasons": []
+    }
+  },
   "settings": {
     "selected_teams": []
   }
