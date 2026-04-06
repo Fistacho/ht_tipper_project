@@ -1644,6 +1644,12 @@ def main():
                 
                 df_leaderboard = pd.DataFrame(leaderboard_data)
                 st.dataframe(df_leaderboard, width='stretch', hide_index=True)
+                render_ht_forum_export(
+                    "Ranking wszechczasów",
+                    df_leaderboard,
+                    ['Miejsce', 'Gracz', 'Drużyna', 'Punkty z sezonów', 'Suma', 'Sezony', 'Rundy'],
+                    key="ht_all_time_table"
+                )
                 
                 # Wykres rankingu wszechczasów
                 if len(all_time_leaderboard) > 0:
