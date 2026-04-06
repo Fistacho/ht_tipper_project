@@ -1,9 +1,79 @@
 {
-  "rounds": {},
+  "rounds": {
+    "round_2026-04-12": {
+      "season_id": "season_82",
+      "matches": [
+        {
+          "match_id": "764125146",
+          "home_team_id": "1299952",
+          "home_team_name": "FC Lokomotywa",
+          "away_team_id": "2883083",
+          "away_team_name": "huragan gniewczyna 1",
+          "match_date": "2026-04-12 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "764125147",
+          "home_team_id": "1825826",
+          "home_team_name": "LegiaWawa",
+          "away_team_id": "1829983",
+          "away_team_name": "Legia KG(L)",
+          "match_date": "2026-04-12 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "764125148",
+          "home_team_id": "265812",
+          "home_team_name": "WuGieZet",
+          "away_team_id": "477994",
+          "away_team_name": "Borciuchy International",
+          "match_date": "2026-04-12 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "764125150",
+          "home_team_id": "866974",
+          "home_team_name": "Moli Team",
+          "away_team_id": "479526",
+          "away_team_name": "ks Jastrowie",
+          "match_date": "2026-04-12 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "764094121",
+          "home_team_id": "1823455",
+          "home_team_name": "FC Paralityks",
+          "away_team_id": "1045829",
+          "away_team_name": "Antałek Grodzisk Maz",
+          "match_date": "2026-04-12 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 9583
+        }
+      ],
+      "start_date": "2026-04-12",
+      "predictions": {}
+    }
+  },
   "seasons": {
     "season_82": {
       "league_id": null,
-      "rounds": [],
+      "rounds": [
+        "round_2026-04-12"
+      ],
       "start_date": null,
       "end_date": null,
       "selected_teams": [
