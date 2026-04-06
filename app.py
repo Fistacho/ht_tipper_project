@@ -205,6 +205,48 @@ def build_team_metadata_from_fixtures(fixtures: List[Dict], league_names: Dict[i
     return team_metadata
 
 
+def _normalize_ht_forum_cell(value) -> str:
+    """Normalizuje wartość komórki do jednolinijkowego formatu BBCode."""
+    if pd.isna(value):
+        return ""
+
+    return str(value).replace("\n", " ").replace("\r", " ").strip()
+
+
+def build_ht_forum_table(df: pd.DataFrame, columns: List[str]) -> str:
+    """Buduje tabelę BBCode zgodną z forum Hattrick."""
+    rows = []
+
+    header_cells = ''.join(f"[td]{_normalize_ht_forum_cell(column)}[/td]" for column in columns)
+    rows.append(f"[tr]{header_cells}[/tr]")
+
+    for _, row in df[columns].iterrows():
+        value_cells = ''.join(
+            f"[td]{_normalize_ht_forum_cell(row[column])}[/td]"
+            for column in columns
+        )
+        rows.append(f"[tr]{value_cells}[/tr]")
+
+    return "[table]\n" + "\n".join(rows) + "\n[/table]"
+
+
+def render_ht_forum_export(title: str, df: pd.DataFrame, columns: List[str], key: str):
+    """Renderuje sekcję z gotową tabelą do skopiowania na forum Hattrick."""
+    ht_table = build_ht_forum_table(df, columns)
+    estimated_lines = ht_table.count('\n') + 1
+    height = min(max(estimated_lines * 24, 160), 420)
+
+    with st.expander(f"📋 Kopiuj tabelę HT: {title}"):
+        st.caption("Skopiuj kod poniżej i wklej go na forum Hattrick jako tabelę.")
+        st.text_area(
+            "Kod BBCode",
+            value=ht_table,
+            height=height,
+            key=key,
+            label_visibility="collapsed"
+        )
+
+
 def get_session_storage(season_id: str) -> TipperStorage:
     """Zwraca storage trzymany w sesji, aby nie ładować go od nowa przy każdym rerunie."""
     storage_cache = st.session_state.setdefault("_storage_cache", {})
@@ -1091,6 +1133,12 @@ def main():
                 
                 df_leaderboard = pd.DataFrame(leaderboard_data)
                 st.dataframe(df_leaderboard, width='stretch', hide_index=True)
+                render_ht_forum_export(
+                    "Ranking całości",
+                    df_leaderboard,
+                    ['Miejsce', 'Gracz', 'Drużyna', 'Punkty', 'Suma', 'Rundy'],
+                    key=f"ht_overall_table_{selected_season_id}"
+                )
                 
                 # Wykres rankingu całości
                 if len(leaderboard) > 0:
@@ -1310,6 +1358,12 @@ def main():
                     
                     df_round_leaderboard = pd.DataFrame(round_leaderboard_data)
                     st.dataframe(df_round_leaderboard, width='stretch', hide_index=True)
+                    render_ht_forum_export(
+                        f"Ranking kolejki {round_number}",
+                        df_round_leaderboard,
+                        ['Miejsce', 'Gracz', 'Drużyna', 'Punkty', 'Suma', 'Mecze'],
+                        key=f"ht_round_table_{selected_season_id}_{round_id}"
+                    )
                     
                     # Dodaj expandery z typami dla każdego gracza
                     st.markdown("### 📋 Szczegóły typów")
