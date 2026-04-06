@@ -193,6 +193,7 @@ class TipperStorage:
                     'end_date': None,
                     'selected_teams': [],
                     'selected_leagues': [],
+                    'team_metadata': {},
                     'players': {}
                 }
             
@@ -471,6 +472,7 @@ class TipperStorage:
                 'end_date': end_date,
                 'selected_teams': [],
                 'selected_leagues': [],
+                'team_metadata': {},
                 'archived': False
             }
             self.data['leagues'][league_key]['seasons'].append(season_id)
@@ -488,6 +490,7 @@ class TipperStorage:
                 'end_date': None,
                 'selected_teams': [],
                 'selected_leagues': [],
+                'team_metadata': {},
                 'archived': False
             }
         
@@ -520,6 +523,7 @@ class TipperStorage:
                 'end_date': None,
                 'selected_teams': [],
                 'selected_leagues': [],
+                'team_metadata': {},
                 'players': {}
             }
         
@@ -1228,6 +1232,41 @@ class TipperStorage:
             return self.data['settings'].get('selected_teams', [])
         
         return []
+
+    def get_team_metadata(self, season_id: str = None) -> Dict:
+        """Zwraca metadane drużyn dla danego sezonu."""
+        if season_id is None:
+            season_id = self.season_id
+
+        if season_id in self.data.get('seasons', {}):
+            return self.data['seasons'][season_id].get('team_metadata', {})
+
+        return {}
+
+    def set_team_metadata(self, team_metadata: Dict, season_id: str = None, merge: bool = True):
+        """Zapisuje metadane drużyn dla danego sezonu."""
+        if season_id is None:
+            season_id = self.season_id
+
+        if season_id not in self.data.get('seasons', {}):
+            self.data['seasons'][season_id] = {
+                'league_id': None,
+                'rounds': [],
+                'start_date': None,
+                'end_date': None,
+                'selected_teams': [],
+                'selected_leagues': [],
+                'team_metadata': {}
+            }
+
+        if merge:
+            merged_metadata = self.data['seasons'][season_id].get('team_metadata', {}).copy()
+            merged_metadata.update(team_metadata)
+            self.data['seasons'][season_id]['team_metadata'] = merged_metadata
+        else:
+            self.data['seasons'][season_id]['team_metadata'] = team_metadata
+
+        self._save_data()
     
     def set_selected_teams(self, team_names: List[str], season_id: str = None):
         """Zapisuje listę wybranych drużyn do typowania dla danego sezonu"""
@@ -1241,7 +1280,8 @@ class TipperStorage:
                 'rounds': [],
                 'start_date': None,
                 'end_date': None,
-                'selected_teams': []
+                'selected_teams': [],
+                'team_metadata': {}
             }
         
         # Zapisz wybór drużyn dla sezonu
@@ -1277,7 +1317,8 @@ class TipperStorage:
                 'start_date': None,
                 'end_date': None,
                 'selected_teams': [],
-                'selected_leagues': []
+                'selected_leagues': [],
+                'team_metadata': {}
             }
         
         # Zapisz wybór lig dla sezonu
@@ -1310,6 +1351,7 @@ class TipperStorage:
                 'end_date': None,
                 'selected_teams': [],
                 'selected_leagues': [],
+                'team_metadata': {},
                 'players': {}
             }
         

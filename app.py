@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 FIXTURES_CACHE_TTL_SECONDS = 300
 ROUND_AUTO_SYNC_TTL_SECONDS = 120
+LEAGUE_DETAILS_CACHE_TTL_SECONDS = 86400
 
 
 @st.cache_data(ttl=FIXTURES_CACHE_TTL_SECONDS, show_spinner=False)
@@ -61,6 +62,21 @@ def get_cached_league_fixtures(
     return normalized_fixtures
 
 
+@st.cache_data(ttl=LEAGUE_DETAILS_CACHE_TTL_SECONDS, show_spinner=False)
+def get_cached_league_name(
+    consumer_key: str,
+    consumer_secret: str,
+    access_token: str,
+    access_token_secret: str,
+    league_id: int
+) -> str:
+    """Pobiera nazwę ligi i trzyma ją długo w cache."""
+    client = HattrickOAuthSimple(consumer_key, consumer_secret)
+    client.set_access_tokens(access_token, access_token_secret)
+    league_details = client.get_league_details(league_id) or {}
+    return league_details.get('league_name') or f"Liga {league_id}"
+
+
 def should_auto_sync_round(round_id: str, scope: str) -> bool:
     """Ogranicza automatyczne synchronizacje tej samej rundy przy kolejnych rerunach."""
     sync_key = f"_last_auto_sync_{scope}_{round_id}"
@@ -72,6 +88,38 @@ def should_auto_sync_round(round_id: str, scope: str) -> bool:
 
     st.session_state[sync_key] = now_ts
     return True
+
+
+def build_team_metadata_from_fixtures(fixtures: List[Dict], league_names: Dict[int, str]) -> Dict[str, Dict]:
+    """Buduje etykiety drużyn z nazwami lig na podstawie już pobranych fixtures."""
+    team_metadata = {}
+
+    for fixture in fixtures:
+        league_id = fixture.get('league_id')
+        league_name = league_names.get(league_id) if league_id is not None else None
+
+        for team_key in ['home_team_name', 'away_team_name']:
+            team_name = (fixture.get(team_key) or '').strip()
+            if not team_name:
+                continue
+
+            entry = team_metadata.setdefault(team_name, {
+                'league_ids': [],
+                'league_names': [],
+                'label': team_name
+            })
+
+            if league_id is not None and league_id not in entry['league_ids']:
+                entry['league_ids'].append(league_id)
+
+            if league_name and league_name not in entry['league_names']:
+                entry['league_names'].append(league_name)
+
+    for team_name, entry in team_metadata.items():
+        if entry['league_names']:
+            entry['label'] = f"{team_name} ({', '.join(entry['league_names'])})"
+
+    return team_metadata
 
 
 def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
@@ -654,6 +702,7 @@ def main():
                     all_team_names.add(away_team)
             
             all_team_names = sorted(list(all_team_names))
+            team_metadata = storage.get_team_metadata(season_id=selected_season_id)
             
             # Grupuj mecze według rund (na podstawie daty)
             rounds = defaultdict(list)
@@ -740,10 +789,42 @@ def main():
             
             # Pobierz zapisane ustawienia dla wybranego sezonu
             selected_teams = storage.get_selected_teams(season_id=selected_season_id)
+            team_metadata = storage.get_team_metadata(season_id=selected_season_id)
+
+            season_leagues = storage.get_selected_leagues(season_id=selected_season_id) or TIPPER_LEAGUES
+            league_names = {}
+
+            for league_id in season_leagues:
+                stored_league = storage.data.get('leagues', {}).get(str(league_id), {})
+                stored_name = stored_league.get('name')
+
+                if stored_name:
+                    league_names[league_id] = stored_name
+                else:
+                    league_names[league_id] = get_cached_league_name(
+                        consumer_key,
+                        consumer_secret,
+                        access_token,
+                        access_token_secret,
+                        league_id
+                    )
+                    storage.add_league(league_id, league_names[league_id])
+
+            current_team_metadata = build_team_metadata_from_fixtures(all_fixtures, league_names)
+            if current_team_metadata:
+                merged_team_metadata = team_metadata.copy()
+                merged_team_metadata.update(current_team_metadata)
+                if merged_team_metadata != team_metadata:
+                    team_metadata = merged_team_metadata
+                    storage.set_team_metadata(team_metadata, season_id=selected_season_id, merge=False)
         
         # Jeśli nie ma zapisanych ustawień dla tego sezonu, wybierz wszystkie drużyny domyślnie
         if not selected_teams:
             selected_teams = all_team_names.copy()
+
+        team_labels = {}
+        for team_name in all_team_names:
+            team_labels[team_name] = team_metadata.get(team_name, {}).get('label', team_name)
         
         # Wybór drużyn do typowania - w sidebarze
         with st.sidebar:
@@ -755,7 +836,7 @@ def main():
             new_selected_teams = []
             
             for team_name in all_team_names:
-                if st.checkbox(team_name, value=team_name in selected_teams, key=f"team_select_{selected_season_id}_{team_name}"):
+                if st.checkbox(team_labels.get(team_name, team_name), value=team_name in selected_teams, key=f"team_select_{selected_season_id}_{team_name}"):
                     new_selected_teams.append(team_name)
             
             # Przycisk zapisu ustawień
