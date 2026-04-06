@@ -277,7 +277,7 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
                 rounds_played = player_data.get('rounds_played', 0)
                 
                 # Odrzuć najgorszy wynik jeśli exclude_worst=True
-                if exclude_worst and season_uses_worst_score_rule(season_id) and worst_score > 0:
+                if exclude_worst and season_uses_worst_score_rule(season_id, season_data) and worst_score > 0:
                     season_points = total_points - worst_score
                 else:
                     season_points = total_points
@@ -313,15 +313,19 @@ def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
 
 def get_exclude_worst_setting(season_id: str, key: str):
     """Zwraca ustawienie checkboxa oraz informację, czy reguła obowiązuje w sezonie."""
-    rule_enabled = season_uses_worst_score_rule(season_id)
+    storage_cache = st.session_state.get("_storage_cache", {})
+    storage = storage_cache.get(season_id)
+    if storage is not None:
+        rule_enabled = storage.get_exclude_worst_rule(season_id)
+    else:
+        rule_enabled = season_uses_worst_score_rule(season_id)
     checkbox_value = st.checkbox(
         "Odrzuć najgorszy wynik każdego gracza",
         value=rule_enabled,
         key=key,
-        disabled=not rule_enabled,
-        help="Od sezonu 82 ta zasada jest wyłączona." if not rule_enabled else None
+        help="Ustawienie sezonowe"
     )
-    return checkbox_value and rule_enabled, rule_enabled
+    return checkbox_value, rule_enabled
 
 
 def main():
@@ -588,7 +592,26 @@ def main():
         
         if is_archived:
             st.info("📦 Ten sezon jest archiwalny - nie wykonuje zapytań do API")
-        
+
+        st.markdown("---")
+
+        st.subheader(f"🏁 Zasady sezonu (Sezon {selected_season_id.replace('season_', '')})")
+        exclude_worst_rule = storage.get_exclude_worst_rule(season_id=selected_season_id)
+        exclude_worst_rule_new = st.checkbox(
+            "Odrzucaj najgorszy wynik gracza",
+            value=exclude_worst_rule,
+            help="To ustawienie dotyczy tylko wybranego sezonu.",
+            key=f"season_exclude_worst_rule_{selected_season_id}"
+        )
+
+        if exclude_worst_rule_new != exclude_worst_rule:
+            if st.button("💾 Zapisz zasady", type="primary", key=f"save_rules_{selected_season_id}", width='stretch'):
+                storage.set_exclude_worst_rule(exclude_worst_rule_new, season_id=selected_season_id)
+                storage.flush_save()
+                rule_text = "włączono" if exclude_worst_rule_new else "wyłączono"
+                st.success(f"✅ Dla sezonu {selected_season_id.replace('season_', '')} {rule_text} odrzucanie najgorszego wyniku")
+                st.rerun()
+
         st.markdown("---")
         
         # Przycisk odświeżania danych

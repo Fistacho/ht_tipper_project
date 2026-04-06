@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 TIPPER_DATA_FILE = "tipper_data.json"
 
 
-def season_uses_worst_score_rule(season_id: str) -> bool:
-    """Zwraca True tylko dla sezonów, w których obowiązuje odrzucanie najgorszego wyniku."""
+def default_exclude_worst_rule(season_id: str) -> bool:
+    """Domyślna reguła sezonu, jeśli ustawienie nie zostało zapisane w danych."""
     if not season_id or not str(season_id).startswith("season_"):
         return True
 
@@ -24,6 +24,14 @@ def season_uses_worst_score_rule(season_id: str) -> bool:
         return True
 
     return season_num < 82
+
+
+def season_uses_worst_score_rule(season_id: str, season_data: Optional[Dict] = None) -> bool:
+    """Zwraca regułę odrzucania najgorszego wyniku dla sezonu."""
+    if season_data and 'exclude_worst_rule' in season_data:
+        return bool(season_data.get('exclude_worst_rule'))
+
+    return default_exclude_worst_rule(season_id)
 
 
 class TipperStorage:
@@ -207,8 +215,12 @@ class TipperStorage:
                     'selected_teams': [],
                     'selected_leagues': [],
                     'team_metadata': {},
+                    'exclude_worst_rule': default_exclude_worst_rule(target_season_id),
                     'players': {}
                 }
+
+            if 'exclude_worst_rule' not in data['seasons'][target_season_id]:
+                data['seasons'][target_season_id]['exclude_worst_rule'] = default_exclude_worst_rule(target_season_id)
             
             # Jeśli sezon nie ma graczy, przenieś ich ze starej struktury
             if 'players' not in data['seasons'][target_season_id] or not data['seasons'][target_season_id].get('players'):
@@ -490,6 +502,7 @@ class TipperStorage:
                 'selected_teams': [],
                 'selected_leagues': [],
                 'team_metadata': {},
+                'exclude_worst_rule': default_exclude_worst_rule(season_id),
                 'archived': False
             }
             self.data['leagues'][league_key]['seasons'].append(season_id)
@@ -508,6 +521,7 @@ class TipperStorage:
                 'selected_teams': [],
                 'selected_leagues': [],
                 'team_metadata': {},
+                'exclude_worst_rule': default_exclude_worst_rule(season_id),
                 'archived': False
             }
         
@@ -542,6 +556,7 @@ class TipperStorage:
                 'selected_teams': [],
                 'selected_leagues': [],
                 'team_metadata': {},
+                'exclude_worst_rule': default_exclude_worst_rule(season_id),
                 'players': {}
             }
         
@@ -1059,7 +1074,8 @@ class TipperStorage:
         if season_id is None:
             season_id = self.season_id
 
-        exclude_worst = exclude_worst and season_uses_worst_score_rule(season_id)
+        season_data = self.data.get('seasons', {}).get(season_id, {})
+        exclude_worst = exclude_worst and season_uses_worst_score_rule(season_id, season_data)
         
         leaderboard = []
         
@@ -1263,6 +1279,34 @@ class TipperStorage:
 
         return {}
 
+    def get_exclude_worst_rule(self, season_id: str = None) -> bool:
+        """Zwraca ustawienie odrzucania najgorszego wyniku dla sezonu."""
+        if season_id is None:
+            season_id = self.season_id
+
+        season_data = self.data.get('seasons', {}).get(season_id, {})
+        return season_uses_worst_score_rule(season_id, season_data)
+
+    def set_exclude_worst_rule(self, enabled: bool, season_id: str = None):
+        """Ustawia regułę odrzucania najgorszego wyniku dla sezonu."""
+        if season_id is None:
+            season_id = self.season_id
+
+        if season_id not in self.data.get('seasons', {}):
+            self.data['seasons'][season_id] = {
+                'league_id': None,
+                'rounds': [],
+                'start_date': None,
+                'end_date': None,
+                'selected_teams': [],
+                'selected_leagues': [],
+                'team_metadata': {},
+                'exclude_worst_rule': default_exclude_worst_rule(season_id)
+            }
+
+        self.data['seasons'][season_id]['exclude_worst_rule'] = bool(enabled)
+        self._save_data()
+
     def set_team_metadata(self, team_metadata: Dict, season_id: str = None, merge: bool = True):
         """Zapisuje metadane drużyn dla danego sezonu."""
         if season_id is None:
@@ -1301,7 +1345,8 @@ class TipperStorage:
                 'start_date': None,
                 'end_date': None,
                 'selected_teams': [],
-                'team_metadata': {}
+                'team_metadata': {},
+                'exclude_worst_rule': default_exclude_worst_rule(season_id)
             }
         
         # Zapisz wybór drużyn dla sezonu
@@ -1338,7 +1383,8 @@ class TipperStorage:
                 'end_date': None,
                 'selected_teams': [],
                 'selected_leagues': [],
-                'team_metadata': {}
+                'team_metadata': {},
+                'exclude_worst_rule': default_exclude_worst_rule(season_id)
             }
         
         # Zapisz wybór lig dla sezonu
@@ -1372,6 +1418,7 @@ class TipperStorage:
                 'selected_teams': [],
                 'selected_leagues': [],
                 'team_metadata': {},
+                'exclude_worst_rule': default_exclude_worst_rule(season_id),
                 'players': {}
             }
         
@@ -1459,6 +1506,8 @@ class TipperStorage:
             'end_date': None,
             'selected_teams': [],
             'selected_leagues': [],
+            'team_metadata': {},
+            'exclude_worst_rule': default_exclude_worst_rule(season_id),
             'players': {},
             'archived': False
         }
