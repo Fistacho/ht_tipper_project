@@ -87,10 +87,165 @@
           "round_scores": {}
         }
       },
-      "archived": false
+      "archived": false,
+      "team_metadata": {
+        "ks Jastrowie": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "ks Jastrowie (VI.499)"
+        },
+        "LegiaWawa": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "LegiaWawa (VI.499)"
+        },
+        "Legia KG(L)": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "Legia KG(L) (VI.499)"
+        },
+        "FC Lokomotywa": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "FC Lokomotywa (VI.499)"
+        },
+        "huragan gniewczyna 1": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "huragan gniewczyna 1 (VI.499)"
+        },
+        "WuGieZet": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "WuGieZet (VI.499)"
+        },
+        "Borciuchy International": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "Borciuchy International (VI.499)"
+        },
+        "Moli Team": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "Moli Team (VI.499)"
+        },
+        "Manchester United Szczytno": {
+          "league_ids": [
+            9583
+          ],
+          "league_names": [
+            "V.201"
+          ],
+          "label": "Manchester United Szczytno (V.201)"
+        },
+        "FC Paralityks": {
+          "league_ids": [
+            9583
+          ],
+          "league_names": [
+            "V.201"
+          ],
+          "label": "FC Paralityks (V.201)"
+        },
+        "WRBL Cavaliers": {
+          "league_ids": [
+            9583
+          ],
+          "league_names": [
+            "V.201"
+          ],
+          "label": "WRBL Cavaliers (V.201)"
+        },
+        "KS Jellonki": {
+          "league_ids": [
+            9583
+          ],
+          "league_names": [
+            "V.201"
+          ],
+          "label": "KS Jellonki (V.201)"
+        },
+        "Gornik Polkowice": {
+          "league_ids": [
+            9583
+          ],
+          "league_names": [
+            "V.201"
+          ],
+          "label": "Gornik Polkowice (V.201)"
+        },
+        "Vzali Mi Můj Sen": {
+          "league_ids": [
+            9583
+          ],
+          "league_names": [
+            "V.201"
+          ],
+          "label": "Vzali Mi Můj Sen (V.201)"
+        },
+        "Antałek Grodzisk Maz": {
+          "league_ids": [
+            9583
+          ],
+          "league_names": [
+            "V.201"
+          ],
+          "label": "Antałek Grodzisk Maz (V.201)"
+        },
+        "Rozbójnicy BB": {
+          "league_ids": [
+            9583
+          ],
+          "league_names": [
+            "V.201"
+          ],
+          "label": "Rozbójnicy BB (V.201)"
+        }
+      }
     }
   },
-  "leagues": {},
+  "leagues": {
+    "32612": {
+      "name": "VI.499",
+      "seasons": []
+    },
+    "9583": {
+      "name": "V.201",
+      "seasons": []
+    }
+  },
   "settings": {
     "selected_teams": []
   }
