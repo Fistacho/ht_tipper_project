@@ -189,6 +189,20 @@ class HattrickOAuthSimple:
         }
         
         return league_info
+
+    def get_league_name(self, league_level_unit_id: int) -> Optional[str]:
+        """Pobiera tylko nazwę ligi jednym requestem."""
+        params = {'LeagueLevelUnitID': str(league_level_unit_id)}
+        root = self.make_api_request('leaguedetails', params)
+
+        if root is None:
+            return None
+
+        league_name = root.find('LeagueLevelUnitName')
+        if league_name is not None and league_name.text:
+            return league_name.text
+
+        return None
     
     def get_league_table(self, league_level_unit_id: int) -> Optional[List[Dict[str, Any]]]:
         """Pobiera tabelę ligi z prawdziwymi danymi"""

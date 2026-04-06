@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 FIXTURES_CACHE_TTL_SECONDS = 300
 ROUND_AUTO_SYNC_TTL_SECONDS = 3600
 LEAGUE_DETAILS_CACHE_TTL_SECONDS = 86400
+ROUND_LIVE_SYNC_TTL_SECONDS = 1800
 
 
 @st.cache_data(ttl=FIXTURES_CACHE_TTL_SECONDS, show_spinner=False)
@@ -73,17 +74,20 @@ def get_cached_league_name(
     """Pobiera nazwę ligi i trzyma ją długo w cache."""
     client = HattrickOAuthSimple(consumer_key, consumer_secret)
     client.set_access_tokens(access_token, access_token_secret)
-    league_details = client.get_league_details(league_id) or {}
-    return league_details.get('league_name') or f"Liga {league_id}"
+    league_name = client.get_league_name(league_id)
+    return league_name or f"Liga {league_id}"
 
 
-def should_auto_sync_round(round_id: str, scope: str) -> bool:
+def should_auto_sync_round(round_id: str, scope: str, ttl_seconds: int | None) -> bool:
     """Ogranicza automatyczne synchronizacje tej samej rundy przy kolejnych rerunach."""
+    if ttl_seconds is None:
+        return False
+
     sync_key = f"_last_auto_sync_{scope}_{round_id}"
     now_ts = datetime.now().timestamp()
     last_sync_ts = float(st.session_state.get(sync_key, 0))
 
-    if now_ts - last_sync_ts < ROUND_AUTO_SYNC_TTL_SECONDS:
+    if now_ts - last_sync_ts < ttl_seconds:
         return False
 
     st.session_state[sync_key] = now_ts
@@ -138,6 +142,59 @@ def build_team_metadata_from_fixtures(fixtures: List[Dict], league_names: Dict[i
             entry['label'] = f"{team_name} ({', '.join(entry['league_names'])})"
 
     return team_metadata
+
+
+def get_round_sync_ttl(selected_matches: List[Dict], stored_matches: List[Dict]) -> int | None:
+    """Zwraca TTL auto-sync dla rundy albo None, jeśli nie należy jej odświeżać automatycznie."""
+    now = datetime.now()
+    matches_by_id = {}
+
+    for match in selected_matches:
+        match_id = str(match.get('match_id', ''))
+        if match_id:
+            matches_by_id[match_id] = match
+
+    for match in stored_matches:
+        match_id = str(match.get('match_id', ''))
+        if match_id:
+            matches_by_id[match_id] = {**matches_by_id.get(match_id, {}), **match}
+
+    if not matches_by_id:
+        return None
+
+    has_missing_past_result = False
+    has_future_match = False
+
+    for match in matches_by_id.values():
+        home_goals = match.get('home_goals')
+        away_goals = match.get('away_goals')
+
+        if home_goals is not None and away_goals is not None:
+            continue
+
+        match_date = match.get('match_date')
+        if not match_date:
+            has_missing_past_result = True
+            continue
+
+        try:
+            match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            has_missing_past_result = True
+            continue
+
+        if match_dt <= now:
+            has_missing_past_result = True
+        else:
+            has_future_match = True
+
+    if has_missing_past_result:
+        return ROUND_LIVE_SYNC_TTL_SECONDS
+
+    if has_future_match:
+        return None
+
+    return None
 
 
 def get_all_time_leaderboard(exclude_worst: bool = False) -> List[Dict]:
@@ -416,7 +473,22 @@ def main():
                     key=f"league_{selected_season_id}_{idx}",
                     label_visibility="collapsed"
                 )
-                st.write(f"Liga {idx + 1}: {new_league_id}")
+                stored_league = storage.data.get('leagues', {}).get(str(new_league_id), {})
+                stored_league_name = stored_league.get('name')
+                if stored_league_name:
+                    league_name_label = stored_league_name
+                else:
+                    league_name_label = get_cached_league_name(
+                        consumer_key,
+                        consumer_secret,
+                        access_token,
+                        access_token_secret,
+                        new_league_id
+                    )
+                    if league_name_label:
+                        storage.add_league(new_league_id, league_name_label)
+
+                st.caption(f"Liga {idx + 1}: {new_league_id} | {league_name_label}")
                 # Aktualizuj wartość w session_state
                 st.session_state[leagues_key][idx] = new_league_id
             with col_remove:
@@ -444,6 +516,15 @@ def main():
             # Przycisk zapisu lig
             if st.button("💾 Zapisz ligi", type="primary", key=f"save_leagues_{selected_season_id}", width='stretch'):
                 TIPPER_LEAGUES = st.session_state[leagues_key].copy()
+                for league_id in TIPPER_LEAGUES:
+                    league_name = get_cached_league_name(
+                        consumer_key,
+                        consumer_secret,
+                        access_token,
+                        access_token_secret,
+                        league_id
+                    )
+                    storage.add_league(league_id, league_name)
                 storage.set_selected_leagues(TIPPER_LEAGUES, season_id=selected_season_id)
                 storage.flush_save()  # Wymuś natychmiastowy zapis przed rerun
                 st.success(f"✅ Zapisano {len(TIPPER_LEAGUES)} lig dla sezonu {selected_season_id.replace('season_', '')}")
@@ -1034,11 +1115,10 @@ def main():
                 # Ranking dla wybranej rundy
                 # Przeładuj dane przed pobraniem rankingu, aby mieć aktualne punkty
                 storage.reload_data()
-                auto_sync_round = should_auto_sync_round(round_id, "ranking")
-                
-                # Najpierw zaktualizuj wyniki z API do storage
                 round_data = storage.data['rounds'].get(round_id, {})
                 round_matches = round_data.get('matches', [])
+                round_sync_ttl = get_round_sync_ttl(selected_matches, round_matches)
+                auto_sync_round = should_auto_sync_round(round_id, "ranking", round_sync_ttl)
                 
                 # Stwórz mapę meczów w storage (po match_id)
                 storage_matches_map = {}
@@ -1700,7 +1780,8 @@ def main():
                 else:
                     matches_upcoming.append(match)
             
-            if should_auto_sync_round(round_id, "main"):
+            round_sync_ttl = get_round_sync_ttl(selected_matches, round_matches)
+            if should_auto_sync_round(round_id, "main", round_sync_ttl):
                 # Najpierw zaktualizuj wszystkie wyniki z API do storage
                 storage.reload_data()
                 round_data = storage.data['rounds'].get(round_id, {})

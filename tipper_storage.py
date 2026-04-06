@@ -451,11 +451,15 @@ class TipperStorage:
     
     def add_league(self, league_id: int, league_name: str = None):
         """Dodaje ligę do systemu"""
-        if str(league_id) not in self.data['leagues']:
+        league_key = str(league_id)
+        if league_key not in self.data['leagues']:
             self.data['leagues'][str(league_id)] = {
                 'name': league_name or f"Liga {league_id}",
                 'seasons': []
             }
+            self._save_data()
+        elif league_name and self.data['leagues'][league_key].get('name') != league_name:
+            self.data['leagues'][league_key]['name'] = league_name
             self._save_data()
     
     def add_season(self, league_id: int, season_id: str, start_date: str = None, end_date: str = None):
