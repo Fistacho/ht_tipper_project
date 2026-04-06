@@ -549,7 +549,7 @@ class TipperStorage:
                 
                 if response.status_code == 200:
                     logger.info(f"✅ Zaktualizowano plik {file_path} w GitHub (repo: {self.github_config['repo_owner']}/{self.github_config['repo_name']})")
-                    logger.info(f"📦 Dane zapisane do repozytorium GitHub, nie lokalnie. Pobierz z GitHub aby zobaczyć zmiany.")
+                    logger.info("📦 Dane zapisane do repozytorium GitHub, nie lokalnie. Pobierz z GitHub aby zobaczyć zmiany.")
                     return True
                 else:
                     error_msg = response.text
@@ -572,7 +572,7 @@ class TipperStorage:
                 
                 if response.status_code == 201:
                     logger.info(f"✅ Utworzono plik {file_path} w GitHub (repo: {self.github_config['repo_owner']}/{self.github_config['repo_name']})")
-                    logger.info(f"📦 Dane zapisane do repozytorium GitHub, nie lokalnie. Pobierz z GitHub aby zobaczyć zmiany.")
+                    logger.info("📦 Dane zapisane do repozytorium GitHub, nie lokalnie. Pobierz z GitHub aby zobaczyć zmiany.")
                     return True
                 else:
                     error_msg = response.text
@@ -768,7 +768,7 @@ class TipperStorage:
         
         # NIE zapisuj od razu przez _save_data() (używa debounce) - zapis będzie przez flush_save() po wszystkich typach
         # self._save_data()  # Wyłączone - zapis będzie przez flush_save() po wszystkich typach
-        logger.info(f"add_prediction: Typ zapisany do pamięci, czekam na flush_save()")
+        logger.info("add_prediction: Typ zapisany do pamięci, czekam na flush_save()")
         return True
     
     def delete_player_predictions(self, round_id: str, player_name: str):

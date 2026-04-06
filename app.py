@@ -1531,7 +1531,7 @@ def main():
                                     logger.info(f"  Mecze z wynikami: {matches_with_results}")
                                     logger.info(f"  Mecze z 0 punktami: {zero_points_count}")
                                     logger.info(f"  Suma punktów: {total_points}")
-                                    logger.info(f"  Szczegóły wszystkich meczów:")
+                                    logger.info("  Szczegóły wszystkich meczów:")
                                     for row in types_table_data:
                                         logger.info(f"    {row['Mecz']}: Typ {row['Typ']}, Wynik {row['Wynik']}, Punkty {row['Punkty']}")
                                     if zero_points_count > 0 and matches_with_results < len(types_table_data):
@@ -1966,7 +1966,7 @@ def main():
                         match_dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
                         if datetime.now() >= match_dt:
                             status = "⏰ Rozpoczęty"
-                    except:
+                    except Exception:
                         pass
                 
                 matches_table_data.append({
@@ -2184,7 +2184,7 @@ def main():
                                     if datetime.now() >= match_dt:
                                         is_historical = True
                                         can_edit = allow_historical
-                                except:
+                                except Exception:
                                     pass
                             
                             # Pobierz istniejący typ
@@ -2239,7 +2239,7 @@ def main():
                                     
                                     if input_key in st.session_state:
                                         pred_input = st.text_input(
-                                            f"Typ:",
+                                            "Typ:",
                                             value=st.session_state[input_key],
                                             key=input_key,
                                             label_visibility="collapsed",
@@ -2247,7 +2247,7 @@ def main():
                                         )
                                     else:
                                         pred_input = st.text_input(
-                                            f"Typ:",
+                                            "Typ:",
                                             value=initial_value,
                                             key=input_key,
                                             label_visibility="collapsed",
@@ -2378,7 +2378,7 @@ def main():
                                                     can_add = allow_historical
                                                     if not can_add:
                                                         errors.append(f"Mecz {match.get('home_team_name')} vs {match.get('away_team_name')} już rozegrany")
-                                            except:
+                                            except Exception:
                                                 pass
                                         
                                         if can_add:
