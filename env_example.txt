@@ -22,3 +22,9 @@ APP_PASSWORD_SALT=wygenerowana_sol
 # APP_USER_2_PASSWORD_HASH=hash2
 # APP_USER_2_PASSWORD_SALT=salt2
 
+# Opcjonalna konfiguracja logowania aplikacji
+# Domyślnie aplikacja używa poziomu WARNING
+# TIPPER_LOG_LEVEL=WARNING
+# TIPPER_LOG_MAX_BYTES=1000000
+# TIPPER_LOG_BACKUP_COUNT=3
+
