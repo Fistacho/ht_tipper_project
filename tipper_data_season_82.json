@@ -1263,9 +1263,10 @@
           "away_team_name": "huragan gniewczyna 1",
           "match_date": "2026-05-03 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 8,
+          "away_goals": 0,
+          "league_id": 32612,
+          "result_updated": "2026-05-09T06:06:28.090990"
         },
         {
           "match_id": "764125159",
@@ -1275,9 +1276,10 @@
           "away_team_name": "WuGieZet",
           "match_date": "2026-05-03 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 0,
+          "away_goals": 0,
+          "league_id": 32612,
+          "result_updated": "2026-05-09T06:06:28.091070"
         },
         {
           "match_id": "764125160",
@@ -1287,9 +1289,10 @@
           "away_team_name": "Borciuchy International",
           "match_date": "2026-05-03 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 4,
+          "away_goals": 2,
+          "league_id": 32612,
+          "result_updated": "2026-05-09T06:06:28.091124"
         },
         {
           "match_id": "764125162",
@@ -1299,9 +1302,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2026-05-03 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 3,
+          "away_goals": 5,
+          "league_id": 32612,
+          "result_updated": "2026-05-09T06:06:28.091176"
         },
         {
           "match_id": "764094136",
@@ -1311,9 +1315,10 @@
           "away_team_name": "Vzali Mi Můj Sen",
           "match_date": "2026-05-03 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 9583
+          "home_goals": 3,
+          "away_goals": 2,
+          "league_id": 9583,
+          "result_updated": "2026-05-09T06:06:28.091257"
         }
       ],
       "start_date": "2026-05-03",
@@ -1479,6 +1484,84 @@
             "away": 2,
             "timestamp": "2026-05-09T06:04:13.766358"
           }
+        },
+        "Adi": {
+          "764125158": {
+            "home": 7,
+            "away": 0,
+            "timestamp": "2026-05-09T06:06:28.090593"
+          },
+          "764125159": {
+            "home": 2,
+            "away": 2,
+            "timestamp": "2026-05-09T06:06:28.090695"
+          },
+          "764125160": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2026-05-09T06:06:28.090773"
+          },
+          "764125162": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2026-05-09T06:06:28.090854"
+          },
+          "764094136": {
+            "home": 3,
+            "away": 2,
+            "timestamp": "2026-05-09T06:06:28.090960"
+          }
+        }
+      },
+      "match_points": {
+        "Moli": {
+          "764125158": 7,
+          "764125159": 4,
+          "764125160": 3,
+          "764125162": 5,
+          "764094136": 6
+        },
+        "Sonne": {
+          "764125158": 8,
+          "764125159": 8,
+          "764125160": 9,
+          "764125162": 0,
+          "764094136": 6
+        },
+        "Fistach": {
+          "764125158": 7,
+          "764125159": 4,
+          "764125160": 3,
+          "764125162": 5,
+          "764094136": 6
+        },
+        "Wilk": {
+          "764125158": 8,
+          "764125159": 4,
+          "764125160": 0,
+          "764125162": 0,
+          "764094136": 0
+        },
+        "Manvers": {
+          "764125158": 8,
+          "764125159": 8,
+          "764125160": 3,
+          "764125162": 0,
+          "764094136": 2
+        },
+        "Preiss": {
+          "764125158": 9,
+          "764125159": 3,
+          "764125160": 7,
+          "764125162": 0,
+          "764094136": 3
+        },
+        "Adi": {
+          "764125158": 9,
+          "764125159": 6,
+          "764125160": 7,
+          "764125162": 0,
+          "764094136": 12
         }
       }
     },
@@ -1688,18 +1771,45 @@
                 "away": 0,
                 "timestamp": "2026-04-26T17:39:43.827027"
               }
+            },
+            "round_2026-05-03": {
+              "764125158": {
+                "home": 7,
+                "away": 0,
+                "timestamp": "2026-05-09T06:06:28.090608"
+              },
+              "764125159": {
+                "home": 2,
+                "away": 2,
+                "timestamp": "2026-05-09T06:06:28.090706"
+              },
+              "764125160": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2026-05-09T06:06:28.090783"
+              },
+              "764125162": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2026-05-09T06:06:28.090865"
+              },
+              "764094136": {
+                "home": 3,
+                "away": 2,
+                "timestamp": "2026-05-09T06:06:28.090971"
+              }
             }
           },
-          "total_points": 103,
-          "rounds_played": 4,
-          "best_score": 31,
+          "total_points": 137,
+          "rounds_played": 5,
+          "best_score": 34,
           "worst_score": 20,
           "round_scores": {
             "round_2026-04-12": 20,
             "round_2026-04-05": 22,
             "round_2026-04-19": 30,
             "round_2026-04-26": 31,
-            "round_2026-05-03": 0,
+            "round_2026-05-03": 34,
             "round_2026-05-10": 0
           },
           "team_name": "Legia KG(L)"
@@ -1842,7 +1952,7 @@
               }
             }
           },
-          "total_points": 118,
+          "total_points": 143,
           "rounds_played": 5,
           "best_score": 39,
           "worst_score": 18,
@@ -1851,7 +1961,7 @@
             "round_2026-04-05": 24,
             "round_2026-04-19": 39,
             "round_2026-04-26": 37,
-            "round_2026-05-03": 0,
+            "round_2026-05-03": 25,
             "round_2026-05-10": 0
           },
           "team_name": "LegiaWawa"
@@ -2009,7 +2119,7 @@
               }
             }
           },
-          "total_points": 111,
+          "total_points": 132,
           "rounds_played": 5,
           "best_score": 35,
           "worst_score": 19,
@@ -2018,7 +2128,7 @@
             "round_2026-04-05": 26,
             "round_2026-04-19": 35,
             "round_2026-04-26": 31,
-            "round_2026-05-03": 0,
+            "round_2026-05-03": 21,
             "round_2026-05-10": 0
           },
           "team_name": "FC Paralityks"
@@ -2161,7 +2271,7 @@
               }
             }
           },
-          "total_points": 120,
+          "total_points": 145,
           "rounds_played": 5,
           "best_score": 43,
           "worst_score": 20,
@@ -2170,7 +2280,7 @@
             "round_2026-04-05": 28,
             "round_2026-04-19": 43,
             "round_2026-04-26": 29,
-            "round_2026-05-03": 0,
+            "round_2026-05-03": 25,
             "round_2026-05-10": 0
           },
           "team_name": "Moli Team"
@@ -2329,7 +2439,7 @@
               }
             }
           },
-          "total_points": 118,
+          "total_points": 149,
           "rounds_played": 5,
           "best_score": 42,
           "worst_score": 12,
@@ -2338,7 +2448,7 @@
             "round_2026-04-05": 28,
             "round_2026-04-19": 42,
             "round_2026-04-26": 36,
-            "round_2026-05-03": 0,
+            "round_2026-05-03": 31,
             "round_2026-05-10": 0
           },
           "team_name": "FC Lokomotywa"
@@ -2481,16 +2591,16 @@
               }
             }
           },
-          "total_points": 120,
+          "total_points": 132,
           "rounds_played": 5,
           "best_score": 40,
-          "worst_score": 19,
+          "worst_score": 12,
           "round_scores": {
             "round_2026-04-12": 19,
             "round_2026-04-05": 34,
             "round_2026-04-19": 40,
             "round_2026-04-26": 27,
-            "round_2026-05-03": 0,
+            "round_2026-05-03": 12,
             "round_2026-05-10": 0
           },
           "team_name": "Borciuchy International"
@@ -2633,7 +2743,7 @@
               }
             }
           },
-          "total_points": 103,
+          "total_points": 125,
           "rounds_played": 5,
           "best_score": 30,
           "worst_score": 20,
@@ -2642,7 +2752,7 @@
             "round_2026-04-05": 24,
             "round_2026-04-19": 29,
             "round_2026-04-26": 30,
-            "round_2026-05-03": 0,
+            "round_2026-05-03": 22,
             "round_2026-05-10": 0
           },
           "team_name": "WuGieZet"
