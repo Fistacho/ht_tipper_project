@@ -1576,9 +1576,10 @@
           "away_team_name": "Legia KG(L)",
           "match_date": "2026-05-10 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 4,
+          "away_goals": 5,
+          "league_id": 32612,
+          "result_updated": "2026-05-12T15:53:48.245163"
         },
         {
           "match_id": "764125163",
@@ -1588,9 +1589,10 @@
           "away_team_name": "ks Jastrowie",
           "match_date": "2026-05-10 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 1,
+          "away_goals": 3,
+          "league_id": 32612,
+          "result_updated": "2026-05-12T15:53:48.245183"
         },
         {
           "match_id": "764125164",
@@ -1600,9 +1602,10 @@
           "away_team_name": "LegiaWawa",
           "match_date": "2026-05-10 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 2,
+          "away_goals": 3,
+          "league_id": 32612,
+          "result_updated": "2026-05-12T15:53:48.245197"
         },
         {
           "match_id": "764125165",
@@ -1612,9 +1615,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2026-05-10 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 2,
+          "away_goals": 1,
+          "league_id": 32612,
+          "result_updated": "2026-05-12T15:53:48.245209"
         },
         {
           "match_id": "764094141",
@@ -1624,13 +1628,51 @@
           "away_team_name": "FC Paralityks",
           "match_date": "2026-05-10 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 9583
+          "home_goals": 4,
+          "away_goals": 2,
+          "league_id": 9583,
+          "result_updated": "2026-05-12T15:53:48.245221"
         }
       ],
       "start_date": "2026-05-10",
-      "predictions": {}
+      "predictions": {
+        "Fistach": {
+          "764125161": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2026-05-12T15:53:48.244936"
+          },
+          "764125163": {
+            "home": 0,
+            "away": 6,
+            "timestamp": "2026-05-12T15:53:48.245010"
+          },
+          "764125164": {
+            "home": 2,
+            "away": 2,
+            "timestamp": "2026-05-12T15:53:48.245058"
+          },
+          "764125165": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2026-05-12T15:53:48.245102"
+          },
+          "764094141": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2026-05-12T15:53:48.245144"
+          }
+        }
+      },
+      "match_points": {
+        "Fistach": {
+          "764125161": 0,
+          "764125163": 6,
+          "764125164": 4,
+          "764125165": 3,
+          "764094141": 2
+        }
+      }
     },
     "round_2026-05-17": {
       "season_id": "season_82",
@@ -1871,7 +1913,7 @@
           "total_points": 137,
           "rounds_played": 5,
           "best_score": 34,
-          "worst_score": 20,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 20,
             "round_2026-04-05": 22,
@@ -2019,19 +2061,46 @@
                 "away": 0,
                 "timestamp": "2026-05-09T06:08:08.459106"
               }
+            },
+            "round_2026-05-10": {
+              "764125161": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2026-05-12T15:53:48.244950"
+              },
+              "764125163": {
+                "home": 0,
+                "away": 6,
+                "timestamp": "2026-05-12T15:53:48.245016"
+              },
+              "764125164": {
+                "home": 2,
+                "away": 2,
+                "timestamp": "2026-05-12T15:53:48.245064"
+              },
+              "764125165": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2026-05-12T15:53:48.245108"
+              },
+              "764094141": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2026-05-12T15:53:48.245150"
+              }
             }
           },
-          "total_points": 143,
-          "rounds_played": 5,
+          "total_points": 158,
+          "rounds_played": 6,
           "best_score": 39,
-          "worst_score": 18,
+          "worst_score": 15,
           "round_scores": {
             "round_2026-04-12": 18,
             "round_2026-04-05": 24,
             "round_2026-04-19": 39,
             "round_2026-04-26": 37,
             "round_2026-05-03": 25,
-            "round_2026-05-10": 0,
+            "round_2026-05-10": 15,
             "round_2026-05-17": 0
           },
           "team_name": "LegiaWawa"
@@ -2193,7 +2262,7 @@
           "total_points": 132,
           "rounds_played": 5,
           "best_score": 35,
-          "worst_score": 19,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 19,
             "round_2026-04-05": 26,
@@ -2346,7 +2415,7 @@
           "total_points": 145,
           "rounds_played": 5,
           "best_score": 43,
-          "worst_score": 20,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 20,
             "round_2026-04-05": 28,
@@ -2516,7 +2585,7 @@
           "total_points": 149,
           "rounds_played": 5,
           "best_score": 42,
-          "worst_score": 12,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 12,
             "round_2026-04-05": 28,
@@ -2669,7 +2738,7 @@
           "total_points": 132,
           "rounds_played": 5,
           "best_score": 40,
-          "worst_score": 12,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 19,
             "round_2026-04-05": 34,
@@ -2822,7 +2891,7 @@
           "total_points": 125,
           "rounds_played": 5,
           "best_score": 30,
-          "worst_score": 20,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 20,
             "round_2026-04-05": 24,
