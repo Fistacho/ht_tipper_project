@@ -2726,9 +2726,10 @@
           "away_team_name": "Legia KG(L)",
           "match_date": "2026-06-07 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 0,
+          "away_goals": 3,
+          "league_id": 32612,
+          "result_updated": "2026-06-07T09:03:56.576832"
         },
         {
           "match_id": "764125178",
@@ -2738,9 +2739,10 @@
           "away_team_name": "LegiaWawa",
           "match_date": "2026-06-07 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 3,
+          "away_goals": 1,
+          "league_id": 32612,
+          "result_updated": "2026-06-07T09:03:56.576865"
         },
         {
           "match_id": "764125179",
@@ -2750,9 +2752,10 @@
           "away_team_name": "FC Lokomotywa",
           "match_date": "2026-06-07 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 2,
+          "away_goals": 0,
+          "league_id": 32612,
+          "result_updated": "2026-06-07T09:03:56.576889"
         },
         {
           "match_id": "764125180",
@@ -2762,9 +2765,10 @@
           "away_team_name": "ks Jastrowie",
           "match_date": "2026-06-07 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 0,
+          "away_goals": 3,
+          "league_id": 32612,
+          "result_updated": "2026-06-07T09:03:56.576909"
         },
         {
           "match_id": "764094156",
@@ -2774,12 +2778,117 @@
           "away_team_name": "FC Paralityks",
           "match_date": "2026-06-07 09:00:00",
           "status": null,
+          "home_goals": 0,
+          "away_goals": 0,
+          "league_id": 9583,
+          "result_updated": "2026-06-07T09:03:56.576929"
+        }
+      ],
+      "start_date": "2026-06-07",
+      "predictions": {
+        "Preiss": {
+          "764125177": {
+            "home": 0,
+            "away": 7,
+            "timestamp": "2026-06-07T09:03:56.576588"
+          },
+          "764125178": {
+            "home": 1,
+            "away": 3,
+            "timestamp": "2026-06-07T09:03:56.576663"
+          },
+          "764125179": {
+            "home": 1,
+            "away": 1,
+            "timestamp": "2026-06-07T09:03:56.576715"
+          },
+          "764125180": {
+            "home": 0,
+            "away": 1,
+            "timestamp": "2026-06-07T09:03:56.576762"
+          },
+          "764094156": {
+            "home": 3,
+            "away": 1,
+            "timestamp": "2026-06-07T09:03:56.576808"
+          }
+        }
+      },
+      "match_points": {
+        "Preiss": {
+          "764125177": 6,
+          "764125178": 1,
+          "764125179": 3,
+          "764125180": 8,
+          "764094156": 1
+        }
+      }
+    },
+    "round_2026-06-14": {
+      "season_id": "season_82",
+      "matches": [
+        {
+          "match_id": "764125181",
+          "home_team_id": "1825826",
+          "home_team_name": "LegiaWawa",
+          "away_team_id": "265812",
+          "away_team_name": "WuGieZet",
+          "match_date": "2026-06-14 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "764125182",
+          "home_team_id": "2883083",
+          "home_team_name": "huragan gniewczyna 1",
+          "away_team_id": "477994",
+          "away_team_name": "Borciuchy International",
+          "match_date": "2026-06-14 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "764125183",
+          "home_team_id": "1829983",
+          "home_team_name": "Legia KG(L)",
+          "away_team_id": "866974",
+          "away_team_name": "Moli Team",
+          "match_date": "2026-06-14 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "764125184",
+          "home_team_id": "479526",
+          "home_team_name": "ks Jastrowie",
+          "away_team_id": "1299952",
+          "away_team_name": "FC Lokomotywa",
+          "match_date": "2026-06-14 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "764094160",
+          "home_team_id": "477384",
+          "home_team_name": "WRBL Cavaliers",
+          "away_team_id": "1823455",
+          "away_team_name": "FC Paralityks",
+          "match_date": "2026-06-14 09:00:00",
+          "status": null,
           "home_goals": null,
           "away_goals": null,
           "league_id": 9583
         }
       ],
-      "start_date": "2026-06-07",
+      "start_date": "2026-06-14",
       "predictions": {}
     }
   },
@@ -2796,7 +2905,8 @@
         "round_2026-05-17",
         "round_2026-05-24",
         "round_2026-05-31",
-        "round_2026-06-07"
+        "round_2026-06-07",
+        "round_2026-06-14"
       ],
       "start_date": null,
       "end_date": null,
@@ -3065,7 +3175,7 @@
           "total_points": 239,
           "rounds_played": 9,
           "best_score": 38,
-          "worst_score": 16,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 20,
             "round_2026-04-05": 22,
@@ -3076,7 +3186,8 @@
             "round_2026-05-17": 38,
             "round_2026-05-24": 23,
             "round_2026-05-31": 25,
-            "round_2026-06-07": 0
+            "round_2026-06-07": 0,
+            "round_2026-06-14": 0
           },
           "team_name": "Legia KG(L)"
         },
@@ -3329,7 +3440,7 @@
           "total_points": 241,
           "rounds_played": 9,
           "best_score": 39,
-          "worst_score": 15,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 18,
             "round_2026-04-05": 24,
@@ -3340,7 +3451,8 @@
             "round_2026-05-17": 35,
             "round_2026-05-24": 23,
             "round_2026-05-31": 25,
-            "round_2026-06-07": 0
+            "round_2026-06-07": 0,
+            "round_2026-06-14": 0
           },
           "team_name": "LegiaWawa"
         },
@@ -3360,7 +3472,8 @@
             "round_2026-05-17": 0,
             "round_2026-05-24": 0,
             "round_2026-05-31": 0,
-            "round_2026-06-07": 0
+            "round_2026-06-07": 0,
+            "round_2026-06-14": 0
           }
         },
         "Manvers": {
@@ -3596,7 +3709,8 @@
             "round_2026-05-17": 34,
             "round_2026-05-24": 29,
             "round_2026-05-31": 0,
-            "round_2026-06-07": 0
+            "round_2026-06-07": 0,
+            "round_2026-06-14": 0
           },
           "team_name": "FC Paralityks"
         },
@@ -3849,7 +3963,7 @@
           "total_points": 242,
           "rounds_played": 9,
           "best_score": 43,
-          "worst_score": 19,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 20,
             "round_2026-04-05": 28,
@@ -3860,7 +3974,8 @@
             "round_2026-05-17": 29,
             "round_2026-05-24": 29,
             "round_2026-05-31": 19,
-            "round_2026-06-07": 0
+            "round_2026-06-07": 0,
+            "round_2026-06-14": 0
           },
           "team_name": "Moli Team"
         },
@@ -3880,7 +3995,8 @@
             "round_2026-05-17": 0,
             "round_2026-05-24": 0,
             "round_2026-05-31": 0,
-            "round_2026-06-07": 0
+            "round_2026-06-07": 0,
+            "round_2026-06-14": 0
           },
           "team_name": "ks Jastrowie"
         },
@@ -4133,7 +4249,7 @@
           "total_points": 255,
           "rounds_played": 9,
           "best_score": 42,
-          "worst_score": 12,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 12,
             "round_2026-04-05": 28,
@@ -4144,7 +4260,8 @@
             "round_2026-05-17": 39,
             "round_2026-05-24": 32,
             "round_2026-05-31": 18,
-            "round_2026-06-07": 0
+            "round_2026-06-07": 0,
+            "round_2026-06-14": 0
           },
           "team_name": "FC Lokomotywa"
         },
@@ -4397,7 +4514,7 @@
           "total_points": 220,
           "rounds_played": 9,
           "best_score": 40,
-          "worst_score": 12,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 19,
             "round_2026-04-05": 34,
@@ -4408,7 +4525,8 @@
             "round_2026-05-17": 33,
             "round_2026-05-24": 26,
             "round_2026-05-31": 14,
-            "round_2026-06-07": 0
+            "round_2026-06-07": 0,
+            "round_2026-06-14": 0
           },
           "team_name": "Borciuchy International"
         },
@@ -4602,10 +4720,37 @@
                 "away": 1,
                 "timestamp": "2026-06-06T16:02:53.633469"
               }
+            },
+            "round_2026-06-07": {
+              "764125177": {
+                "home": 0,
+                "away": 7,
+                "timestamp": "2026-06-07T09:03:56.576600"
+              },
+              "764125178": {
+                "home": 1,
+                "away": 3,
+                "timestamp": "2026-06-07T09:03:56.576669"
+              },
+              "764125179": {
+                "home": 1,
+                "away": 1,
+                "timestamp": "2026-06-07T09:03:56.576721"
+              },
+              "764125180": {
+                "home": 0,
+                "away": 1,
+                "timestamp": "2026-06-07T09:03:56.576768"
+              },
+              "764094156": {
+                "home": 3,
+                "away": 1,
+                "timestamp": "2026-06-07T09:03:56.576813"
+              }
             }
           },
-          "total_points": 177,
-          "rounds_played": 7,
+          "total_points": 196,
+          "rounds_played": 8,
           "best_score": 30,
           "worst_score": 0,
           "round_scores": {
@@ -4618,7 +4763,8 @@
             "round_2026-05-17": 0,
             "round_2026-05-24": 0,
             "round_2026-05-31": 25,
-            "round_2026-06-07": 0
+            "round_2026-06-07": 19,
+            "round_2026-06-14": 0
           },
           "team_name": "WuGieZet"
         }
