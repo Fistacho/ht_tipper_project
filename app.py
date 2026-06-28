@@ -74,7 +74,13 @@ def get_cached_league_fixtures(
     """Pobiera fixtures ligi z krótkim cache, aby ograniczyć liczbę requestów przy rerunach."""
     client = HattrickOAuthSimple(consumer_key, consumer_secret)
     client.set_access_tokens(access_token, access_token_secret)
-    fixtures = client.get_league_fixtures(league_id) or []
+    fixtures = client.get_league_fixtures(league_id)
+
+    # Rozróżniamy awarię API (None) od ligi bez meczów ([]).
+    # Przy awarii rzucamy wyjątek, żeby st.cache_data NIE zapisał pustego wyniku
+    # na cały TTL (to powodowało znikanie kolejek na kilka minut).
+    if fixtures is None:
+        raise RuntimeError(f"API nie zwróciło terminarza dla ligi {league_id}")
 
     normalized_fixtures = []
     for fixture in fixtures:
@@ -912,9 +918,17 @@ def main():
                         st.warning(f"⚠️ Nie udało się pobrać meczów z ligi {league_id}: {e}")
             
             if not all_fixtures:
-                st.error("❌ Nie udało się pobrać meczów z API")
-                return
-            
+                # Całkowita awaria API: jeśli mamy zapisane rundy tego sezonu,
+                # pokaż je zamiast pustej strony (fallback poniżej je dołączy).
+                has_stored_rounds = any(
+                    round_data.get('season_id') == selected_season_id
+                    for round_data in storage.data.get('rounds', {}).values()
+                )
+                if not has_stored_rounds:
+                    st.error("❌ Nie udało się pobrać meczów z API")
+                    return
+                st.warning("⚠️ Nie udało się pobrać meczów z API - pokazuję zapisane kolejki")
+
             # Grupuj mecze według rund (na podstawie daty)
             rounds = defaultdict(list)
             
@@ -928,10 +942,30 @@ def main():
                         rounds[round_key].append(fixture)
                     except ValueError:
                         continue
-            
+
+            # Fallback: dołącz zapisane rundy tego sezonu, których API teraz nie zwróciło.
+            # Chroni przed znikaniem (i przenumerowaniem) kolejek przy chwilowej awarii
+            # lub niepełnej odpowiedzi API. Nie nadpisujemy dat, które API zwróciło -
+            # dla nich zostawiamy świeższe dane z API (zawierają aktualne wyniki).
+            api_dates = set(rounds.keys())
+            for round_data in storage.data.get('rounds', {}).values():
+                if round_data.get('season_id') != selected_season_id:
+                    continue
+                for match in round_data.get('matches', []):
+                    match_date = match.get('match_date')
+                    if not match_date:
+                        continue
+                    try:
+                        dt = datetime.strptime(match_date, "%Y-%m-%d %H:%M:%S")
+                        round_key = dt.strftime("%Y-%m-%d")
+                    except ValueError:
+                        continue
+                    if round_key not in api_dates:
+                        rounds[round_key].append(match)
+
             # Sortuj rundy po dacie (najstarsza pierwsza) dla numeracji
             sorted_rounds_asc = sorted(rounds.items(), key=lambda x: x[0])
-            
+
             if not sorted_rounds_asc:
                 st.warning("⚠️ Brak meczów do wyświetlenia")
                 return
