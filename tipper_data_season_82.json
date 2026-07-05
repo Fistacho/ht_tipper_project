@@ -3820,9 +3820,10 @@
           "away_team_name": "huragan gniewczyna 1",
           "match_date": "2026-07-05 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 2,
+          "away_goals": 0,
+          "league_id": 32612,
+          "result_updated": "2026-07-05T08:50:46.727085"
         },
         {
           "match_id": "764125195",
@@ -3832,9 +3833,10 @@
           "away_team_name": "ks Jastrowie",
           "match_date": "2026-07-05 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 2,
+          "away_goals": 0,
+          "league_id": 32612,
+          "result_updated": "2026-07-05T08:50:46.727119"
         },
         {
           "match_id": "764125196",
@@ -3844,9 +3846,10 @@
           "away_team_name": "Borciuchy International",
           "match_date": "2026-07-05 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 2,
+          "away_goals": 0,
+          "league_id": 32612,
+          "result_updated": "2026-07-05T08:50:46.727146"
         },
         {
           "match_id": "764125197",
@@ -3856,9 +3859,10 @@
           "away_team_name": "Legia KG(L)",
           "match_date": "2026-07-05 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 4,
+          "away_goals": 3,
+          "league_id": 32612,
+          "result_updated": "2026-07-05T08:50:46.727170"
         },
         {
           "match_id": "764094174",
@@ -3868,13 +3872,51 @@
           "away_team_name": "Manchester United Szczytno",
           "match_date": "2026-07-05 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 9583
+          "home_goals": 0,
+          "away_goals": 1,
+          "league_id": 9583,
+          "result_updated": "2026-07-05T08:50:46.727190"
         }
       ],
       "start_date": "2026-07-05",
-      "predictions": {}
+      "predictions": {
+        "Manvers": {
+          "764125195": {
+            "home": 3,
+            "away": 1,
+            "timestamp": "2026-07-05T08:50:46.726652"
+          },
+          "764125196": {
+            "home": 2,
+            "away": 2,
+            "timestamp": "2026-07-05T08:50:46.726763"
+          },
+          "764125197": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2026-07-05T08:50:46.726866"
+          },
+          "764125192": {
+            "home": 4,
+            "away": 0,
+            "timestamp": "2026-07-05T08:50:46.726972"
+          },
+          "764094174": {
+            "home": 3,
+            "away": 1,
+            "timestamp": "2026-07-05T08:50:46.727051"
+          }
+        }
+      },
+      "match_points": {
+        "Manvers": {
+          "764125195": 8,
+          "764125196": 3,
+          "764125197": 1,
+          "764125192": 8,
+          "764094174": 2
+        }
+      }
     }
   },
   "seasons": {
@@ -4271,7 +4313,7 @@
           "total_points": 306,
           "rounds_played": 13,
           "best_score": 38,
-          "worst_score": 14,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 20,
             "round_2026-04-05": 22,
@@ -4647,7 +4689,7 @@
           "total_points": 320,
           "rounds_played": 13,
           "best_score": 47,
-          "worst_score": 13,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 18,
             "round_2026-04-05": 24,
@@ -4987,10 +5029,37 @@
                 "away": 2,
                 "timestamp": "2026-06-28T09:16:28.124449"
               }
+            },
+            "round_2026-07-05": {
+              "764125195": {
+                "home": 3,
+                "away": 1,
+                "timestamp": "2026-07-05T08:50:46.726666"
+              },
+              "764125196": {
+                "home": 2,
+                "away": 2,
+                "timestamp": "2026-07-05T08:50:46.726775"
+              },
+              "764125197": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2026-07-05T08:50:46.726877"
+              },
+              "764125192": {
+                "home": 4,
+                "away": 0,
+                "timestamp": "2026-07-05T08:50:46.726982"
+              },
+              "764094174": {
+                "home": 3,
+                "away": 1,
+                "timestamp": "2026-07-05T08:50:46.727062"
+              }
             }
           },
-          "total_points": 255,
-          "rounds_played": 11,
+          "total_points": 277,
+          "rounds_played": 12,
           "best_score": 35,
           "worst_score": 0,
           "round_scores": {
@@ -5007,7 +5076,7 @@
             "round_2026-06-14": 0,
             "round_2026-06-21": 0,
             "round_2026-06-28": 22,
-            "round_2026-07-05": 0
+            "round_2026-07-05": 22
           },
           "team_name": "FC Paralityks"
         },
@@ -5368,7 +5437,7 @@
           "total_points": 316,
           "rounds_played": 13,
           "best_score": 44,
-          "worst_score": 11,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 20,
             "round_2026-04-05": 28,
@@ -5768,7 +5837,7 @@
           "total_points": 319,
           "rounds_played": 13,
           "best_score": 42,
-          "worst_score": 12,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-04-12": 12,
             "round_2026-04-05": 28,
