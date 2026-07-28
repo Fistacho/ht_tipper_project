@@ -1,0 +1,103 @@
+{
+  "rounds": {},
+  "seasons": {
+    "season_83": {
+      "league_id": null,
+      "rounds": [],
+      "start_date": null,
+      "end_date": null,
+      "selected_teams": [],
+      "selected_leagues": [
+        32612
+      ],
+      "selected_players": [],
+      "team_metadata": {
+        "LegiaWawa": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "LegiaWawa (VI.499)"
+        },
+        "Legia KG(L)": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "Legia KG(L) (VI.499)"
+        },
+        "Moli Team": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "Moli Team (VI.499)"
+        },
+        "FC Lokomotywa": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "FC Lokomotywa (VI.499)"
+        },
+        "BratkiFC": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "BratkiFC (VI.499)"
+        },
+        "Ogórex Mogilno": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "Ogórex Mogilno (VI.499)"
+        },
+        "Borciuchy International": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "Borciuchy International (VI.499)"
+        },
+        "WuGieZet": {
+          "league_ids": [
+            32612
+          ],
+          "league_names": [
+            "VI.499"
+          ],
+          "label": "WuGieZet (VI.499)"
+        }
+      },
+      "exclude_worst_rule": false,
+      "players": {},
+      "archived": false
+    }
+  },
+  "leagues": {
+    "32612": {
+      "name": "VI.499",
+      "seasons": []
+    }
+  },
+  "settings": {
+    "selected_teams": [],
+    "selected_players": []
+  }
+}
