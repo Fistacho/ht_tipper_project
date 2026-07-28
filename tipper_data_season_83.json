@@ -69,7 +69,7 @@
           "home_goals": 2,
           "away_goals": 3,
           "league_id": 32612,
-          "result_updated": "2026-07-28T16:09:43.085996"
+          "result_updated": "2026-07-28T16:10:04.399235"
         },
         {
           "match_id": "769303954",
@@ -82,7 +82,7 @@
           "home_goals": 3,
           "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2026-07-28T16:09:43.086052"
+          "result_updated": "2026-07-28T16:10:04.399281"
         },
         {
           "match_id": "769303955",
@@ -95,7 +95,7 @@
           "home_goals": 2,
           "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2026-07-28T16:09:43.086099"
+          "result_updated": "2026-07-28T16:10:04.399316"
         },
         {
           "match_id": "769303957",
@@ -108,7 +108,7 @@
           "home_goals": 4,
           "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2026-07-28T16:09:43.086143"
+          "result_updated": "2026-07-28T16:10:04.399349"
         }
       ],
       "start_date": "2026-07-26",
@@ -178,6 +178,28 @@
             "away": 0,
             "timestamp": "2026-07-28T16:09:43.085964"
           }
+        },
+        "Pele": {
+          "769303953": {
+            "home": 2,
+            "away": 2,
+            "timestamp": "2026-07-28T16:10:04.399052"
+          },
+          "769303954": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2026-07-28T16:10:04.399121"
+          },
+          "769303955": {
+            "home": 4,
+            "away": 0,
+            "timestamp": "2026-07-28T16:10:04.399169"
+          },
+          "769303957": {
+            "home": 0,
+            "away": 2,
+            "timestamp": "2026-07-28T16:10:04.399214"
+          }
         }
       },
       "match_points": {
@@ -198,6 +220,12 @@
           "769303954": 8,
           "769303955": 2,
           "769303957": 6
+        },
+        "Pele": {
+          "769303953": 4,
+          "769303954": 8,
+          "769303955": 8,
+          "769303957": 0
         }
       }
     }
@@ -404,11 +432,38 @@
           }
         },
         "Pele": {
-          "predictions": {},
-          "total_points": 0,
-          "rounds_played": 0,
-          "best_score": 0,
-          "worst_score": Infinity
+          "predictions": {
+            "round_2026-07-26": {
+              "769303953": {
+                "home": 2,
+                "away": 2,
+                "timestamp": "2026-07-28T16:10:04.399063"
+              },
+              "769303954": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2026-07-28T16:10:04.399126"
+              },
+              "769303955": {
+                "home": 4,
+                "away": 0,
+                "timestamp": "2026-07-28T16:10:04.399174"
+              },
+              "769303957": {
+                "home": 0,
+                "away": 2,
+                "timestamp": "2026-07-28T16:10:04.399222"
+              }
+            }
+          },
+          "total_points": 20,
+          "rounds_played": 1,
+          "best_score": 20,
+          "worst_score": 20,
+          "round_scores": {
+            "round_2026-08-02": 0,
+            "round_2026-07-26": 20
+          }
         }
       },
       "archived": false
