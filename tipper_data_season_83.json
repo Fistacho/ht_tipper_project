@@ -1,9 +1,127 @@
 {
-  "rounds": {},
+  "rounds": {
+    "round_2026-08-02": {
+      "season_id": "season_83",
+      "matches": [
+        {
+          "match_id": "769303956",
+          "home_team_id": "1299952",
+          "home_team_name": "FC Lokomotywa",
+          "away_team_id": "1825826",
+          "away_team_name": "LegiaWawa",
+          "match_date": "2026-08-02 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "769303958",
+          "home_team_id": "265812",
+          "home_team_name": "WuGieZet",
+          "away_team_id": "866974",
+          "away_team_name": "Moli Team",
+          "match_date": "2026-08-02 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "769303959",
+          "home_team_id": "1803368",
+          "home_team_name": "Ogórex Mogilno",
+          "away_team_id": "477994",
+          "away_team_name": "Borciuchy International",
+          "match_date": "2026-08-02 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "769303960",
+          "home_team_id": "1829983",
+          "home_team_name": "Legia KG(L)",
+          "away_team_id": "3352981",
+          "away_team_name": "BratkiFC",
+          "match_date": "2026-08-02 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        }
+      ],
+      "start_date": "2026-08-02",
+      "predictions": {}
+    },
+    "round_2026-07-26": {
+      "season_id": "season_83",
+      "matches": [
+        {
+          "match_id": "769303953",
+          "home_team_id": "1825826",
+          "home_team_name": "LegiaWawa",
+          "away_team_id": "1829983",
+          "away_team_name": "Legia KG(L)",
+          "match_date": "2026-07-26 09:00:00",
+          "status": null,
+          "home_goals": 2,
+          "away_goals": 3,
+          "league_id": 32612,
+          "result_updated": "2026-07-28T16:07:32.980756"
+        },
+        {
+          "match_id": "769303954",
+          "home_team_id": "866974",
+          "home_team_name": "Moli Team",
+          "away_team_id": "1299952",
+          "away_team_name": "FC Lokomotywa",
+          "match_date": "2026-07-26 09:00:00",
+          "status": null,
+          "home_goals": 3,
+          "away_goals": 0,
+          "league_id": 32612,
+          "result_updated": "2026-07-28T16:07:32.980795"
+        },
+        {
+          "match_id": "769303955",
+          "home_team_id": "3352981",
+          "home_team_name": "BratkiFC",
+          "away_team_id": "1803368",
+          "away_team_name": "Ogórex Mogilno",
+          "match_date": "2026-07-26 09:00:00",
+          "status": null,
+          "home_goals": 2,
+          "away_goals": 0,
+          "league_id": 32612,
+          "result_updated": "2026-07-28T16:07:32.980811"
+        },
+        {
+          "match_id": "769303957",
+          "home_team_id": "477994",
+          "home_team_name": "Borciuchy International",
+          "away_team_id": "265812",
+          "away_team_name": "WuGieZet",
+          "match_date": "2026-07-26 09:00:00",
+          "status": null,
+          "home_goals": 4,
+          "away_goals": 1,
+          "league_id": 32612,
+          "result_updated": "2026-07-28T16:07:32.980822"
+        }
+      ],
+      "start_date": "2026-07-26",
+      "predictions": {}
+    }
+  },
   "seasons": {
     "season_83": {
       "league_id": null,
-      "rounds": [],
+      "rounds": [
+        "round_2026-08-02",
+        "round_2026-07-26"
+      ],
       "start_date": null,
       "end_date": null,
       "selected_teams": [
@@ -95,7 +213,15 @@
         }
       },
       "exclude_worst_rule": false,
-      "players": {},
+      "players": {
+        "Sonne": {
+          "predictions": {},
+          "total_points": 0,
+          "rounds_played": 0,
+          "best_score": 0,
+          "worst_score": Infinity
+        }
+      },
       "archived": false
     }
   },
