@@ -6,7 +6,16 @@
       "rounds": [],
       "start_date": null,
       "end_date": null,
-      "selected_teams": [],
+      "selected_teams": [
+        "Borciuchy International",
+        "BratkiFC",
+        "FC Lokomotywa",
+        "Legia KG(L)",
+        "LegiaWawa",
+        "Moli Team",
+        "Ogórex Mogilno",
+        "WuGieZet"
+      ],
       "selected_leagues": [
         32612
       ],
