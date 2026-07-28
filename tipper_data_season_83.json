@@ -69,7 +69,7 @@
           "home_goals": 2,
           "away_goals": 3,
           "league_id": 32612,
-          "result_updated": "2026-07-28T16:10:43.773411"
+          "result_updated": "2026-07-28T16:11:07.853579"
         },
         {
           "match_id": "769303954",
@@ -82,7 +82,7 @@
           "home_goals": 3,
           "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2026-07-28T16:10:43.773470"
+          "result_updated": "2026-07-28T16:11:07.853648"
         },
         {
           "match_id": "769303955",
@@ -95,7 +95,7 @@
           "home_goals": 2,
           "away_goals": 0,
           "league_id": 32612,
-          "result_updated": "2026-07-28T16:10:43.773516"
+          "result_updated": "2026-07-28T16:11:07.853702"
         },
         {
           "match_id": "769303957",
@@ -108,7 +108,7 @@
           "home_goals": 4,
           "away_goals": 1,
           "league_id": 32612,
-          "result_updated": "2026-07-28T16:10:43.773561"
+          "result_updated": "2026-07-28T16:11:07.853756"
         }
       ],
       "start_date": "2026-07-26",
@@ -244,6 +244,28 @@
             "away": 2,
             "timestamp": "2026-07-28T16:10:43.773392"
           }
+        },
+        "adi": {
+          "769303953": {
+            "home": 2,
+            "away": 2,
+            "timestamp": "2026-07-28T16:11:07.853381"
+          },
+          "769303954": {
+            "home": 2,
+            "away": 0,
+            "timestamp": "2026-07-28T16:11:07.853457"
+          },
+          "769303955": {
+            "home": 0,
+            "away": 0,
+            "timestamp": "2026-07-28T16:11:07.853509"
+          },
+          "769303957": {
+            "home": 2,
+            "away": 1,
+            "timestamp": "2026-07-28T16:11:07.853558"
+          }
         }
       },
       "match_points": {
@@ -282,6 +304,12 @@
           "769303954": 9,
           "769303955": 9,
           "769303957": 0
+        },
+        "adi": {
+          "769303953": 4,
+          "769303954": 9,
+          "769303955": 3,
+          "769303957": 8
         }
       }
     }
@@ -590,11 +618,38 @@
           }
         },
         "adi": {
-          "predictions": {},
-          "total_points": 0,
-          "rounds_played": 0,
-          "best_score": 0,
-          "worst_score": Infinity
+          "predictions": {
+            "round_2026-07-26": {
+              "769303953": {
+                "home": 2,
+                "away": 2,
+                "timestamp": "2026-07-28T16:11:07.853395"
+              },
+              "769303954": {
+                "home": 2,
+                "away": 0,
+                "timestamp": "2026-07-28T16:11:07.853463"
+              },
+              "769303955": {
+                "home": 0,
+                "away": 0,
+                "timestamp": "2026-07-28T16:11:07.853515"
+              },
+              "769303957": {
+                "home": 2,
+                "away": 1,
+                "timestamp": "2026-07-28T16:11:07.853565"
+              }
+            }
+          },
+          "total_points": 24,
+          "rounds_played": 1,
+          "best_score": 24,
+          "worst_score": 24,
+          "round_scores": {
+            "round_2026-08-02": 0,
+            "round_2026-07-26": 24
+          }
         }
       },
       "archived": false
