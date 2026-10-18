@@ -2617,6 +2617,84 @@
         }
       ],
       "start_date": "2026-10-18",
+      "predictions": {
+        "Sonne": {
+          "769304001": {
+            "home": 6,
+            "away": 0,
+            "timestamp": "2026-10-18T08:54:04.970711"
+          },
+          "769304002": {
+            "home": 4,
+            "away": 0,
+            "timestamp": "2026-10-18T08:54:04.970777"
+          },
+          "769304003": {
+            "home": 0,
+            "away": 6,
+            "timestamp": "2026-10-18T08:54:04.970825"
+          },
+          "769304004": {
+            "home": 3,
+            "away": 0,
+            "timestamp": "2026-10-18T08:54:04.970866"
+          }
+        }
+      }
+    },
+    "round_2026-10-25": {
+      "season_id": "season_83",
+      "matches": [
+        {
+          "match_id": "769304005",
+          "home_team_id": "1803368",
+          "home_team_name": "Ogórex Mogilno",
+          "away_team_id": "3352981",
+          "away_team_name": "BratkiFC",
+          "match_date": "2026-10-25 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "769304006",
+          "home_team_id": "265812",
+          "home_team_name": "WuGieZet",
+          "away_team_id": "477994",
+          "away_team_name": "Borciuchy International",
+          "match_date": "2026-10-25 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "769304008",
+          "home_team_id": "1299952",
+          "home_team_name": "FC Lokomotywa",
+          "away_team_id": "866974",
+          "away_team_name": "Moli Team",
+          "match_date": "2026-10-25 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        },
+        {
+          "match_id": "769304009",
+          "home_team_id": "1829983",
+          "home_team_name": "Legia KG(L)",
+          "away_team_id": "1825826",
+          "away_team_name": "LegiaWawa",
+          "match_date": "2026-10-25 09:00:00",
+          "status": null,
+          "home_goals": null,
+          "away_goals": null,
+          "league_id": 32612
+        }
+      ],
+      "start_date": "2026-10-25",
       "predictions": {}
     }
   },
@@ -2636,7 +2714,8 @@
         "round_2026-09-27",
         "round_2026-10-04",
         "round_2026-10-11",
-        "round_2026-10-18"
+        "round_2026-10-18",
+        "round_2026-10-25"
       ],
       "start_date": null,
       "end_date": null,
@@ -2973,10 +3052,32 @@
                 "away": 5,
                 "timestamp": "2026-10-11T14:23:26.632931"
               }
+            },
+            "round_2026-10-18": {
+              "769304001": {
+                "home": 6,
+                "away": 0,
+                "timestamp": "2026-10-18T08:54:04.970723"
+              },
+              "769304002": {
+                "home": 4,
+                "away": 0,
+                "timestamp": "2026-10-18T08:54:04.970785"
+              },
+              "769304003": {
+                "home": 0,
+                "away": 6,
+                "timestamp": "2026-10-18T08:54:04.970831"
+              },
+              "769304004": {
+                "home": 3,
+                "away": 0,
+                "timestamp": "2026-10-18T08:54:04.970872"
+              }
             }
           },
           "total_points": 317,
-          "rounds_played": 11,
+          "rounds_played": 12,
           "best_score": 40,
           "worst_score": 0,
           "round_scores": {
@@ -2992,7 +3093,8 @@
             "round_2026-09-27": 31,
             "round_2026-10-04": 32,
             "round_2026-10-11": 27,
-            "round_2026-10-18": 0
+            "round_2026-10-18": 0,
+            "round_2026-10-25": 0
           }
         },
         "Fistach": {
@@ -3279,7 +3381,8 @@
             "round_2026-09-27": 41,
             "round_2026-10-04": 30,
             "round_2026-10-11": 21,
-            "round_2026-10-18": 0
+            "round_2026-10-18": 0,
+            "round_2026-10-25": 0
           }
         },
         "Wilk": {
@@ -3434,7 +3537,8 @@
             "round_2026-09-27": 0,
             "round_2026-10-04": 0,
             "round_2026-10-11": 0,
-            "round_2026-10-18": 0
+            "round_2026-10-18": 0,
+            "round_2026-10-25": 0
           }
         },
         "Pele": {
@@ -3655,7 +3759,8 @@
             "round_2026-09-27": 30,
             "round_2026-10-04": 24,
             "round_2026-10-11": 0,
-            "round_2026-10-18": 0
+            "round_2026-10-18": 0,
+            "round_2026-10-25": 0
           }
         },
         "preiss": {
@@ -3920,7 +4025,8 @@
             "round_2026-09-27": 36,
             "round_2026-10-04": 24,
             "round_2026-10-11": 24,
-            "round_2026-10-18": 0
+            "round_2026-10-18": 0,
+            "round_2026-10-25": 0
           }
         },
         "Moli": {
@@ -4031,7 +4137,8 @@
             "round_2026-09-27": 0,
             "round_2026-10-04": 0,
             "round_2026-10-11": 0,
-            "round_2026-10-18": 0
+            "round_2026-10-18": 0,
+            "round_2026-10-25": 0
           }
         },
         "adi": {
@@ -4318,7 +4425,8 @@
             "round_2026-09-27": 37,
             "round_2026-10-04": 26,
             "round_2026-10-11": 21,
-            "round_2026-10-18": 0
+            "round_2026-10-18": 0,
+            "round_2026-10-25": 0
           }
         }
       },
