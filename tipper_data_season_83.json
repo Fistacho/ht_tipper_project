@@ -2741,9 +2741,10 @@
           "away_team_name": "BratkiFC",
           "match_date": "2026-10-25 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 0,
+          "away_goals": 0,
+          "league_id": 32612,
+          "result_updated": "2026-10-25T09:52:22.282031"
         },
         {
           "match_id": "769304006",
@@ -2753,9 +2754,10 @@
           "away_team_name": "Borciuchy International",
           "match_date": "2026-10-25 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 0,
+          "away_goals": 6,
+          "league_id": 32612,
+          "result_updated": "2026-10-25T09:52:22.282069"
         },
         {
           "match_id": "769304008",
@@ -2765,9 +2767,10 @@
           "away_team_name": "Moli Team",
           "match_date": "2026-10-25 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 4,
+          "away_goals": 1,
+          "league_id": 32612,
+          "result_updated": "2026-10-25T09:52:22.282094"
         },
         {
           "match_id": "769304009",
@@ -2777,13 +2780,45 @@
           "away_team_name": "LegiaWawa",
           "match_date": "2026-10-25 09:00:00",
           "status": null,
-          "home_goals": null,
-          "away_goals": null,
-          "league_id": 32612
+          "home_goals": 2,
+          "away_goals": 7,
+          "league_id": 32612,
+          "result_updated": "2026-10-25T09:52:22.282109"
         }
       ],
       "start_date": "2026-10-25",
-      "predictions": {}
+      "predictions": {
+        "Fistach": {
+          "769304005": {
+            "home": 1,
+            "away": 0,
+            "timestamp": "2026-10-25T09:52:22.281770"
+          },
+          "769304006": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2026-10-25T09:52:22.281855"
+          },
+          "769304008": {
+            "home": 2,
+            "away": 2,
+            "timestamp": "2026-10-25T09:52:22.281911"
+          },
+          "769304009": {
+            "home": 1,
+            "away": 2,
+            "timestamp": "2026-10-25T09:52:22.281992"
+          }
+        }
+      },
+      "match_points": {
+        "Fistach": {
+          "769304005": 4,
+          "769304006": 5,
+          "769304008": 2,
+          "769304009": 4
+        }
+      }
     }
   },
   "seasons": {
@@ -3472,12 +3507,34 @@
                 "away": 1,
                 "timestamp": "2026-10-18T08:54:14.293211"
               }
+            },
+            "round_2026-10-25": {
+              "769304005": {
+                "home": 1,
+                "away": 0,
+                "timestamp": "2026-10-25T09:52:22.281783"
+              },
+              "769304006": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2026-10-25T09:52:22.281862"
+              },
+              "769304008": {
+                "home": 2,
+                "away": 2,
+                "timestamp": "2026-10-25T09:52:22.281917"
+              },
+              "769304009": {
+                "home": 1,
+                "away": 2,
+                "timestamp": "2026-10-25T09:52:22.282003"
+              }
             }
           },
-          "total_points": 368,
-          "rounds_played": 13,
+          "total_points": 383,
+          "rounds_played": 14,
           "best_score": 41,
-          "worst_score": 20,
+          "worst_score": 15,
           "round_scores": {
             "round_2026-08-02": 23,
             "round_2026-07-26": 20,
@@ -3492,7 +3549,7 @@
             "round_2026-10-04": 30,
             "round_2026-10-11": 21,
             "round_2026-10-18": 0,
-            "round_2026-10-25": 0
+            "round_2026-10-25": 15
           }
         },
         "Wilk": {
@@ -4587,7 +4644,7 @@
           "total_points": 337,
           "rounds_played": 13,
           "best_score": 37,
-          "worst_score": 10,
+          "worst_score": 0,
           "round_scores": {
             "round_2026-08-02": 25,
             "round_2026-07-26": 24,
